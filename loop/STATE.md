@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 resumed by the owner 2026-10-13: open `tasks/phase-2_ble-transport/` |
+| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 in progress: `tasks/phase-2_ble-transport/` (opened 2026-10-13) |
 | **Blocked?** | no (Q2, Q6 answered; Q5 comes from M1 `scan`; Q3/Q4/Q7/Q8 block M3+ only) |
 
 ## Carry-forward — obligations that outlive the task that found them

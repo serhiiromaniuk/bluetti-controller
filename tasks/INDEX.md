@@ -16,6 +16,7 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | Started | Phase | Task | Folder | Status | Milestone tag |
 |---------|-------|------|--------|--------|---------------|
 | 2026-10-13 | 1 | Foundation (M0) | [OUTCOME](./phase-1_foundation/OUTCOME.md) | done | `v0.1-foundation` |
+| 2026-10-13 | 2 | BLE transport + CLI, EB3A (M1) | [phase-2_ble-transport](./phase-2_ble-transport/) | in-progress | `v0.2-ble` |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:
