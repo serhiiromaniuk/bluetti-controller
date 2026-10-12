@@ -376,8 +376,8 @@ None covers all three of our stations. [S16][S24]
 | p256, aes, cbc, md-5 | (pick at M2) | for the handshake |
 | uPlot (vendored JS) | 1.6.32 | 21.9 KB gzipped vs Chart.js 68.4 KB |
 
-Local note: the dev machine's Debian `cargo` (1.93.1) lacks `rustfmt` and
-`clippy`; install them (or use rustup) before `make check`. [S25]
+Toolchain: rustup with Rust 1.99.0 pinned in `rust-toolchain.toml` (rustfmt +
+clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
 
 ### 4.10 Outage-schedule sources (for R2)
 
@@ -811,7 +811,7 @@ Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
 - [x] `src/protocol/device.rs`: model from BLE name, encryption flag, register
       maps (EB3A, AC180, provisional Elite 200 V2), decoding with plausibility.
 - [x] 11 unit tests green (`cargo test`).
-- [ ] Install `rustfmt` + `clippy` locally; `make check` green locally.
+- [x] rustup + `rust-toolchain.toml` (1.99.0, rustfmt, clippy); `make check` green locally.
 - [ ] Owner review: golden rules, phase table, thresholds (RULES.md); answer §14.
 
 **Acceptance:** `make check` green; owner sign-off recorded in the task LOG.
@@ -930,7 +930,7 @@ the unplug; DB < 10 MB per station-day.
 | R9 | `bluer` slow maintenance / blocking bugs | M | M | adapter boundary; `btleplug` as a drop-in alternative behind `Gatt` |
 | R10 | SQLite damage on sudden power loss | L | M | WAL + `synchronous=NORMAL`; host on a UPS station |
 | R11 | False outages from a flapping input | M | M | voltage threshold + debounce + multi-station vote |
-| R12 | Debian toolchain too old for a crate's MSRV | L | L | rustup stable toolchain on the dev host |
+| R12 | Debian toolchain too old for a crate's MSRV | L | L | toolchain pinned in `rust-toolchain.toml`, bumped deliberately |
 
 ---
 

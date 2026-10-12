@@ -3,7 +3,7 @@
 # tooling). The `check` target is the single sanctioned gate; run it before every
 # commit. `make help` lists everything.
 
-# The Rust version is pinned in ONE place: `rust-version` in Cargo.toml.
+# The Rust toolchain is pinned in ONE place: rust-toolchain.toml (rustup).
 CARGO ?= cargo
 
 # Use bash and fail loudly.

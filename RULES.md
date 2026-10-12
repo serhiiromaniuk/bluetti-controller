@@ -132,8 +132,11 @@ self-applied edit.
 
 ## Conventions
 
-- Rust edition 2024, `rust-version` pinned in `Cargo.toml` (one place, read by
-  every build). Doc comments on public items.
+- Rust edition 2024. The exact toolchain (compiler + rustfmt + clippy) is pinned
+  in `rust-toolchain.toml` and installed by rustup; `rust-version` in
+  `Cargo.toml` is only the minimum supported version. Upgrade = bump the
+  channel in `rust-toolchain.toml`, run `make check`, commit. Doc comments on
+  public items.
 - **No CI/CD.** The owner decided against it: `make check` run locally before
   every commit is the only gate.
 - **Structured logging** via `tracing`, no `println!` debugging left in.

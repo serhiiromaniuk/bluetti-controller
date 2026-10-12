@@ -27,3 +27,42 @@ port, no APK reverse-engineering, stack, storage, UI, keys outside repo, host po
 No CI/CD (owner, 2026-10-13).
 **Carry-forward:** see loop/STATE.md.
 **Next:** step 5 — `make check` green (needs Q2).
+
+## Step 5 ✓ 2026-10-13 — toolchain pinned, `make check` green
+
+**Changed:** `rust-toolchain.toml` (1.99.0, rustfmt, clippy, minimal profile);
+`src/protocol/*.rs` rustfmt only; RULES.md conventions, AGENTS.md prerequisites,
+Makefile header, ROADMAP.md §4.9 / §12 M0 / §13 R12 now point at the toolchain file.
+
+**Check:** `make check` — first run red on `fmt-check` (formatting only; clippy
+and 11 tests green), `make format`, then green. Evidence below.
+
+**reviewer:** batched (low-risk: toolchain pin + mechanical formatting).
+
+**Decision:** toolchain via rustup, exact version in `rust-toolchain.toml`;
+`rust-version` 1.85 stays as the MSRV (owner answer Q2).
+**Carry-forward:** none.
+**Next:** step 6 — owner review of RULES.md + ROADMAP.md (needs Q1).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T22:11:55Z
+
+```text
+test protocol::modbus::tests::crc_matches_reference_vectors ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::device::tests::drops_implausible_soc ... ok
+test protocol::device::tests::every_field_is_covered_by_a_block ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::reports_exception ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -21,7 +21,11 @@ pub fn crc16(data: &[u8]) -> u16 {
     for &byte in data {
         crc ^= u16::from(byte);
         for _ in 0..8 {
-            crc = if crc & 1 != 0 { (crc >> 1) ^ 0xA001 } else { crc >> 1 };
+            crc = if crc & 1 != 0 {
+                (crc >> 1) ^ 0xA001
+            } else {
+                crc >> 1
+            };
         }
     }
     crc
@@ -64,7 +68,10 @@ impl fmt::Display for FrameError {
             Self::Exception(code) => write!(f, "device returned Modbus exception {code:#04x}"),
             Self::UnexpectedFunction(code) => write!(f, "unexpected function code {code:#04x}"),
             Self::LengthMismatch { expected, actual } => {
-                write!(f, "length mismatch: expected {expected} bytes, got {actual}")
+                write!(
+                    f,
+                    "length mismatch: expected {expected} bytes, got {actual}"
+                )
             }
         }
     }
@@ -92,7 +99,10 @@ pub fn parse_read_response(frame: &[u8], count: u16) -> Result<Vec<u16>, FrameEr
     }
     let expected_len = read_response_len(count);
     if frame.len() != expected_len || usize::from(body[2]) != 2 * usize::from(count) {
-        return Err(FrameError::LengthMismatch { expected: expected_len, actual: frame.len() });
+        return Err(FrameError::LengthMismatch {
+            expected: expected_len,
+            actual: frame.len(),
+        });
     }
     Ok(body[3..]
         .chunks_exact(2)
@@ -119,7 +129,10 @@ mod tests {
     #[test]
     fn read_request_layout() {
         // EB3A main block: 40 registers from register 10.
-        assert_eq!(read_request(10, 40), [0x01, 0x03, 0x00, 0x0A, 0x00, 0x28, 0x65, 0xD6]);
+        assert_eq!(
+            read_request(10, 40),
+            [0x01, 0x03, 0x00, 0x0A, 0x00, 0x28, 0x65, 0xD6]
+        );
     }
 
     #[test]
@@ -132,13 +145,19 @@ mod tests {
     fn rejects_bad_crc() {
         let mut frame = with_crc(&[0x01, 0x03, 0x02, 0x00, 0x01]);
         frame[4] ^= 0xFF;
-        assert!(matches!(parse_read_response(&frame, 1), Err(FrameError::BadCrc { .. })));
+        assert!(matches!(
+            parse_read_response(&frame, 1),
+            Err(FrameError::BadCrc { .. })
+        ));
     }
 
     #[test]
     fn reports_exception() {
         let frame = with_crc(&[0x01, 0x83, 0x02]);
-        assert_eq!(parse_read_response(&frame, 1), Err(FrameError::Exception(0x02)));
+        assert_eq!(
+            parse_read_response(&frame, 1),
+            Err(FrameError::Exception(0x02))
+        );
     }
 
     #[test]
@@ -146,7 +165,10 @@ mod tests {
         let frame = with_crc(&[0x01, 0x03, 0x02, 0x00, 0x01]);
         assert!(matches!(
             parse_read_response(&frame, 2),
-            Err(FrameError::LengthMismatch { expected: 9, actual: 7 })
+            Err(FrameError::LengthMismatch {
+                expected: 9,
+                actual: 7
+            })
         ));
     }
 }

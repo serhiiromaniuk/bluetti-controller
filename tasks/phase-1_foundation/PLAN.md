@@ -6,7 +6,7 @@
 ## Questions for the owner
 
 - Q1 — Confirm or edit golden rules, phase table and thresholds (RULES.md) · blocks: 6 · answer: asked 2026-10-13
-- Q2 — Install `rustfmt` + `clippy` on the dev host (apt `rustfmt rust-clippy`, or rustup)? · blocks: 5 · answer: asked 2026-10-13
+- Q2 — Install `rustfmt` + `clippy` on the dev host (apt `rustfmt rust-clippy`, or rustup)? · blocks: 5 · answer: rustup installed by the owner, 2026-10-13
 - Q3–Q8 — ROADMAP.md §14 (host, region, router DC/AC, firmware, names, poll interval, VPN) · blocks: none in this phase · answer: asked 2026-10-13
 
 ## Steps
@@ -14,7 +14,7 @@
 - [x] 2. ROADMAP written: decisions, architecture, data model, metrics, UI, config, deploy, tests, milestones, risks (spec §3, spec §12) — check: owner review (step 6)
 - [x] 3. Agent-readiness scaffold: RULES/AGENTS/WORKFLOW/CLAUDE.md, loop/, tasks/, .claude/, Makefile, .gitignore — check: `loop/where.sh --json` runs; agent-readiness re-audit
 - [x] 4. Protocol layer M0 (spec §4): framing, CRC, model detection, encryption flag, maps, decoding — check: `cargo test` 11/11
-- [ ] 5. `make check` green locally (spec §11) (needs Q2) — check: `make check`
+- [x] 5. `make check` green locally (spec §11) (needs Q2) — check: `make check`
 - [ ] 6. Owner review and sign-off of RULES.md + ROADMAP.md (spec §3, spec §12, spec §14) (needs Q1) — check: owner's `human-verified` line in LOG.md
 
 ## Risks / Dependencies

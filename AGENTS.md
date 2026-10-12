@@ -44,9 +44,8 @@ this operating manual permits you to violate them. In particular:
 > the *how-to-execute* workflow is §1+ below. Safety (§0 above) overrides all.
 
 ### Prerequisites
-- Rust stable ≥ the `rust-version` in `Cargo.toml`, with `rustfmt` and `clippy`
-  (rustup, or Debian/Ubuntu packages `rustfmt` + `rust-clippy`), GNU make, git,
-  jq. From M1: `libdbus-1-dev` + `pkg-config` (for `bluer`), BlueZ ≥ 5.63 and a
+- rustup (the toolchain in `rust-toolchain.toml`, with `rustfmt` and `clippy`,
+  installs on the first `cargo` call), GNU make, git, jq. From M1: `libdbus-1-dev` + `pkg-config` (for `bluer`), BlueZ ≥ 5.63 and a
   BLE adapter. Device config and keys live in a local `config.toml`, never in
   the repo (RULES.md golden rule #3).
 

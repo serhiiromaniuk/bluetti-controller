@@ -130,7 +130,12 @@ pub struct Field {
 }
 
 const fn field(metric: Metric, register: u16, scale: f64, verified: bool) -> Field {
-    Field { metric, register, scale, verified }
+    Field {
+        metric,
+        register,
+        scale,
+        verified,
+    }
 }
 
 #[derive(Debug)]
@@ -243,8 +248,14 @@ mod tests {
     #[test]
     fn detects_model_from_ble_name() {
         assert_eq!(Model::from_ble_name("EB3A2235000012345"), Some(Model::Eb3a));
-        assert_eq!(Model::from_ble_name("AC1802335000123456"), Some(Model::Ac180));
-        assert_eq!(Model::from_ble_name("E200V22501000012345"), Some(Model::Elite200V2));
+        assert_eq!(
+            Model::from_ble_name("AC1802335000123456"),
+            Some(Model::Ac180)
+        );
+        assert_eq!(
+            Model::from_ble_name("E200V22501000012345"),
+            Some(Model::Elite200V2)
+        );
         assert_eq!(Model::from_ble_name("AC180P2335000123456"), None);
         assert_eq!(Model::from_ble_name("EB3A"), None);
         assert_eq!(Model::from_ble_name("Pixel 9"), None);
@@ -283,14 +294,20 @@ mod tests {
         block[48 - 10] = 1; // AC output on
         let mut registers = Registers::default();
         registers.insert_block(10, &block);
-        registers.insert_block(70, &[0; 7].iter().copied().chain([2301]).collect::<Vec<_>>());
+        registers.insert_block(
+            70,
+            &[0; 7].iter().copied().chain([2301]).collect::<Vec<_>>(),
+        );
 
         let metrics = decode(Model::Eb3a.profile(), &registers);
         assert_eq!(metrics[&BatterySoc], 87.0);
         assert_eq!(metrics[&AcInputPower], 12.0);
         assert_eq!(metrics[&AcOutputOn], 1.0);
         assert!((metrics[&AcInputVoltage] - 230.1).abs() < 1e-9);
-        assert!(!metrics.contains_key(&DcInputVoltage), "register 86 was not polled");
+        assert!(
+            !metrics.contains_key(&DcInputVoltage),
+            "register 86 was not polled"
+        );
     }
 
     #[test]
