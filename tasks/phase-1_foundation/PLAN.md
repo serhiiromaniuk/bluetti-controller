@@ -5,7 +5,7 @@
 
 ## Questions for the owner
 
-- Q1 — Confirm or edit golden rules, phase table and thresholds (RULES.md) · blocks: 6 · answer: asked 2026-10-13
+- Q1 — Confirm or edit golden rules, phase table and thresholds (RULES.md) · blocks: 6 · answer: approved as written, 2026-10-13
 - Q2 — Install `rustfmt` + `clippy` on the dev host (apt `rustfmt rust-clippy`, or rustup)? · blocks: 5 · answer: rustup installed by the owner, 2026-10-13
 - Q3–Q8 — ROADMAP.md §14 (host, region, router DC/AC, firmware, names, poll interval, VPN) · blocks: none in this phase · answer: asked 2026-10-13
 

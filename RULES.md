@@ -38,8 +38,9 @@ is exactly when it is needed.
 
 ### Golden rules (never violate)
 
-> Drafted on 2026-10-13 from the owner's answers in the planning session. The
-> owner confirms or edits them before the Phase 1 gate (ROADMAP.md §12, M0).
+> Drafted on 2026-10-13 from the owner's answers in the planning session.
+> **Approved by the owner on 2026-10-13** (with the phase table and the
+> acceptance thresholds below). Changes need the owner's approval again.
 
 1. **Local-first runtime.** Monitoring never depends on the internet or the
    Bluetti cloud. No cloud SDK, cloud API call or phone-home enters the runtime

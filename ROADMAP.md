@@ -5,8 +5,9 @@ Governance (golden rules, phase gates, git) lives in [`RULES.md`](./RULES.md); t
 file is the governing spec that tasks cite as `ROADMAP.md §<n>`.
 
 - **Status (2026-10-13):** Phase 1 / M0 *Foundation* — research done, spec written,
-  repo scaffolded, protocol layer coded and unit-tested. Waiting for the owner's
-  review (§14) before any hardware work.
+  repo scaffolded, protocol layer coded and unit-tested, `make check` green.
+  RULES.md approved by the owner (2026-10-13). Waiting for the owner's review of
+  this ROADMAP and the answers in §14 before any hardware work.
 - **Repo:** `serhiiromaniuk/bluetti-controller` (private).
 - **Conventions in this file:** *unverified* means a fact comes from a single
   community source or a search snippet and still needs a hardware check. Every
@@ -812,7 +813,8 @@ Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
       maps (EB3A, AC180, provisional Elite 200 V2), decoding with plausibility.
 - [x] 11 unit tests green (`cargo test`).
 - [x] rustup + `rust-toolchain.toml` (1.99.0, rustfmt, clippy); `make check` green locally.
-- [ ] Owner review: golden rules, phase table, thresholds (RULES.md); answer §14.
+- [x] Owner approved RULES.md: golden rules, phase table, thresholds (2026-10-13).
+- [ ] Owner review of this ROADMAP; answers to §14.
 
 **Acceptance:** `make check` green; owner sign-off recorded in the task LOG.
 
@@ -938,7 +940,7 @@ the unplug; DB < 10 MB per station-day.
 
 | # | Question | Blocks |
 |---|---|---|
-| Q1 | Confirm or edit the golden rules, phase table and thresholds in RULES.md | M0 gate |
+| Q1 | ~~Confirm or edit the golden rules, phase table and thresholds in RULES.md~~ — approved 2026-10-13 | — |
 | Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it | M1 hardware runs, M5 |
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
 | Q4 | Router powered from EB3A AC or DC 12 V? (ECO mode, runtime math, Appendix A) | M3 forecast calibration |

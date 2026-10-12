@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟡 Phase 1: `make check` green locally + owner sign-off on RULES.md and ROADMAP.md |
+| **Gate status** | 🟡 Phase 1: owner sign-off on ROADMAP.md (RULES.md approved, `make check` green) |
 | **Blocked?** | no (owner questions pending: tasks/phase-1_foundation/PLAN.md) |
 
 ## Carry-forward — obligations that outlive the task that found them
@@ -20,3 +20,4 @@
 - 2026-10-13: stack tokio + bluer + axum + askama + rusqlite + uPlot (ADR-004).
 - 2026-10-13: web UI only; no notifications, no Prometheus, no cloud in the MVP (ROADMAP.md §2).
 - 2026-10-13: no CI/CD; `make check` locally is the gate (owner).
+- 2026-10-13: RULES.md approved by the owner — golden rules, phase table, acceptance thresholds.
