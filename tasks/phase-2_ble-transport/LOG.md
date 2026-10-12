@@ -64,3 +64,40 @@ test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## 2026-10-13 — Batched review of 3 unpushed docs commits
+**Scope:** `cb3e584..9f40a49` (owner resume record, task open, plan). Intent:
+d571b0d and 9f40a49 satisfied; cb3e584 shortfall.
+- HIGH H1 `ROADMAP.md` §14 Q6 struck as "defaults approved" with no owner record
+  of a names approval (the STATE decision covers station availability only) →
+  fixed: Q6 row re-opened; asked again as PLAN Q5 (blocks 16).
+- MEDIUM M2 `loop/STATE.md` "Q2, Q6 answered" vs ROADMAP "Q2 partly" → fixed in
+  the same line as H1 (shared edit).
+- MEDIUM M1 BRIEF "scan near all stations" vs AC180 off → deferred to A1.
+- No second pass: the H1 fix is doc wording, no logic.
+
+**reviewer:** batched pass done; push after this commit.
+**Next:** `unasked_questions` 5 — ask Q1–Q5 in one batch.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:23:36Z
+
+```text
+test protocol::device::tests::reads_encryption_flag ... ok
+test protocol::modbus::tests::crc_matches_reference_vectors ... ok
+test protocol::device::tests::every_field_is_covered_by_a_block ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::reports_exception ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.02s
+>> make check: all gates green
+```
+
+<!-- gate:end -->

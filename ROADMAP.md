@@ -948,7 +948,7 @@ the unplug; DB < 10 MB per station-day.
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
 | Q4 | Router powered from EB3A AC or DC 12 V? (ECO mode, runtime math, Appendix A) | M3 forecast calibration |
 | Q5 | Station firmware versions and the encryption flag of each (the `scan` output) | M1/M2 |
-| Q6 | ~~Names/roles for the stations~~ — defaults approved 2026-10-13: EB3A `router`, AC180 `mobile`, Elite 200 V2 `living-room` | — |
+| Q6 | Names/roles for the stations (defaults: router, mobile, living-room) — asked again in phase 2 PLAN Q5 | M1 config |
 | Q7 | Poll interval: 60 s default OK? | M3 |
 | Q8 | UI only on the LAN, or also via VPN (e.g. Tailscale)? | M4 auth |
 
