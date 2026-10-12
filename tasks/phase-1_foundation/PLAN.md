@@ -28,3 +28,10 @@
 
 ## Amendments
 - 2026-10-13 — plan: steps 1–4 were done in the planning session before this plan existed (initial commit).
+- A1 · 2026-10-13 · HIGH `tasks/phase-1_foundation/LOG.md:23` — no reviewer pass on any commit of this task, src/protocol included · close-hold 1 · disposition: fixed in the close-hold 1 fix commit (LOG 2026-10-13)
+- A2 · 2026-10-13 · MEDIUM `src/lib.rs:5` — references to missing docs/ROADMAP.md and docs/RESEARCH.md · close-hold 1 · disposition: fixed in the close-hold 1 fix commit (LOG 2026-10-13)
+- A3 · 2026-10-13 · MEDIUM `src/protocol/device.rs:157` — fields marked `verified: true` without a run on our hardware, contradicts RULES.md · close-hold 1 · disposition: fixed in the close-hold 1 fix commit (LOG 2026-10-13)
+- A4 · 2026-10-13 · UNVERIFIED `tasks/phase-1_foundation/LOG.md:72` — owner sign-offs were written by the driver; an owner-authored record is needed · close-hold 1 · disposition: fixed in 7519af3 (owner-authored commit)
+- A5 · 2026-10-13 · HIGH `.gitignore:4` — `keys.toml` (ROADMAP.md §9) was not ignored · close-hold 1 · disposition: fixed in the close-hold 1 fix commit (LOG 2026-10-13)
+- A6 · 2026-10-13 · MEDIUM `src/protocol/modbus.rs:3` — reassembly doc ignored 5-byte exception replies · close-hold 1 · disposition: fixed (doc) in the close-hold 1 fix commit; length helper re-targeted → CF-3
+- A7 · 2026-10-13 · MEDIUM `AGENTS.md:56` — docs named a `typecheck` target and coverage the Makefile does not have · close-hold 1 · disposition: fixed in the close-hold 1 fix commit (LOG 2026-10-13)

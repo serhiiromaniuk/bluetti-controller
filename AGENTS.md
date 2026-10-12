@@ -52,11 +52,11 @@ this operating manual permits you to violate them. In particular:
 ### Commands — the `Makefile` is the only sanctioned entrypoint
 
 ```bash
-make install   # set up the isolated environment + install deps
-make check     # lint + typecheck + tests, in parallel — RUN BEFORE EVERY COMMIT
+make install   # fetch dependencies (locked)
+make check     # fmt-check + clippy + tests, in parallel — RUN BEFORE EVERY COMMIT
 make step-done MSG="…" [PUSH=1]   # gate → LOG evidence → tick → hygiene → scan → commit
-make test      # tests with coverage (≥80% target)
-make lint | format | typecheck   # the individual gates
+make test      # tests (coverage via cargo llvm-cov arrives at M1)
+make fmt-check | lint | format   # the individual gates
 make lock      # freeze exact dep versions
 make help      # full target list
 ```
@@ -256,7 +256,7 @@ actually proves the step.
 
 | What changed | Check (record output in LOG.md) |
 |--------------|---------------------------------|
-| Any code in `src/` or `tests/` | `make check` (lint + typecheck + tests) |
+| Any code in `src/` or `tests/` | `make check` (fmt-check + clippy + tests) |
 | New/changed logic | a **failing test first**, then green (TDD) |
 | Correctness-critical logic | unit test with hand-computed expected values |
 | Measured results (a gate) | the acceptance criteria vs thresholds (RULES.md) |

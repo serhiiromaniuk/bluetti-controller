@@ -2,7 +2,8 @@
 //!
 //! Requests are written to characteristic `0xFF02`. Responses arrive as
 //! notifications on `0xFF01` and can be split across several notifications,
-//! so the transport reassembles them up to [`read_response_len`] bytes.
+//! so the transport reassembles them up to [`read_response_len`] bytes — except
+//! an exception reply (function byte has 0x80 set), which is always 5 bytes.
 //! Registers are big-endian `u16`; the CRC is CRC-16/MODBUS, little-endian.
 
 use std::fmt;

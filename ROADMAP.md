@@ -832,7 +832,9 @@ Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
       (decoded metrics), `dump <mac> --from --to` (read-only sweep, golden rule #2).
 - [ ] **Human:** run `scan` near all three stations; record which are encrypted
       and their firmware versions (§14 Q5).
-- [ ] **Human:** EB3A acceptance run — 20 polls at 60 s vs the official app.
+- [ ] **Human:** EB3A acceptance run — 20 polls at 60 s vs the official app;
+      mark the fields it confirms `verified: true` (all start `false`).
+- [ ] Exception-aware reassembly length (loop/STATE.md CF-3).
 - [ ] Record an EB3A fixture; replay test for the full read path.
 - [ ] Wire `cargo llvm-cov` into `make check` (≥ 80% on `protocol`).
 
@@ -846,7 +848,7 @@ Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
       without keys (clear error).
 - [ ] Unit tests with vectors recorded from our AC180 (anonymised).
 - [ ] Transport runs the handshake when the advertisement says encrypted.
-- [ ] **Human:** AC180 acceptance run (20 polls vs app).
+- [ ] **Human:** AC180 acceptance run (20 polls vs app); mark confirmed fields `verified: true`.
 - [ ] **Human:** Elite 200 V2 `detect` + `dump` of 100–200, 1300–1520, 6000–6020;
       compare with PR #49 and v2 maps; promote confirmed fields to `verified`.
 - [ ] **Human:** Elite 200 V2 acceptance run.

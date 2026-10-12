@@ -3,6 +3,7 @@
 
 # Local config, keys and secrets (RULES.md golden rule #3)
 config.toml
+keys.toml
 *.local.toml
 .env
 .env.*

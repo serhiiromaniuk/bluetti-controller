@@ -2,6 +2,6 @@
 //!
 //! M0 contains only the hardware-independent protocol layer: Modbus framing,
 //! device detection and register decoding. Transport, storage and the web UI
-//! follow in later milestones (see `docs/ROADMAP.md`).
+//! follow in later milestones (see `ROADMAP.md` §12).
 
 pub mod protocol;

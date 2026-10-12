@@ -125,3 +125,41 @@ cargo clippy --all-targets --locked -- -D warnings
 ```
 
 <!-- gate:end -->
+
+## Close-hold 1 fixes 2026-10-13 — close-reviewer hold + batched reviewer pass
+
+**Close-reviewer:** VERDICT hold — 1 HIGH (no reviewer pass on the task), 2 MEDIUM
+(stale doc links; `verified: true` without hardware), 3 UNVERIFIED (driver-written
+owner sign-offs). Recorded as PLAN A1–A4.
+**reviewer (batched, root..HEAD + working tree):** INTENT satisfied for steps 1–6;
+1 HIGH (`keys.toml` not ignored) → A5; 3 MEDIUM → A6 (exception reply length),
+A7 (AGENTS.md `typecheck`/coverage wording), and OUTCOME/disposition bookkeeping
+(fixed in OUTCOME.md). One MEDIUM dropped by the reviewer (plausibility bounds).
+**Changed:** `.gitignore` (+keys.toml), `src/lib.rs`, `Cargo.toml`,
+`src/protocol/device.rs` (doc + all fields `verified: false`), `src/protocol/modbus.rs`
+(doc), AGENTS.md, ROADMAP.md §12 M1/M2, loop/STATE.md (CF-3), OUTCOME.md.
+**Owner:** A4 settled by the owner's own commit `7519af3`.
+**Next:** re-run the close-reviewer, then tick done-when and tag `v0.1-foundation`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T22:24:39Z
+
+```text
+test protocol::device::tests::detects_model_from_ble_name ... ok
+test protocol::device::tests::decodes_eb3a_block ... ok
+test protocol::device::tests::drops_implausible_soc ... ok
+test protocol::device::tests::every_field_is_covered_by_a_block ... ok
+test protocol::modbus::tests::crc_matches_reference_vectors ... ok
+test protocol::device::tests::reads_encryption_flag ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::reports_exception ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -1,9 +1,9 @@
 //! Device models, register maps and decoding of polled register blocks.
 //!
 //! Register addresses come from the community projects listed in
-//! `docs/RESEARCH.md` (bluetti-bt-lib, bluetti_mqtt). Fields marked
-//! `verified: false` are not yet confirmed on that model and need a hardware
-//! check (milestone M1).
+//! `ROADMAP.md` §4.3 (bluetti-bt-lib, bluetti_mqtt). `verified` means confirmed
+//! on our own hardware (RULES.md conventions), so every field starts `false`
+//! until the M1/M2 acceptance runs.
 
 use std::collections::BTreeMap;
 
@@ -156,15 +156,15 @@ static EB3A: Profile = Profile {
     protocol: Protocol::V1,
     blocks: &[(10, 40), (70, 21)],
     fields: &[
-        field(DcInputPower, 36, 1.0, true),
-        field(AcInputPower, 37, 1.0, true),
-        field(AcOutputPower, 38, 1.0, true),
-        field(DcOutputPower, 39, 1.0, true),
-        field(BatterySoc, 43, 1.0, true),
-        field(AcOutputOn, 48, 1.0, true),
-        field(DcOutputOn, 49, 1.0, true),
-        field(AcInputVoltage, 77, 0.1, true),
-        field(DcInputVoltage, 86, 0.01, true),
+        field(DcInputPower, 36, 1.0, false),
+        field(AcInputPower, 37, 1.0, false),
+        field(AcOutputPower, 38, 1.0, false),
+        field(DcOutputPower, 39, 1.0, false),
+        field(BatterySoc, 43, 1.0, false),
+        field(AcOutputOn, 48, 1.0, false),
+        field(DcOutputOn, 49, 1.0, false),
+        field(AcInputVoltage, 77, 0.1, false),
+        field(DcInputVoltage, 86, 0.01, false),
     ],
     nominal_capacity_wh: 268.8,
 };
@@ -176,16 +176,16 @@ static AC180: Profile = Profile {
     fields: &[
         field(PackVoltage, 100, 0.01, false),
         field(PackCurrent, 101, 0.1, false),
-        field(BatterySoc, 102, 1.0, true),
-        field(DcOutputPower, 140, 1.0, true),
-        field(AcOutputPower, 142, 1.0, true),
-        field(DcInputPower, 144, 1.0, true),
-        field(AcInputPower, 146, 1.0, true),
-        field(DcInputVoltage, 1213, 0.1, true),
-        field(AcInputFrequency, 1300, 0.1, true),
-        field(AcInputVoltage, 1314, 0.1, true),
-        field(AcOutputOn, 2011, 1.0, true),
-        field(DcOutputOn, 2012, 1.0, true),
+        field(BatterySoc, 102, 1.0, false),
+        field(DcOutputPower, 140, 1.0, false),
+        field(AcOutputPower, 142, 1.0, false),
+        field(DcInputPower, 144, 1.0, false),
+        field(AcInputPower, 146, 1.0, false),
+        field(DcInputVoltage, 1213, 0.1, false),
+        field(AcInputFrequency, 1300, 0.1, false),
+        field(AcInputVoltage, 1314, 0.1, false),
+        field(AcOutputOn, 2011, 1.0, false),
+        field(DcOutputOn, 2012, 1.0, false),
     ],
     nominal_capacity_wh: 1152.0,
 };
