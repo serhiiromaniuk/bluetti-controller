@@ -163,3 +163,10 @@ test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Task close 2026-10-13 — close-reviewer VERDICT close, tag `v0.1-foundation`
+
+- Second close review: VERDICT close, 0 CRITICAL / 0 HIGH / 3 MEDIUM (in OUTCOME.md).
+- BRIEF done-when ticked; INDEX row → done; STATE gate → closed; ROADMAP status updated.
+- `loop/PROMPT.md` gate wording fixed; `baac5be` written into OUTCOME and PLAN.
+- Phase 2 not opened: development paused by the owner.

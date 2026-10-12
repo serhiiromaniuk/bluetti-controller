@@ -20,13 +20,13 @@ encryption flag, register maps, decoding) with unit tests.
 CI/CD (owner decided against it).
 
 ## Done when
-- [ ] ROADMAP.md covers goal, scope, decisions, research, architecture, data
+- [x] ROADMAP.md covers goal, scope, decisions, research, architecture, data
       model, metrics, UI/API, config, deployment, testing, milestones, risks,
       questions — check: owner reads it and signs off in LOG.md
-- [ ] `make check` green locally — check: `make check` output in LOG.md
-- [ ] Owner confirms golden rules, phase table and thresholds in RULES.md —
+- [x] `make check` green locally — check: `make check` output in LOG.md
+- [x] Owner confirms golden rules, phase table and thresholds in RULES.md —
       check: owner's `human-verified` line in LOG.md
-- [ ] the phase gate passes — see RULES.md / AGENTS.md §6
+- [x] the phase gate passes — see RULES.md / AGENTS.md §6
 
 ## References
 - Governing spec: `ROADMAP.md`

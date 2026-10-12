@@ -15,7 +15,7 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 
 | Started | Phase | Task | Folder | Status | Milestone tag |
 |---------|-------|------|--------|--------|---------------|
-| 2026-10-13 | 1 | Foundation (M0) | [`phase-1_foundation/`](./phase-1_foundation/) | in-progress | `v0.1-foundation` |
+| 2026-10-13 | 1 | Foundation (M0) | [OUTCOME](./phase-1_foundation/OUTCOME.md) | done | `v0.1-foundation` |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:

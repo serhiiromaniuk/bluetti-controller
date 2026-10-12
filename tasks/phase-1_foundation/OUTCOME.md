@@ -16,7 +16,7 @@ layer is coded with 11 unit tests. The owner approved RULES.md and ROADMAP.md.
   - `323a5ec` — `docs(docs): record owner approval of RULES.md`
   - `2c68f4d` — `docs(docs): record owner approval of ROADMAP.md`
   - `7519af3` — `docs(docs): owner sign-off — RULES.md and ROADMAP.md approved` (owner-authored)
-  - close-hold 1 fix commit — `fix(protocol): close-hold 1 findings for phase 1`
+  - `baac5be` — `fix(protocol): close-hold 1 findings for phase 1`
 - Files / artifacts: `ROADMAP.md`, `RULES.md`, `AGENTS.md`, `CLAUDE.md`,
   `rust-toolchain.toml`, `Makefile`, `loop/`, `tasks/`, `.claude/`,
   `src/protocol/{modbus,device}.rs`, `.agent-readiness/` (grade A, 91/100).
@@ -31,12 +31,12 @@ layer is coded with 11 unit tests. The owner approved RULES.md and ROADMAP.md.
 
 ## Amendments
 - A1 — fixed: batched reviewer pass over every commit of the task plus the fixes (close-hold 1)
-- A2 — fixed in the close-hold 1 fix commit (doc references point at ROADMAP.md)
-- A3 — fixed in the close-hold 1 fix commit (all fields `verified: false` until hardware runs)
+- A2 — fixed in baac5be (doc references point at ROADMAP.md)
+- A3 — fixed in baac5be (all fields `verified: false` until hardware runs)
 - A4 — fixed in `7519af3` (owner-authored sign-off commit)
-- A5 — fixed in the close-hold 1 fix commit (`keys.toml` ignored)
-- A6 — fixed (doc) in the close-hold 1 fix commit; length helper re-targeted → CF-3
-- A7 — fixed in the close-hold 1 fix commit (AGENTS.md gate and coverage wording)
+- A5 — fixed in baac5be (`keys.toml` ignored)
+- A6 — fixed (doc) in baac5be; length helper re-targeted → CF-3
+- A7 — fixed in baac5be (AGENTS.md gate and coverage wording)
 
 ## Lessons / Notes
 - The Debian/Ubuntu `cargo` ships without rustfmt and clippy; rustup with a
@@ -46,3 +46,9 @@ layer is coded with 11 unit tests. The owner approved RULES.md and ROADMAP.md.
   the reviewer per risk tier from the first commit next time.
 - Owner sign-offs must be owner-authored commits; a driver relaying "I approve"
   does not count under RULES.md.
+
+## Close review (second pass): VERDICT close
+- MEDIUM — `loop/PROMPT.md:130` still said `lint + typecheck + test` → fixed in the close commit.
+- MEDIUM — fix commit cited without a hash → `baac5be` written into OUTCOME and PLAN.
+- MEDIUM — owner sign-off lives in an owner-authored commit (`7519af3`), not a LOG
+  line; optional for the owner: add a `human-verified` LOG line in their own commit.

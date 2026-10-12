@@ -6,14 +6,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 1: RULES.md + ROADMAP.md approved, `make check` green — close + tag `v0.1-foundation` |
-| **Blocked?** | no (owner questions pending: tasks/phase-1_foundation/PLAN.md) |
+| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 not opened: development paused by the owner |
+| **Blocked?** | no (ROADMAP.md §14 Q2–Q8 open before Phase 2 hardware work) |
 
 ## Carry-forward — obligations that outlive the task that found them
 
 - CF-1 → phase 2: install `libdbus-1-dev` + `pkg-config` on the dev host before adding `bluer`. Recorded in: ROADMAP.md §4.9. Discharge: `cargo build` with bluer succeeds.
 - CF-2 → phase 3: Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.
-
 - CF-3 → phase 2: transport reassembly must stop at 5 bytes when the function byte has 0x80 set (Modbus exception). Recorded in: PLAN A6, `src/protocol/modbus.rs` module doc. Discharge: pure `expected_frame_len` helper + exception-vector test in M1.
 
 ## Decisions — do not relitigate

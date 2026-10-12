@@ -4,7 +4,7 @@ The single source for **what** we build, **why**, **how**, and **in which order*
 Governance (golden rules, phase gates, git) lives in [`RULES.md`](./RULES.md); this
 file is the governing spec that tasks cite as `ROADMAP.md §<n>`.
 
-- **Status (2026-10-13):** Phase 1 / M0 *Foundation* — research done, spec written,
+- **Status (2026-10-13):** Phase 1 / M0 *Foundation* closed, tag `v0.1-foundation` — research done, spec written,
   repo scaffolded, protocol layer coded and unit-tested, `make check` green.
   RULES.md and this ROADMAP approved by the owner (2026-10-13). The §14 answers
   are still needed before any hardware work (Phase 2).

@@ -127,7 +127,7 @@ reading the whole control plane.
 
 ## 4. Verify it (AGENTS.md §5) — no verification, not done
 - Choose the cheapest check that proves the step: for code, the project's check
-  command (e.g. `make check` = lint + typecheck + test); write the failing test
+  command (`make check` = fmt-check + clippy + tests); write the failing test
   first (TDD). For research/design, the document section must end with an
   explicit recommendation. For measured results, record the full acceptance
   criteria.
