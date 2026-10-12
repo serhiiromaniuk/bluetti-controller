@@ -316,3 +316,53 @@ test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Step 5 ✓ 2026-10-13 — `Gatt` trait, fixture model, `ReplayGatt`
+
+**Changed:**
+- `src/transport/mod.rs` — `Gatt` trait (`write` → ff02, `next_notification(timeout)`
+  ← ff01, `disconnect`; `impl Future + Send`), bluer-free `Advert`, `TransportError`.
+- `src/transport/fixture.rs` — `Fixture {advert: {name, manufacturer_data}, frames:
+  [{t_ms, dir, uuid, hex}]}` (spec §11), `deny_unknown_fields`, `load`/`from_json`,
+  `advert()` under placeholder `AA:BB:CC:00:00:00`, strict hex encode/decode.
+- `src/transport/replay.rs` — `ReplayGatt`: decodes + uuid-checks every frame in
+  `new`; a write must equal the next recorded write (rejected write consumes
+  nothing); notifications served in order; none due → `Timeout` at once;
+  after `disconnect` → `NotConnected`.
+- `src/lib.rs` — `pub mod transport;`.
+
+**Check:** `cargo test transport::` 10 tests.
+- Failed first: `hex_round_trips_and_rejects_garbage` — `decode_hex("+1")`
+  accepted (`from_str_radix` takes a sign) → fixed with an all-hexdigit check.
+- Mutation: write matching any bytes → `unexpected_write_is_error` FAILED.
+- `make check` green, 39 tests, protocol coverage 100%.
+
+**reviewer (before commit):** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM.
+
+**Decision:** replay time does not pass: a missing notification times out
+immediately, so retry tests stay fast.
+**Carry-forward:** none
+**Next:** step 6 — `read_block` / `read_profile` over `Gatt`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:40:31Z
+
+```text
+test transport::fixture::tests::parses_spec_shape ... ok
+test transport::fixture::tests::rejects_unknown_key_and_dir ... ok
+test transport::replay::tests::new_rejects_bad_frames ... ok
+test transport::replay::tests::serves_fragments_in_order ... ok
+test transport::replay::tests::disconnect_ends_the_session ... ok
+test transport::replay::tests::unexpected_write_is_error ... ok
+test transport::replay::tests::exhausted_fixture_times_out ... ok
+test config::tests::rejects_zero_timeout_and_attempts ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
