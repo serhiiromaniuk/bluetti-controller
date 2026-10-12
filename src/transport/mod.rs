@@ -8,6 +8,7 @@ use std::future::Future;
 use std::time::Duration;
 
 pub mod fixture;
+pub mod read;
 pub mod replay;
 
 /// One BLE advertisement of a station, in our own types.

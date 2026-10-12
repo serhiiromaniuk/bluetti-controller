@@ -366,3 +366,54 @@ test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-10-13 — `read_block` / `read_profile` over `Gatt`
+
+**Changed:**
+- `src/transport/read.rs` — `ReadPolicy {timeout, attempts, backoff}`, `ReadError`
+  (`Transport` | `Frame`), `read_block` (write `read_request`, reassemble to
+  `expected_frame_len` under one per-request deadline, `parse_read_response`),
+  `read_profile` (every profile block into `Registers`; a failed block fails all).
+- Retry: timeouts and CRC/length/function errors only; a Modbus exception,
+  `NotConnected` and `UnexpectedWrite` return at once. Backoff doubles; queued
+  notifications are drained (zero timeout) before each retry. `warn!` per retry.
+- `src/transport/read/tests.rs` — 9 tests over `ReplayGatt`; `transport/mod.rs`
+  gains `pub mod read;`. Nothing ported — no README credit.
+
+**Check:** `cargo test --lib transport::read` — failed first: 9/9 FAILED on
+`todo!()` stubs, then 9/9 ok.
+- Mutation: no drain → `retry_drains_a_late_fragment` FAILED; retrying an
+  exception → `exception_stops_at_five_bytes_without_retry` FAILED.
+- `make check` green, 48 tests, protocol coverage 100%.
+
+**reviewer (before commit):** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM M1: no test pins the backoff (all tests use `Duration::ZERO`) →
+  deferred to PLAN `## Amendments` A5.
+
+**Decision:** `ReadPolicy` is passed explicitly; steps 9/10 build it from
+`[ble] request_timeout_secs`.
+**Carry-forward:** none
+**Next:** step 7 — anonymiser + `RecordingGatt` + MAC-shape secret scan.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:43:27Z
+
+```text
+test transport::replay::tests::disconnect_ends_the_session ... ok
+test transport::replay::tests::exhausted_fixture_times_out ... ok
+test transport::replay::tests::serves_fragments_in_order ... ok
+test transport::replay::tests::unexpected_write_is_error ... ok
+test transport::read::tests::bad_crc_is_retried ... ok
+test transport::read::tests::bad_crc_on_every_attempt_fails ... ok
+test transport::read::tests::retry_drains_a_late_fragment ... ok
+test transport::read::tests::timeout_after_bounded_retries ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
