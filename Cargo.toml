@@ -6,6 +6,16 @@ rust-version = "1.85"
 description = "Local monitor for Bluetti power stations over Bluetooth LE"
 publish = false
 
-# Dependencies are added per milestone (see ROADMAP.md §12).
-# M0 is the pure protocol layer and needs only std.
+# Dependencies are added per milestone (see ROADMAP.md §12); versions per §4.9.
+# `src/protocol/` stays std-only; `bluer` is imported only under `src/transport/`.
 [dependencies]
+anyhow = "1.0.104"
+bluer = { version = "0.17.4", features = ["bluetoothd"] }
+clap = { version = "4.6.7", features = ["derive"] }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+thiserror = "2.0.21"
+tokio = { version = "1.53.2", features = ["rt-multi-thread", "macros", "signal", "time", "sync"] }
+toml = "1.1.8"
+tracing = "0.1.44"
+tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }

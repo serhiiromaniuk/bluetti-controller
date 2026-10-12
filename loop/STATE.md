@@ -11,7 +11,7 @@
 
 ## Carry-forward — obligations that outlive the task that found them
 
-- CF-1 → phase 2: install `libdbus-1-dev` + `pkg-config` on the dev host before adding `bluer` (both already installed on the dev host, checked 2026-10-13). Recorded in: ROADMAP.md §4.9. Discharge: `cargo build` with bluer succeeds.
+- ~~CF-1 → phase 2: install `libdbus-1-dev` + `pkg-config` on the dev host before adding `bluer`. Recorded in: ROADMAP.md §4.9. Discharge: `cargo build` with bluer succeeds.~~ Discharged 2026-10-13: `cargo build --locked` compiles bluer 0.17.4 (phase-2 step 1).
 - CF-2 → phase 3: Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.
 - CF-3 → phase 2: transport reassembly must stop at 5 bytes when the function byte has 0x80 set (Modbus exception). Recorded in: PLAN A6, `src/protocol/modbus.rs` module doc. Discharge: pure `expected_frame_len` helper + exception-vector test in M1.
 

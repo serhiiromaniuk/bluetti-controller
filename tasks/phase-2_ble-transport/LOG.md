@@ -145,3 +145,48 @@ test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Step 1 ✓ 2026-10-13 — M1 dependencies added at the §4.9 versions
+
+**Changed:**
+- `Cargo.toml` — anyhow, bluer (`bluetoothd`), clap (`derive`), serde (`derive`),
+  serde_json, thiserror, tokio (rt-multi-thread, macros, signal, time, sync), toml,
+  tracing, tracing-subscriber (`env-filter`). No code uses them yet.
+- `Cargo.lock` — `make lock`: 117 packages; every direct dep resolves to its §4.9
+  version (toml `1.1.8+spec-1.1.0`). uuid held at 1.26.1 (1.28.0 needs Rust 1.89;
+  `rust-version` = 1.85).
+- `loop/STATE.md` — CF-1 struck, discharged.
+
+**Check:** `cargo build --locked` compiled `dbus-tokio`/bluer, finished OK;
+`make check` green. Green on arrival: a deps-only step has no assertion to fail
+first.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM — step 1 (risky: build config)
+plus batched 12ccbb5 (Q1–Q5 asked); INTENT satisfied for both.
+
+**Decision:** none
+**Carry-forward:** CF-1 discharged in `loop/STATE.md`.
+**Next:** steps 2+3 — parallel group A (`config.rs`; CF-3 `expected_frame_len`).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:26:08Z
+
+```text
+test protocol::device::tests::drops_implausible_soc ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::device::tests::reads_encryption_flag ... ok
+test protocol::device::tests::every_field_is_covered_by_a_block ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::crc_matches_reference_vectors ... ok
+test protocol::modbus::tests::reports_exception ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo clippy --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+>> make check: all gates green
+```
+
+<!-- gate:end -->
