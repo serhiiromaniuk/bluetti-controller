@@ -190,3 +190,73 @@ cargo clippy --all-targets --locked -- -D warnings
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-10-13 — config loading with fail-fast validation (group A)
+
+**Changed:**
+- `src/config.rs` — spec §9 schema, `deny_unknown_fields` on every table;
+  `load(path)` / `parse(text)` via anyhow with file-path context.
+  Zero timeouts/attempts/poll interval rejected by `NonZeroU64/U32` types;
+  model mapped by a custom deserializer (keeps `src/protocol/` serde-free);
+  `validate()` checks MAC shape and unique names (error names the station, never
+  the address). `[ble]`, `[control]`, `[[station]]` optional with defaults;
+  `[crypto]` optional (phase 3); `BleConfig::default()` = §9 values.
+- `config.example.toml` — §9 verbatim, `AA:BB:CC:DD:EE:0x` placeholders, Q5
+  default names.
+- `src/lib.rs` — `pub mod config;`, crate doc no longer says "M0 only".
+- Group A run serially in the main tree: disjoint files, no concurrency, so no
+  worktree (AGENTS.md §8a applies to concurrent edits).
+
+**Check:** `cargo test --lib config::` — with `validate()` stubbed to `Ok(())`,
+`rejects_duplicate_name` and `rejects_bad_mac` FAILED (7 passed, 2 failed);
+restored, 9/9 pass. The other rejections are serde-enforced and assert on the
+error text. `control_defaults_to_disabled` asserts its edit happened.
+
+**reviewer:** see step 3 entry (one batched pass over the group).
+
+**Next:** step 4 — `cargo llvm-cov` in `make check`.
+
+## Step 3 ✓ 2026-10-13 — CF-3 exception-aware frame length (group A)
+
+**Changed:**
+- `src/protocol/modbus.rs` — `expected_frame_len(prefix, count)`: `None` below
+  2 bytes, 5 when function byte & 0x80, else `read_response_len(count)`
+  (spec §4.2). Module doc points the reassembler at it.
+- `loop/STATE.md` — CF-3 struck, discharged.
+
+**Check:** `cargo test --lib modbus::` — failed first (E0425:
+`expected_frame_len` not found), then 9/9 pass incl.
+`frame_len_stops_at_five_on_exception` (vector `01 83 02 <crc>`, prefix and
+full frame) and `frame_len_of_normal_reply` (count 40 → 85).
+
+**Carry-forward:** CF-3 discharged.
+
+**reviewer (group A, before commit):** INTENT satisfied for steps 2 and 3, no
+creep; 0 CRITICAL / 0 HIGH / 2 MEDIUM.
+- MEDIUM derived `Debug` would log MAC/token unmasked → deferred to A2.
+- MEDIUM `[metrics]` floats unvalidated → deferred to A3.
+
+**Next:** step 4 — `cargo llvm-cov` in `make check`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:29:00Z
+
+```text
+test protocol::modbus::tests::frame_len_stops_at_five_on_exception ... ok
+test config::tests::rejects_bad_mac ... ok
+test protocol::modbus::tests::frame_len_needs_two_bytes ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::reports_exception ... ok
+test config::tests::rejects_zero_timeout_and_attempts ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo clippy --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -2,8 +2,9 @@
 //!
 //! Requests are written to characteristic `0xFF02`. Responses arrive as
 //! notifications on `0xFF01` and can be split across several notifications,
-//! so the transport reassembles them up to [`read_response_len`] bytes — except
-//! an exception reply (function byte has 0x80 set), which is always 5 bytes.
+//! so the transport reassembles them up to [`expected_frame_len`] bytes:
+//! [`read_response_len`], except an exception reply (function byte has 0x80
+//! set), which is always 5 bytes.
 //! Registers are big-endian `u16`; the CRC is CRC-16/MODBUS, little-endian.
 
 use std::fmt;
@@ -48,6 +49,18 @@ pub fn read_request(start: u16, count: u16) -> [u8; 8] {
 /// unit id, function code, byte count, data, CRC.
 pub fn read_response_len(count: u16) -> usize {
     5 + 2 * usize::from(count)
+}
+
+/// Total length of the reply whose first bytes are `prefix`, for a request of
+/// `count` registers: 5 for a Modbus exception (function byte has 0x80 set),
+/// else [`read_response_len`]. `None` until the function byte has arrived.
+pub fn expected_frame_len(prefix: &[u8], count: u16) -> Option<usize> {
+    let function = *prefix.get(1)?;
+    Some(if function & EXCEPTION_FLAG != 0 {
+        5
+    } else {
+        read_response_len(count)
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -159,6 +172,27 @@ mod tests {
             parse_read_response(&frame, 1),
             Err(FrameError::Exception(0x02))
         );
+    }
+
+    #[test]
+    fn frame_len_stops_at_five_on_exception() {
+        // Exception vector `01 83 02 <crc>`: 5 bytes whatever count was asked.
+        let frame = with_crc(&[0x01, 0x83, 0x02]);
+        assert_eq!(frame.len(), 5);
+        assert_eq!(expected_frame_len(&frame[..2], 40), Some(5));
+        assert_eq!(expected_frame_len(&frame, 40), Some(5));
+    }
+
+    #[test]
+    fn frame_len_of_normal_reply() {
+        assert_eq!(expected_frame_len(&[0x01, 0x03], 40), Some(85));
+        assert_eq!(expected_frame_len(&[0x01, 0x03, 0x50, 0x00], 40), Some(85));
+    }
+
+    #[test]
+    fn frame_len_needs_two_bytes() {
+        assert_eq!(expected_frame_len(&[], 40), None);
+        assert_eq!(expected_frame_len(&[0x01], 40), None);
     }
 
     #[test]

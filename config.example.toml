@@ -1,0 +1,54 @@
+# bluetti-controller — example configuration (ROADMAP.md §9).
+#
+# Copy to `config.toml` (gitignored) or `/etc/bluetti-controller/config.toml`
+# and fill in your own station addresses. Never commit the real file: MAC
+# addresses and keys stay local (RULES.md golden rule #3). The addresses below
+# are placeholders.
+
+[general]
+poll_interval_secs = 60
+timezone = "Europe/Kyiv"
+
+[storage]
+path = "/var/lib/bluetti-controller/data.db"
+raw_retention_days = 30
+
+[web]
+listen = "0.0.0.0:8080"
+# token = "change-me"            # required for POST endpoints when set
+
+[ble]
+adapter = "hci0"
+connect_timeout_secs = 15
+request_timeout_secs = 5
+connect_attempts = 3
+
+[crypto]
+# Static keys for encrypted (BLUETTE) stations, ROADMAP.md §4.4. Never commit.
+keys_file = "/etc/bluetti-controller/keys.toml"
+
+[metrics]
+grid_voltage_min = 180.0
+debounce_samples = 2
+usable_capacity_factor = 0.85
+
+[control]
+enabled = false                    # RULES.md golden rule #2 — never default true
+
+[[station]]
+name = "router"
+model = "EB3A"
+address = "AA:BB:CC:DD:EE:01"
+grid_sensor = true
+
+[[station]]
+name = "mobile"
+model = "AC180"
+address = "AA:BB:CC:DD:EE:02"
+grid_sensor = false
+
+[[station]]
+name = "living-room"
+model = "Elite200V2"
+address = "AA:BB:CC:DD:EE:03"
+grid_sensor = true
