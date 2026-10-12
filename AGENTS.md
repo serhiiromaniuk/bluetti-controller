@@ -62,9 +62,10 @@ make help      # full target list
 ```
 
 Project-specific targets arrive with their milestones (ROADMAP.md §12): `make
-build` (release binary, M1), `make run` (serve with a local config, M3). Commands
-that touch real stations (`bluetti-controller scan|read|dump`) are human-run
-(RULES.md "human-only boundary").
+build` (release binary, M1), `make run` (serve with a local config, M3). Read-only
+station commands (`bluetti-controller scan|detect|read|dump`) may run
+unattended; writes, pairing and acceptance sign-off are human-only (RULES.md
+"human-only boundary").
 
 ### Project structure
 

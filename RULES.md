@@ -226,8 +226,11 @@ This checklist is **human-only — never an agent/loop action.** The loop stops 
 the boundary (`<<LOOP:BLOCKED>>`, or `<<LOOP:DONE>>` at the final milestone) and
 hands over here. Human-only actions:
 
-- Anything that needs the physical stations: hardware validation runs, pairing,
-  unplugging a station to simulate an outage, capturing phone traffic.
+- Station actions beyond reading: pairing, any write frame (0x06/0x10),
+  unplugging a station to simulate an outage, capturing phone traffic, and the
+  comparison with the official app that signs off an acceptance run.
+  **Read-only access is allowed unattended** (owner, 2026-10-13): `scan`,
+  `detect`, `read` and `dump` with function 0x03 only, under golden rule #5.
 - Enabling device control (`control.enabled = true`) or adding a register to the
   write allow-list.
 - Putting encryption keys, credentials, MACs or serial numbers into a config on

@@ -830,9 +830,10 @@ Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
 - [ ] CLI: `scan` (name, RSSI, model, encrypted flag), `detect <mac>` (model,
       protocol, encryption, device type and firmware registers), `read <mac>`
       (decoded metrics), `dump <mac> --from --to` (read-only sweep, golden rule #2).
-- [ ] **Human:** run `scan` near all three stations; record which are encrypted
-      and their firmware versions (§14 Q5).
-- [ ] **Human:** EB3A acceptance run — 20 polls at 60 s vs the official app;
+- [ ] Run `scan` near all three stations (read-only, may run unattended); record
+      which are encrypted and their firmware versions (§14 Q5).
+- [ ] EB3A acceptance run — 20 polls at 60 s (unattended); **Human:** compare with
+      the official app and sign off;
       mark the fields it confirms `verified: true` (all start `false`).
 - [ ] Exception-aware reassembly length (loop/STATE.md CF-3).
 - [ ] Record an EB3A fixture; replay test for the full read path.

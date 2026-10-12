@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(make:*)",
+      "Bash(cargo:*)",
+      "Bash(./loop/where.sh:*)",
+      "Bash(./loop/step-done.sh:*)",
+      "Bash(./loop/entry-size-guard.sh:*)",
+      "Bash(./loop/amendments-guard.sh:*)",
+      "Bash(./loop/merge-gate.sh:*)",
+      "Bash(git status:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git push)",
+      "Bash(git push --follow-tags)",
+      "Bash(bluetoothctl:*)",
+      "Bash(rfkill list:*)",
+      "Bash(rfkill unblock bluetooth)"
+    ],
+    "deny": [
+      "Bash(sudo:*)",
+      "Bash(cargo install:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)",
+      "Bash(git reset --hard:*)",
+      "Read(~/.ssh/**)",
+      "Read(~/.aws/**)",
+      "Read(~/.config/gh/**)",
+      "Read(~/.claude-stepico/**)",
+      "Read(~/stepico_games/**)"
+    ]
+  }
+}
