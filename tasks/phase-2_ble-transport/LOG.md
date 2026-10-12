@@ -101,3 +101,47 @@ cargo clippy --all-targets --locked -- -D warnings
 ```
 
 <!-- gate:end -->
+
+## 2026-10-13 — Owner questions Q1–Q5 asked in one batch
+Owner: please answer each in `PLAN.md` `## Questions for the owner` (replace
+`answer: asked 2026-10-13` with your answer), or tell the next session.
+- **Q1** (blocks 9, 11, 12, 13) — station MACs: you write a gitignored local
+  `config.toml` (human-only), or the agent passes the `scan` MAC on the command
+  line only, never into a file?
+- **Q2** (blocks 11) — firmware versions of EB3A, Elite 200 V2, AC180 as the
+  official app shows them (§14 Q5, cross-check of EB3A regs 23/25).
+- **Q3** (blocks 11) — AC180 off: accept "scan near all stations" as met by EB3A +
+  Elite, AC180 carried as CF-4 → phase 3 (also settles A1)? Or switch it on for
+  one read-only scan?
+- **Q4** (blocks 8, 9, 11, 12, 13) — app force-quit on every phone, laptop in BLE
+  range, EB3A on: always true, or only in a window you name?
+- **Q5** (blocks 16) — station names (§14 Q6): approve `router` (EB3A), `mobile`
+  (AC180), `living-room` (Elite 200 V2), or give names.
+
+**Changed:** `PLAN.md` — Q1–Q5 `answer: pending` → `asked 2026-10-13`.
+**Check:** `loop/where.sh --json` → `unasked_questions` 0, `waiting_on` [] for step 1.
+**reviewer:** batched (doc-only, low-risk).
+**Next:** step 1 — add the M1 dependencies (waits on no question).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:24:16Z
+
+```text
+test protocol::device::tests::detects_model_from_ble_name ... ok
+test protocol::device::tests::drops_implausible_soc ... ok
+test protocol::device::tests::decodes_eb3a_block ... ok
+test protocol::device::tests::reads_encryption_flag ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::device::tests::every_field_is_covered_by_a_block ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::crc_matches_reference_vectors ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::modbus::tests::reports_exception ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+>> make check: all gates green
+```
+
+<!-- gate:end -->
