@@ -35,11 +35,7 @@ const NAME_PREFIXES: [(&str, Model); 4] = [
 impl Model {
     /// Detects the model from the advertised BLE name: `<MODEL><serial digits>`.
     pub fn from_ble_name(name: &str) -> Option<Model> {
-        NAME_PREFIXES.iter().find_map(|(prefix, model)| {
-            let serial = name.strip_prefix(prefix)?;
-            let is_serial = !serial.is_empty() && serial.bytes().all(|b| b.is_ascii_digit());
-            is_serial.then_some(*model)
-        })
+        split_ble_name(name).map(|(model, _)| model)
     }
 
     pub fn profile(self) -> &'static Profile {
@@ -49,6 +45,16 @@ impl Model {
             Model::Elite200V2 => &ELITE_200_V2,
         }
     }
+}
+
+/// Splits an advertised BLE name `<MODEL><serial digits>` into the model and
+/// its serial digits.
+pub fn split_ble_name(name: &str) -> Option<(Model, &str)> {
+    NAME_PREFIXES.iter().find_map(|(prefix, model)| {
+        let serial = name.strip_prefix(prefix)?;
+        let is_serial = !serial.is_empty() && serial.bytes().all(|b| b.is_ascii_digit());
+        is_serial.then_some((*model, serial))
+    })
 }
 
 /// Reads the encryption flag from the manufacturer data stored under

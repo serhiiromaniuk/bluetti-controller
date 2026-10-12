@@ -72,6 +72,8 @@ pub enum FixtureError {
         dir: Dir,
         uuid: String,
     },
+    #[error("frame {index}: reply to a serial-number read is not one valid frame, cannot mask it")]
+    Unmaskable { index: usize },
 }
 
 impl Fixture {

@@ -228,6 +228,13 @@ builtin_scan() { # forbidden paths and key-shaped strings in the staged diff; ne
     echo "!! $hits added line(s) look like a secret (key/token pattern) — values not shown" >&2
     bad=1
   fi
+  # A real MAC is a personal identifier (golden rule #3); only the AA:BB:CC placeholder may be committed.
+  local mac_re='([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}'
+  hits="$(git diff --cached -U0 --diff-filter=ACMR | grep -vE '^\+\+\+ ' | grep -E '^\+' | grep -oE "$mac_re" | grep -cviE '^AA:BB:CC:' || true)"
+  if [[ "$hits" -gt 0 ]]; then
+    echo "!! $hits added MAC address(es) outside the AA:BB:CC placeholder — values not shown" >&2
+    bad=1
+  fi
   return "$bad"
 }
 if make -n staged-scan >/dev/null 2>&1; then

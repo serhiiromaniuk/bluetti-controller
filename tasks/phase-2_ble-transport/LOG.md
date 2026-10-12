@@ -417,3 +417,58 @@ test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Step 7 ✓ 2026-10-13 — anonymiser, `RecordingGatt`, MAC-shape secret scan
+
+**Changed:**
+- `src/transport/anonymise.rs` (pure): `mask_macs` (`:`/`-`/`_` separators, all
+  to `AA:BB:CC:00:00:00`), `mask_name` (serial digits → `0`, model still parses;
+  unknown model → every digit), `mask_response` (zero SN regs V1 17–20 / V2
+  116–119, recompute CRC; invalid frames unchanged), `anonymise_fixture`
+  (name, manufacturer data cut to the 7-byte flag, each reply masked whole and
+  re-cut to the recorded fragment sizes; refuses an incomplete reply that may
+  hold SN regs → `FixtureError::Unmaskable`).
+- `src/transport/record.rs`: `RecordingGatt<G: Gatt>` tees frames that crossed
+  the link (not timeouts or refused writes) into a `Fixture`; `save(path)`.
+- `src/protocol/device.rs`: `split_ble_name`; `from_ble_name` delegates to it.
+- `loop/step-done.sh` `builtin_scan`: refuses an added MAC not under `AA:BB:CC`.
+
+**Check:** `cargo test --lib transport::anonymise` — 11/11 FAILED on `todo!()`
+stubs, then 11/11 ok; `transport::record` 2/2 FAILED, then 2/2 ok.
+- Scan: `builtin_scan` extracted into a temp git repo — staged placeholder
+  `AA:BB:CC:DD:EE:01` exit 0; staged non-placeholder MAC exit 1 ("1 added MAC
+  address(es) outside the AA:BB:CC placeholder").
+- `make check` green, 61 tests, protocol coverage 100%.
+
+**reviewer (before commit):** INTENT satisfied; 0 CRITICAL / 0 HIGH / 2 MEDIUM.
+- MEDIUM M1: `anonymise_fixture` attributes a late reply to the newest write
+  (same `count`, wrong `start`) → SN unmasked; unreachable today → A6.
+- MEDIUM M2: scan catches only `:` MACs, not `-`/`_` → deferred to A7.
+
+**Decision:** test MACs are built at runtime (`join(":")`) so the scan never
+sees a literal one; recordings stay raw and go to gitignored `captures/`.
+**Carry-forward:** none
+**Next:** step 8 — `bluer` adapter + `scan` CLI (needs Q4).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:50:17Z
+
+```text
+test transport::replay::tests::exhausted_fixture_times_out ... ok
+test transport::record::tests::saved_fixture_replays ... ok
+test transport::replay::tests::serves_fragments_in_order ... ok
+test transport::replay::tests::unexpected_write_is_error ... ok
+test transport::read::tests::bad_crc_is_retried ... ok
+test transport::read::tests::bad_crc_on_every_attempt_fails ... ok
+test transport::read::tests::retry_drains_a_late_fragment ... ok
+test transport::read::tests::timeout_after_bounded_retries ... ok
+
+test result: ok. 61 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
