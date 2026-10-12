@@ -1,0 +1,11 @@
+[package]
+name = "bluetti-controller"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.85"
+description = "Local monitor for Bluetti power stations over Bluetooth LE"
+publish = false
+
+# Dependencies are added per milestone (see docs/ROADMAP.md).
+# M0 is the pure protocol layer and needs only std.
+[dependencies]
