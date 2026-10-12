@@ -53,9 +53,10 @@ this operating manual permits you to violate them. In particular:
 
 ```bash
 make install   # fetch dependencies (locked)
+make tools     # install pinned cargo-llvm-cov into .tools/ (once per clone)
 make check     # fmt-check + clippy + tests, in parallel — RUN BEFORE EVERY COMMIT
 make step-done MSG="…" [PUSH=1]   # gate → LOG evidence → tick → hygiene → scan → commit
-make test      # tests (coverage via cargo llvm-cov arrives at M1)
+make test      # tests under cargo llvm-cov; fails if src/protocol/ < 80% lines
 make fmt-check | lint | format   # the individual gates
 make lock      # freeze exact dep versions
 make help      # full target list

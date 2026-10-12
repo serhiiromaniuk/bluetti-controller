@@ -1,6 +1,9 @@
 # Build output
 /target/
 
+# Project-local dev tools (make tools)
+/.tools/
+
 # Local config, keys and secrets (RULES.md golden rule #3)
 config.toml
 keys.toml

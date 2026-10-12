@@ -6,6 +6,26 @@
 # The Rust toolchain is pinned in ONE place: rust-toolchain.toml (rustup).
 CARGO ?= cargo
 
+# Dev tools live in the MAIN worktree's .tools/ (never system-wide); resolving it
+# through the git common dir lets loop/merge-gate.sh worktrees share one install.
+TOOLS_DIR := $(abspath $(shell git rev-parse --path-format=absolute --git-common-dir)/..)/.tools
+LLVM_COV_VERSION := 0.9.1
+LLVM_COV := $(TOOLS_DIR)/bin/cargo-llvm-cov
+# Minimum line coverage (%) of src/protocol/ (RULES.md Testing).
+COV_MIN ?= 80
+COV_JSON := target/llvm-cov-summary.json
+# Unit tests live in <module>/tests.rs and are excluded, so test code never
+# covers itself. jq: summed line coverage of src/protocol/ files against $min.
+define COV_FILTER
+[.data[0].files[] | select(.filename | contains("/src/protocol/")) | .summary.lines]
+| (map(.covered) | add) as $$c | (map(.count) | add) as $$n
+| if ($$n // 0) == 0 then error("no src/protocol/ files in coverage") else 100 * $$c / $$n end
+| (. * 100 | floor / 100) as $$pct
+| if . < $$min then error("src/protocol/ line coverage \($$pct)% < \($$min)%")
+  else ">> src/protocol/ line coverage \($$pct)% (min \($$min)%)" end
+endef
+export COV_FILTER
+
 # Use bash and fail loudly.
 SHELL := bash
 .SHELLFLAGS := -eu -o pipefail -c
@@ -33,9 +53,16 @@ format:                         ## auto-format
 lint:                           ## clippy, warnings are errors
 	$(CARGO) clippy --all-targets --locked -- -D warnings
 
+.PHONY: tools
+tools:                          ## install pinned dev tools (cargo-llvm-cov) into .tools/
+	$(CARGO) install --locked --root $(TOOLS_DIR) cargo-llvm-cov --version $(LLVM_COV_VERSION)
+
+# Tests run once, under coverage; the gate fails below COV_MIN on src/protocol/.
 .PHONY: test
-test:                           ## run tests (hardware tests are #[ignore])
-	$(CARGO) test --all-targets --locked
+test:                           ## run tests under coverage; fail if src/protocol/ < COV_MIN % (hardware tests are #[ignore])
+	@test -x $(LLVM_COV) || { echo "!! $(LLVM_COV) missing — run: make tools" >&2; exit 1; }
+	PATH="$(TOOLS_DIR)/bin:$$PATH" $(CARGO) llvm-cov --all-targets --locked --ignore-filename-regex '/tests\.rs$$' --json --summary-only --output-path $(COV_JSON)
+	@jq -r --argjson min $(COV_MIN) "$$COV_FILTER" $(COV_JSON)
 
 # The single sanctioned gate — the loop and every commit run THIS.
 # Gates run in parallel; cargo serialises on its build-directory lock, so they

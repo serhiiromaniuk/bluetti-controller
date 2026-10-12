@@ -260,3 +260,59 @@ cargo clippy --all-targets --locked -- -D warnings
 ```
 
 <!-- gate:end -->
+
+## Step 4 ✓ 2026-10-13 — `cargo llvm-cov` coverage gate in `make check`
+
+**Changed:**
+- `Makefile` — `make tools` installs `cargo-llvm-cov` 0.9.1 (`--locked`) into
+  `.tools/` of the main worktree (path from `git rev-parse --git-common-dir`).
+  `test` = one `cargo llvm-cov --all-targets --locked` run, `tests.rs` files
+  ignored; jq (`COV_FILTER`) sums `/src/protocol/` lines, fails below `COV_MIN`
+  (80) or when no protocol file is found. Missing tool: "run: make tools".
+- Protocol unit tests moved verbatim to `src/protocol/{modbus,device}/tests.rs`
+  (excluded from coverage, so test code never covers itself) + 6 new tests:
+  short frame, unexpected function, `FrameError` texts, metric keys/units,
+  `field`, output-flag plausibility.
+- `rust-toolchain.toml` `llvm-tools-preview`; `.gitignore` `/.tools/`;
+  `AGENTS.md` command list.
+
+**Check:**
+- inline tests counted: 81.7% (inflated, see reviewer H1).
+- tests excluded, before new tests: `src/protocol/ line coverage 69.38% < 80%`
+  — red; fixed the work, not the threshold.
+- after: `make check` green, `src/protocol/ line coverage 100% (min 80%)`
+  (device.rs 79/79, modbus.rs 68/68).
+- forced `make test COV_MIN=101` → `… 100% < 101%`, exit 2 — the gate bites.
+- throwaway `git worktree add --detach` + this diff: `make check` green via the
+  main tree's `.tools/`.
+
+**reviewer (before commit):** INTENT satisfied; 0 CRITICAL / 1 HIGH / 1 MEDIUM.
+- HIGH H1 inline test lines inflate protocol coverage (prod ~68.5%) → fixed
+  (above); second pass on the fix: 0 CRITICAL / 0 HIGH, tests byte-identical.
+- MEDIUM README lacks `make tools` → deferred to A4.
+- Side note (not a finding): is `PackCurrent` signed? Check at step 12 decode.
+
+**Next:** step 5 — `Gatt` trait, `ReplayGatt`, fixture model.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T23:35:20Z
+
+```text
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test config::tests::rejects_unknown_model ... ok
+test protocol::modbus::tests::rejects_short_frame ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::rejects_unexpected_function ... ok
+test protocol::modbus::tests::reports_exception ... ok
+test config::tests::rejects_zero_timeout_and_attempts ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
