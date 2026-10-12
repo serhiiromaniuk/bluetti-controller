@@ -15,7 +15,7 @@
 - [x] 3. Agent-readiness scaffold: RULES/AGENTS/WORKFLOW/CLAUDE.md, loop/, tasks/, .claude/, Makefile, .gitignore — check: `loop/where.sh --json` runs; agent-readiness re-audit
 - [x] 4. Protocol layer M0 (spec §4): framing, CRC, model detection, encryption flag, maps, decoding — check: `cargo test` 11/11
 - [x] 5. `make check` green locally (spec §11) (needs Q2) — check: `make check`
-- [ ] 6. Owner review and sign-off of RULES.md + ROADMAP.md (spec §3, spec §12, spec §14) (needs Q1) — check: owner's `human-verified` line in LOG.md
+- [x] 6. Owner review and sign-off of RULES.md + ROADMAP.md (spec §3, spec §12, spec §14) (needs Q1) — check: owner's `human-verified` line in LOG.md
 
 ## Risks / Dependencies
 - `rustfmt`/`clippy` are missing from the Debian cargo on the dev host; `make check` cannot pass until installed (Q2).

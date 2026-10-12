@@ -6,8 +6,8 @@ file is the governing spec that tasks cite as `ROADMAP.md §<n>`.
 
 - **Status (2026-10-13):** Phase 1 / M0 *Foundation* — research done, spec written,
   repo scaffolded, protocol layer coded and unit-tested, `make check` green.
-  RULES.md approved by the owner (2026-10-13). Waiting for the owner's review of
-  this ROADMAP and the answers in §14 before any hardware work.
+  RULES.md and this ROADMAP approved by the owner (2026-10-13). The §14 answers
+  are still needed before any hardware work (Phase 2).
 - **Repo:** `serhiiromaniuk/bluetti-controller` (private).
 - **Conventions in this file:** *unverified* means a fact comes from a single
   community source or a search snippet and still needs a hardware check. Every
@@ -814,7 +814,7 @@ Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
 - [x] 11 unit tests green (`cargo test`).
 - [x] rustup + `rust-toolchain.toml` (1.99.0, rustfmt, clippy); `make check` green locally.
 - [x] Owner approved RULES.md: golden rules, phase table, thresholds (2026-10-13).
-- [ ] Owner review of this ROADMAP; answers to §14.
+- [x] Owner approved this ROADMAP (2026-10-13). §14 Q2–Q8 stay open; none blocks M0.
 
 **Acceptance:** `make check` green; owner sign-off recorded in the task LOG.
 

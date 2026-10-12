@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟡 Phase 1: owner sign-off on ROADMAP.md (RULES.md approved, `make check` green) |
+| **Gate status** | 🟢 Phase 1: RULES.md + ROADMAP.md approved, `make check` green — close + tag `v0.1-foundation` |
 | **Blocked?** | no (owner questions pending: tasks/phase-1_foundation/PLAN.md) |
 
 ## Carry-forward — obligations that outlive the task that found them
@@ -21,3 +21,4 @@
 - 2026-10-13: web UI only; no notifications, no Prometheus, no cloud in the MVP (ROADMAP.md §2).
 - 2026-10-13: no CI/CD; `make check` locally is the gate (owner).
 - 2026-10-13: RULES.md approved by the owner — golden rules, phase table, acceptance thresholds.
+- 2026-10-13: ROADMAP.md approved by the owner — scope, decisions ADR-001…008, milestones.

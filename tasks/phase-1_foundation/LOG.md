@@ -95,3 +95,33 @@ test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-10-13 — Owner sign-off: ROADMAP.md approved
+
+human-verified 2026-10-13: ROADMAP.md (scope, decisions, milestones) → approved as written.
+Recorded at the owner's request in an interactive session ("i approve ROADMAP.md too").
+With RULES.md approved earlier, step 6 is complete. ROADMAP.md §14 Q2–Q8 stay open; none blocks Phase 1.
+**Next:** task close — OUTCOME.md, close-reviewer, tag `v0.1-foundation`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-12T22:18:58Z
+
+```text
+test protocol::device::tests::reads_encryption_flag ... ok
+test protocol::device::tests::every_field_is_covered_by_a_block ... ok
+test protocol::modbus::tests::crc_matches_reference_vectors ... ok
+test protocol::modbus::tests::parses_registers ... ok
+test protocol::modbus::tests::read_request_layout ... ok
+test protocol::modbus::tests::rejects_bad_crc ... ok
+test protocol::modbus::tests::rejects_truncated_reassembly ... ok
+test protocol::modbus::tests::reports_exception ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+cargo fmt --all -- --check
+cargo clippy --all-targets --locked -- -D warnings
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.03s
+>> make check: all gates green
+```
+
+<!-- gate:end -->
