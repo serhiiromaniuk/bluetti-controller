@@ -944,11 +944,11 @@ the unplug; DB < 10 MB per station-day.
 | # | Question | Blocks |
 |---|---|---|
 | Q1 | ~~Confirm or edit the golden rules, phase table and thresholds in RULES.md~~ — approved 2026-10-13 | — |
-| Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it | M1 hardware runs, M5 |
+| Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP | M5 |
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
 | Q4 | Router powered from EB3A AC or DC 12 V? (ECO mode, runtime math, Appendix A) | M3 forecast calibration |
 | Q5 | Station firmware versions and the encryption flag of each (the `scan` output) | M1/M2 |
-| Q6 | Names/roles for the stations (defaults: router, mobile, living-room) | M1 config |
+| Q6 | ~~Names/roles for the stations~~ — defaults approved 2026-10-13: EB3A `router`, AC180 `mobile`, Elite 200 V2 `living-room` | — |
 | Q7 | Poll interval: 60 s default OK? | M3 |
 | Q8 | UI only on the LAN, or also via VPN (e.g. Tailscale)? | M4 auth |
 
