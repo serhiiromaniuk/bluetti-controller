@@ -959,3 +959,50 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 21 ✓ 2026-10-13 — CF-4: EB3A low-load floor documented; reg 77 scale fixed
+
+**Changed:**
+- `ROADMAP.md` §4.3 EB3A: dump table + "Low-load floor (CF-4)" paragraph with a recommendation (keep 38; 0 W = below the floor, not "no load"); row 77 scale 1 V; A31 notes on the M1 box and acceptance line.
+- `src/protocol/device.rs` `EB3A`: `AcInputVoltage` 77 scale 0.1 → 1.0 (A33); floor comment on 38. `device/tests.rs` `decodes_eb3a_block`: raw 222 → 222.0 V.
+- `HUMAN-CHECKLIST.md` H1: app AC output with the router alone and with a ≥ 50 W load (bounds the floor); 77 vs the app's grid voltage.
+- `loop/STATE.md`: CF-4 discharged.
+
+**Check:**
+- Pre-flight §10.4: rfkill unblocked, `control.enabled = false` (config.toml:36), no other `bluetti-controller` process.
+- Sources: bluetti_mqtt eb3a.py + ac300.py (S2), bluetti-registers eb3a.json (S7), bluetti-bt-lib eb3a.py (S1). Only 38 names AC output; AC300's 70–95 block adds internal currents/powers.
+- `dump router --anonymise --from 10 --to 129` at 14:50:03 and 14:51:31 (+03:00): 3 chunks, 0 unread, EXIT=0 each (`captures/cf4-dump{1,2}.txt`, gitignored).
+  - 36–39 = 0/0/0/0 both; 43 = 100; 48/49 = 1/0; 71 and 77 = 220 → 222; 92 = 2310; 93 = 2 → 12; 94 = 100; 95 = 71; 72–76, 78–90, 96–129 = 0 (116–119 masked).
+- Outage evidence: `captures/acceptance-router-{1,20}.out` (13:25–13:44, on battery): 38 = 0 W on 20/20, SOC 89 → 88 % ≈ 8.5 W at 268.8 Wh (coarse, 1 % steps).
+- Verdict: no register in the named ranges tracks ~9 W; low-load floor documented (floor unknown, > 9 W; H1 bounds it).
+- Failing first: `decodes_eb3a_block` with raw 222 → `left: 22.200000000000003, right: 222.0` FAILED; scale 1.0 → ok.
+- Live `read router` after `make build` (14:53:06): ac_input_voltage 223.00 V, powers 0, soc 100, EXIT=0, disconnected.
+
+**reviewer:** one pass (step 21 diff + `@{u}..HEAD` = step 20). INTENT satisfied for both; 0 CRITICAL / 1 HIGH / 1 MEDIUM.
+- HIGH `ROADMAP.md` §7.3: formula `max(load_w, 1)` gives ~228 h for the EB3A on the router while 0 W is below the floor → fixed: §7.3 floor rule (SOC-slope load or runtime unknown), §7.4 note that `energy_out_wh` under-counts.
+- MEDIUM `ROADMAP.md` §4.3 row 77: scale may depend on firmware → fixed in place (one cell: "on ARM 2197.02").
+
+**Decision:** none (recommendation in §4.3). **Carry-forward:** CF-4 discharged. **Next:** step 22 (AC180 docs close-out).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:55:51Z
+
+```text
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

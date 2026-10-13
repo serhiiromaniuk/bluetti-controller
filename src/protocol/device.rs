@@ -194,12 +194,15 @@ static EB3A: Profile = Profile {
     fields: &[
         field(DcInputPower, 36, 1.0, false),
         field(AcInputPower, 37, 1.0, false),
+        // Reads 0 W below a low-load floor: ~9 W on the AC outlet reads 0
+        // (ROADMAP.md §4.3, CF-4).
         field(AcOutputPower, 38, 1.0, false),
         field(DcOutputPower, 39, 1.0, false),
         field(BatterySoc, 43, 1.0, false),
         field(AcOutputOn, 48, 1.0, false),
         field(DcOutputOn, 49, 1.0, false),
-        field(AcInputVoltage, 77, 0.1, false),
+        // Whole volts: raw 220–222 with the grid on (ROADMAP.md §4.3).
+        field(AcInputVoltage, 77, 1.0, false),
         field(DcInputVoltage, 86, 0.01, false),
     ],
     nominal_capacity_wh: 268.8,

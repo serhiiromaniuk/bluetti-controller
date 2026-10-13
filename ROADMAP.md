@@ -233,12 +233,12 @@ offsets, register = base + offset / 2).
 | 23, 25 | ARM / DSP firmware version | — | — | bt |
 | 36 | DC input power | 1 | W | bt |
 | 37 | AC input power | 1 | W | bt |
-| 38 | AC output power | 1 | W | bt |
+| 38 | AC output power (0 below a low-load floor, see below) | 1 | W | bt |
 | 39 | DC output power | 1 | W | bt |
 | 43 | battery SOC | 1 | % | bt |
 | 48 | AC output on | bool | — | mq |
 | 49 | DC output on | bool | — | mq |
-| 77 | AC input voltage | 0.1 | V | bt |
+| 77 | AC input voltage | 1 | V | S7 (bt/mq read 0.1; our dump on ARM 2197.02: whole volts) |
 | 86 | DC input voltage | 0.01 | V | bt |
 | 91 | pack count max | 1 | — | mq |
 
@@ -249,6 +249,26 @@ Poll blocks used by mq: (10, 40), (70, 21), (3034, 1), (3060, 7).
 **Not exposed by any library:** temperature, current, cell voltages, energy
 counters. Pack registers 96–121 exist on AC300; unverified on EB3A — R1 sweep.
 [S1][S7][S8]
+
+**Our dump (CF-4, 2026-10-13, read-only, ARM 2197.02, `BLUETTF`).** Two dumps of
+10–129 a minute apart (14:50, 14:51), grid on, SOC 100 %, AC outlet on and
+powering the router (~9 W). Every field stays *unverified* until H1.
+
+| Reg | Raw | Reading |
+|---|---|---|
+| 36–39 | 0, 0, 0, 0 | all powers 0 W, in both dumps |
+| 48 / 49 | 1 / 0 | AC on, DC off |
+| 71 / 77 | 220 → 222 | both track the mains voltage in whole volts; AC300's 0.1 scale would give 22.2 V, impossible on a 100–240 V input |
+| 72–76, 78–90 | 0 | AC300's internal currents, powers and frequencies: not populated |
+| 92 / 93 / 94 / 95 | 2310 / 2 → 12 / 100 / 71 | unknown (AC300: battery V and A ×0.1); no load tracking |
+| 96–129 | 0 (116–119 masked) | — |
+
+**Low-load floor (CF-4).** No register in the ranges the maps name for AC output
+(36–39; AC300's 70–95 block) tracks a ~9 W load. In the grid outage (13:25–13:44)
+reg 38 read 0 W on 20/20 polls while SOC fell 89 → 88 % in 19 min: 1 % of
+268.8 Wh ≈ 2.7 Wh, ≈ 8.5 W (coarse: SOC has 1 % steps), so a load was real. Recommendation: keep
+`ac_output_power` on 38 and treat 0 W as "below the floor" (floor unknown, > 9 W);
+the runtime forecast must not read it as no load. H1 measures the floor.
 
 #### AC180 — protocol V2 (encrypted on current firmware, validated in bt)
 
@@ -727,6 +747,10 @@ remaining_wh = capacity_wh × soc / 100 × usable_factor     (default 0.85)
 runtime_h   = remaining_wh / max(load_w, 1)
 ```
 
+- **Low-load floor (§4.3, CF-4):** the EB3A reads 0 W below > 9 W. When a
+  station discharges (SOC falling or no grid) and its outputs read 0 W, take
+  `load_w` from the SOC slope (`capacity_wh × ΔSOC / 100 / Δt`, over ≥ 2 SOC
+  steps) or show the runtime as unknown — never the 1 W floor.
 - On battery: show "lasts until HH:MM".
 - On grid: show "if the power goes now: N h".
 - `usable_factor` covers inverter losses and the BMS cut-off; R1 calibrates it
@@ -740,6 +764,8 @@ runtime_h   = remaining_wh / max(load_w, 1)
   skip gaps longer than 3 intervals (counted as missing coverage).
 - Per station per day: `energy_in_wh` (AC + DC input), `energy_out_wh` (AC + DC
   output), `Δstored_wh = capacity_wh × Δsoc / 100`.
+  `energy_out_wh` under-counts loads below the low-load floor (§4.3, CF-4);
+  the losses line below absorbs them, so label it an estimate.
 - **Self-consumption / losses** ≈ `energy_in − energy_out − Δstored` — what UPS
   mode costs per day.
 - Cross-check with the V2 lifetime energy counters (regs 150–159) once verified.
@@ -966,13 +992,14 @@ station or need the AC180 are deferred to `HUMAN-CHECKLIST.md` and do not block
       firmware in §14 Q5.
 - [ ] `scan` + `detect` of the AC180 → step 18 (phase-2 PLAN amendment).
 - [x] EB3A acceptance run — 20 polls at 60 s (unattended): 20/20. App comparison
-      and the `verified: true` flags it confirms → `HUMAN-CHECKLIST.md` H1.
+      and the `verified: true` flags it confirms → `HUMAN-CHECKLIST.md` H1;
+      `ac_output_power` reads 0 W below a low-load floor → CF-4, step 21, §4.3.
 - [x] Exception-aware reassembly length (loop/STATE.md CF-3).
 - [x] Record an EB3A fixture; replay test for the full read path.
 - [x] Wire `cargo llvm-cov` into `make check` (≥ 80% on `protocol`).
 
-**Acceptance (RULES.md):** EB3A 19/20 polls OK (met, 20/20); SOC equal to the
-app, power ±5 W → H1.
+**Acceptance (RULES.md):** EB3A 19/20 polls OK (met, 20/20; `ac_output_power` →
+CF-4 / step 21, a low-load floor in §4.3); SOC equal to the app, power ±5 W → H1.
 
 ### M2 — Encryption + V2 stations (Phase 2, merged) → `v0.3-encryption`
 

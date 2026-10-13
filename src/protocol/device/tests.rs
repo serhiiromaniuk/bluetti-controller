@@ -51,14 +51,15 @@ fn decodes_eb3a_block() {
     registers.insert_block(10, &block);
     registers.insert_block(
         70,
-        &[0; 7].iter().copied().chain([2301]).collect::<Vec<_>>(),
+        // 77 = 222 raw with the grid on: whole volts (CF-4 dump, 2026-10-13).
+        &[0; 7].iter().copied().chain([222]).collect::<Vec<_>>(),
     );
 
     let metrics = decode(Model::Eb3a.profile(), &registers);
     assert_eq!(metrics[&BatterySoc], 87.0);
     assert_eq!(metrics[&AcInputPower], 12.0);
     assert_eq!(metrics[&AcOutputOn], 1.0);
-    assert!((metrics[&AcInputVoltage] - 230.1).abs() < 1e-9);
+    assert_eq!(metrics[&AcInputVoltage], 222.0);
     assert!(
         !metrics.contains_key(&DcInputVoltage),
         "register 86 was not polled"
