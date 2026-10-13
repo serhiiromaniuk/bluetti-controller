@@ -751,3 +751,35 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Batch review ✓ 2026-10-13 — 468178c, 774df8f, 274a955, 3bcd58a
+
+**reviewer:** INTENT satisfied (468178c, 774df8f, 274a955); shortfall (3bcd58a). 0 CRITICAL / 1 HIGH / 2 MEDIUM.
+- HIGH: step 17's check cannot pass with AC180 boxes annotated `→ step <n>` (ROADMAP.md:968, :985) → fixed: dated note in PLAN `## Amendments` extends step 17's exclude regex; step 22 keeps the strict one.
+- MEDIUM: §12 preamble (ROADMAP.md:933) and BRIEF **Out** still exclude the AC180 → deferred to A28.
+- MEDIUM: step 19 has no plaintext-AC180 branch → deferred to A29.
+
+**Next:** step 17.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:10:03Z
+
+```text
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 2 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

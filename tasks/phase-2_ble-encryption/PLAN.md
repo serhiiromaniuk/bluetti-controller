@@ -89,3 +89,11 @@ spec §10.4 before each hardware step; every field stays `verified: false` (Q4).
 - [ ] 20. AC180 acceptance run (RULES.md v0.3 gate), as step 16 for `mobile`: `make build`, 20 polls at 60 s, `timeout -s INT -k 5 55 … read mobile --anonymise`, no overlapping connection — check: per-poll tally in LOG ≥ 19/20; fewer → `<<LOOP:GATE_FAILED>>`
 - [ ] 21. CF-4, read-only (spec §4.3). With the router on the EB3A AC outlet, `dump router --anonymise` over the V1 ranges the community maps name for AC output (power, current, voltage, load), twice a minute apart; compare with §4.3 sources. Either move `ac_output_power` to the register that tracks the load (decode test on the hand-read value) or document a low-load floor in §4.3 with the evidence. Discharge CF-4 in `loop/STATE.md` — check: dumps in LOG; `make check`
 - [ ] 22. AC180 docs close-out (spec §M2, spec §14 Q5). AC180 flag + firmware in §14 Q5 and §4.5; tick the §M2 AC180 boxes the LOG evidences, app comparison stays H3 — check: `sed -n '/^### M1/,/^### M3/p' ROADMAP.md | grep '\[ \]' | grep -vcE 'H[0-9]|n/a'` → 0; `make amendments` → none open; `make loop-hygiene` clean
+
+**2026-10-13 · step 17's check, given the note above (batch review HIGH).** A
+§M1/§M2 box that steps 18–22 cover is annotated `→ step <n>` by step 17, and
+step 17's check excludes those: `grep -vcE 'H[0-9]|n/a|→ step (1[89]|2[0-2])'`
+→ 0. Step 22 keeps the strict regex, so each such box is ticked by the close.
+
+- A28 · 2026-10-13 · MEDIUM `ROADMAP.md:933` — §12 preamble still says the AC180 is a `HUMAN-CHECKLIST.md` row and AC180 items are deferred; the 14:05 decision reversed that. Step 22 rewrites it; OUTCOME cites the 14:05 decision as the scope change against BRIEF **Out** (BRIEF stays static) · home: step 22 · disposition: open
+- A29 · 2026-10-13 · MEDIUM `tasks/phase-2_ble-encryption/PLAN.md` step 19 — assumes the AC180 is encrypted; plaintext units exist (ROADMAP.md:451). If step 18 shows `mobile` plaintext, skip the wire fixture and real-key replay, record why in LOG, mark §M2 "vectors from our AC180" n/a with the reason · home: step 19 · disposition: open
