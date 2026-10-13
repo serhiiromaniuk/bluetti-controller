@@ -11,18 +11,19 @@ CARGO ?= cargo
 TOOLS_DIR := $(abspath $(shell git rev-parse --path-format=absolute --git-common-dir)/..)/.tools
 LLVM_COV_VERSION := 0.9.1
 LLVM_COV := $(TOOLS_DIR)/bin/cargo-llvm-cov
-# Minimum line coverage (%) of src/protocol/ (RULES.md Testing).
+# Minimum line coverage (%) of each gated directory (RULES.md Testing).
 COV_MIN ?= 80
+COV_DIRS := src/protocol/ src/metrics/
 COV_JSON := target/llvm-cov-summary.json
 # Unit tests live in <module>/tests.rs and are excluded, so test code never
-# covers itself. jq: summed line coverage of src/protocol/ files against $min.
+# covers itself. jq: summed line coverage of $dir's files against $min.
 define COV_FILTER
-[.data[0].files[] | select(.filename | contains("/src/protocol/")) | .summary.lines]
+[.data[0].files[] | select(.filename | contains("/" + $$dir)) | .summary.lines]
 | (map(.covered) | add) as $$c | (map(.count) | add) as $$n
-| if ($$n // 0) == 0 then error("no src/protocol/ files in coverage") else 100 * $$c / $$n end
+| if ($$n // 0) == 0 then error("no \($$dir) files in coverage") else 100 * $$c / $$n end
 | (. * 100 | floor / 100) as $$pct
-| if . < $$min then error("src/protocol/ line coverage \($$pct)% < \($$min)%")
-  else ">> src/protocol/ line coverage \($$pct)% (min \($$min)%)" end
+| if . < $$min then error("\($$dir) line coverage \($$pct)% < \($$min)%")
+  else ">> \($$dir) line coverage \($$pct)% (min \($$min)%)" end
 endef
 export COV_FILTER
 
@@ -57,12 +58,12 @@ lint:                           ## clippy, warnings are errors
 tools:                          ## install pinned dev tools (cargo-llvm-cov) into .tools/
 	$(CARGO) install --locked --root $(TOOLS_DIR) cargo-llvm-cov --version $(LLVM_COV_VERSION)
 
-# Tests run once, under coverage; the gate fails below COV_MIN on src/protocol/.
+# Tests run once, under coverage; the gate fails below COV_MIN on any of COV_DIRS.
 .PHONY: test
-test:                           ## run tests under coverage; fail if src/protocol/ < COV_MIN % (hardware tests are #[ignore])
+test:                           ## run tests under coverage; fail if src/protocol/ or src/metrics/ < COV_MIN % (hardware tests are #[ignore])
 	@test -x $(LLVM_COV) || { echo "!! $(LLVM_COV) missing — run: make tools" >&2; exit 1; }
 	PATH="$(TOOLS_DIR)/bin:$$PATH" $(CARGO) llvm-cov --all-targets --locked --ignore-filename-regex '/tests\.rs$$' --json --summary-only --output-path $(COV_JSON)
-	@jq -r --argjson min $(COV_MIN) "$$COV_FILTER" $(COV_JSON)
+	@for dir in $(COV_DIRS); do jq -r --arg dir "$$dir" --argjson min $(COV_MIN) "$$COV_FILTER" $(COV_JSON); done
 
 # The single sanctioned gate — the loop and every commit run THIS.
 # Gates run in parallel; cargo serialises on its build-directory lock, so they

@@ -34,7 +34,7 @@
   - State the size budget in the LOG: extras per poll per model × 1440 × ~40 B (Elite ≈ 40 extras ≈ 2.3 MB/day) plus `sample`, against 10 MB per station-day.
   - TDD with hand-computed rows: an EB3A-shaped poll lands 6 core columns and N extras; a poll with a problem lands only a failure row; 3 failures make the station unreachable, and a sample clears it.
   - check: `cargo test store::`; `make check` · review: risky
-- [ ] 4. Grid presence (spec §7.1) + coverage gate on `src/metrics/`.
+- [x] 4. Grid presence (spec §7.1) + coverage gate on `src/metrics/`.
   - `src/lib.rs` gets `pub mod metrics`. `src/metrics/mod.rs` declares `grid`, `house`, `runtime`, `energy`; the last three files hold only their module doc and are filled by group A.
   - `src/metrics/grid.rs` is a pure per-station state machine: present when `ac_in_v ≥ grid_voltage_min`, with `ac_in_w > 0` as the fallback when the voltage is missing; a change is accepted after `debounce_samples` and backdated to the first sample of the new state; no successful poll for > 3 intervals → `Unknown`, never an outage.
   - TDD with hand-computed timestamps: flapping on/off/on never flips; debounce 2 backdates; a gap gives `Unknown`, then recovers.
@@ -166,3 +166,4 @@
 ## Amendments
 - A1 · 2026-10-13 · MEDIUM `ROADMAP.md` §5.4 per-round budget — the 20 s per-poll deadline is shorter than one timed-out connect attempt plus cleanup and backoff (15 + 5 + 2 s), so `connect_attempts = 3` never retries a timed-out connect; step 10 must derive the per-attempt connect timeout from the deadline (e.g. `min(connect_timeout, deadline / attempts)`) or state that the deadline replaces timeout retries, and record which in ROADMAP §5.4 · disposition: open
 - A2 · 2026-10-13 · MEDIUM `src/store/write.rs:232` — `station_health` cuts at `max(sample.ts)`, but retention (step 1 d) purges raw samples after 30 days while `poll_failure` stays 90 days: a station silent > 30 days falls back to cutoff -1 and `since` predates its real unreachable start; step 9 must fall back to `max(rollup_5m.ts) + 299` (rollups kept forever) or retention must keep each station's newest sample · disposition: open
+- A3 · 2026-10-13 · MEDIUM `src/metrics/grid.rs:105` — with `debounce = 1`, a sample after a gap returns only the new state's change; the `Unknown` change from the internal `tick(ts)` is lost and `state()` never shows it. The house vote (step 5) and the writer (step 8) must call `tick(ts)` before `observe(ts, …)` (documented on `observe`) or `observe` returns both changes; step 8 tests it · disposition: open
