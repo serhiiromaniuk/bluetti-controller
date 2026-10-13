@@ -11,3 +11,11 @@ row becomes a fix task.
 | H2 | Elite 200 V2: the same comparison for `read living-room` | owner, 2026-10-13 | pending |
 | H3 | AC180: switch it on, run `scan`, `detect`, then a 20-poll acceptance run and the app comparison | owner, 2026-10-13 | pending |
 | H4 | Outage test: unplug the AC input of a grid-sensor station once during a collector run; recorded within 2 min. Skip if a real grid outage was already recorded | owner, 2026-10-13 | pending |
+
+## Owner observations (for the loop's plausibility checks)
+
+- 2026-10-13 ~12:00–13:00: grid outage. AC input 0 V on both stations is
+  correct. The Elite 200 V2 ~445 W output is the owner's PS5 and TV. The EB3A
+  powers only the router on its AC outlet (~9 W expected), yet `read router`
+  showed every power at 0 W: check the EB3A AC output power register
+  (unverified map, or a low-load floor), before H1.
