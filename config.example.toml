@@ -24,7 +24,11 @@ request_timeout_secs = 5
 connect_attempts = 3
 
 [crypto]
-# Static keys for encrypted (BLUETTE) stations, ROADMAP.md §4.4. Never commit.
+# Static keys for encrypted (BLUETTE/BLUETTF) stations, ROADMAP.md §4.4. Never
+# commit. The file holds exactly three hex strings (no `0x`, either case):
+#   local_aes_key         = "<32 hex digits>"   16-byte AES key
+#   host_signing_key      = "<64 hex digits>"   P-256 private scalar, big-endian
+#   station_verifying_key = "<130 hex digits>"  SEC1 uncompressed point, `04…`
 keys_file = "/etc/bluetti-controller/keys.toml"
 
 [metrics]

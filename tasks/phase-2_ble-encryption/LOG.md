@@ -300,3 +300,45 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 8 ✓ 2026-10-13 — static keys via the config module
+
+**Changed:**
+- `src/config/keys.rs` (new, `mod keys` in `config.rs`): `CryptoConfig::load_keys() -> StaticKeys` reads `keys_file` in the §4.4 schema; `Config::static_keys()` fails with "encrypted station needs `[crypto] keys_file`" when `[crypto]` is absent (step 11 calls it).
+- Unknown-field refusal done by hand over a `toml::Table`, not serde `deny_unknown_fields`: serde/toml errors can quote the value. Errors name field + expected digit count; TOML syntax errors give the line number only.
+- Hex: exactly 2·N ASCII hex digits, either case (rejects `0x` and the `+` that `from_str_radix` accepts); invalid P-256 scalar/point → `invalid key: <field>`.
+- `config.example.toml`: `[crypto]` comment documents the three fields and their hex lengths.
+- Local `config.toml` (gitignored): `keys_file` was the `/etc` example path; now the repo-root `keys.toml` (delegated, Q1).
+
+**Check:**
+- `cargo test --lib config::` 17 passed (6 new: handshake to `Done` against the step-7 simulator with loaded keys, hex byte order, bad length/`0x`/`+`/off-curve without quoting the value, unknown/missing/mistyped field, syntax-error line, missing `[crypto]`/file).
+- Failing first (mutation): hexdigit check removed → `rejects_bad_field_without_quoting_it` FAILED; restored → pass.
+- Real keys: scratch test (removed) loaded local `config.toml` → `static_keys()` ok; first failed on the old `/etc` path (no such file), passed after the local fix.
+- `git check-ignore` keys.toml + config.toml: both ignored; `git status --short` lists neither.
+- `make check` green; `src/protocol/` 99.81%.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM. Its "real key not loaded" gap is covered by the scratch load above.
+
+**Carry-forward:** none. **Next:** step 9 — `BluerGatt` + A8 + `detect` part 1.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T09:03:23Z
+
+```text
+
+test result: ok. 99 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-871f4c6d900bafc2)
+
+running 2 tests
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+test cli::scan::tests::unknown_station_still_prints ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.81% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

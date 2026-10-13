@@ -14,6 +14,8 @@ use serde::{Deserialize, Deserializer};
 
 use crate::protocol::device::Model;
 
+mod keys;
+
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Config {
@@ -93,6 +95,7 @@ impl Default for BleConfig {
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CryptoConfig {
+    /// `keys.toml` with the static keys; read by [`CryptoConfig::load_keys`].
     pub keys_file: PathBuf,
 }
 
