@@ -691,3 +691,45 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 15 ✓ 2026-10-13 — 12 h acceptance run started (A17)
+
+**Started:** unit `bluetti-acceptance-24h` (transient, `systemd-run --user`), start **1791904529** (2026-10-13T15:15:29Z).
+- **Relaunch / ETA (step 18):** `now ≥ 1791947729` (2026-10-14T03:15:29Z); window `[1791904529, 1791947729)`, ≥ 684/720 polls per station (A17).
+- Binary: `make build` on 886d22b (no `src/`/`Cargo.*` change since d83f562, the smoke-2 build) copied to `data/run/bluetti-controller`.
+- Config: `data/acceptance.toml` = `config.toml` with only `storage.path = "data/acceptance-24h.db"` (fresh file; `diff` shows one line). All under gitignored `data/`.
+- Command as step 14 verified: `systemd-inhibit --what=sleep:idle --why="v0.4 acceptance"` wrapper; `systemd-inhibit --list` shows `v0.4 acceptance` `sleep:idle` `block`.
+- Journal: `serving listen=0.0.0.0:8080 stations=3 interval_s=60`.
+
+**Check (+203 s, 1791904732):** `is-active` → `active`; samples router 4, living-room 3, mobile 3 (each ≥ 1); failures living-room `discover` 1; `/healthz` 200 `{"status":"ok","last_poll_age_s":22}`. **Passes.**
+
+**Risk noted:** owner's JBL Charge 4 still connected on the same adapter (A18 suspect). Not disconnected: it is the owner's device in use, not a station. Step 18's per-station miss rate decides A18.
+
+**From now until step 18:** no command touches a station; `data/run/` binary is not rebuilt (golden rule #5).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM `Linger=no`: logging out of GNOME before the ETA ends the user manager and kills the run → amendment A19.
+**Next:** step 16 — acceptance measurement script (station-free).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:20:14Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

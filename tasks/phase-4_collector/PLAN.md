@@ -105,7 +105,7 @@
   - Grid off for the whole window → CF-5 is checked instead from step 18's DB, and the smoke still counts.
   - AC180 not on the grid → Q5.
   - check: smoke counts (each station ≥ 14 samples in 16 min) and CF-5 values in the LOG · review: risky
-- [ ] 15. Start the 24 h run (spec §M3, RULES.md v0.4 gate) (needs Q1, Q2).
+- [x] 15. Start the 24 h run (spec §M3, RULES.md v0.4 gate) (needs Q1, Q2).
   - Copy the release binary to `data/run/`. Make `data/acceptance.toml` from the local config with `storage.path = "data/acceptance-24h.db"` (a fresh file).
   - Start it with `systemd-run --user --working-directory="$PWD" --unit=bluetti-acceptance-24h systemd-inhibit --what=sleep:idle --why="v0.4 acceptance" data/run/bluetti-controller serve --config data/acceptance.toml`, in the form step 14 verified (without the inhibit if it was refused).
   - Write to the LOG the start (UTC unix ts), the unit name and the ETA as the relaunch time.
@@ -182,3 +182,4 @@
 - A16 · 2026-10-13 · MEDIUM `src/transport/bluer/scan.rs:93` — `scan_for` drops every `advert_of` error, not only "device not known yet": a real D-Bus/bluetoothd failure spins 15 s and reads as "station not found … out of range, or the official app is connected". Keep the last error, `debug!` it masked, and put it in the not-found context · disposition: open
 - A17 · 2026-10-13 · owner decision — the v0.4 run is **12 h, not 24 h** (RULES.md v0.4). Steps 15–18 read with 12 h: step 18 blocks while `now < start + 12 h`, measures `[start, start + 43200)`, and each station needs ≥ 684/720 polls; DB size stays per station-day (the script already divides by days). The unit and DB file names may keep `24h`. · disposition: open
 - A18 · 2026-10-13 · MEDIUM `src/transport/bluer/scan.rs` — smoke 2 (step 14b) had 3 `discover` misses in 48 polls (router 2/16, living-room 1/16), each "station not found within 15s" on a cache miss while the stations sat 60 s apart in range; router at 2/16 = 87.5 % would fail the v0.4 ≥ 95 % gate if it held over the 12 h run (A17: ~90 misses of 720 vs 36 allowed). Cause unproven (the owner's JBL speaker was connected on the same adapter: BR/EDR audio coexistence cuts LE scan time; or long advert intervals). Step 15's per-station miss rate decides: if it fails, measure `scan_for` time-to-heard per station before the re-run · disposition: open
+- A19 · 2026-10-13 · MEDIUM `tasks/phase-4_collector/LOG.md` step 15 — `loginctl show-user` reports `Linger=no`, so the transient `systemd-run --user` unit dies if the owner logs out before the ETA; step 18 would then fail on a host-setup gap, not the collector. Before a re-run (or M5), enable linger (`loginctl enable-linger`, user-level and reversible, may need polkit) or record a stay-logged-in note · disposition: open
