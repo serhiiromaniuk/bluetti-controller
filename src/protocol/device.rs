@@ -39,6 +39,15 @@ impl Model {
         split_ble_name(name).map(|(model, _)| model)
     }
 
+    /// Config and storage name: `EB3A`, `AC180` or `Elite200V2`.
+    pub fn name(self) -> &'static str {
+        match self {
+            Model::Eb3a => "EB3A",
+            Model::Ac180 => "AC180",
+            Model::Elite200V2 => "Elite200V2",
+        }
+    }
+
     pub fn profile(self) -> &'static Profile {
         match self {
             Model::Eb3a => &EB3A,

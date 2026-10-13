@@ -21,12 +21,7 @@ pub async fn run(ble: &BleConfig, timeout_secs: u64, anonymise: bool) -> anyhow:
 /// `<address>  <name>  <rssi> dBm  <model>  encrypted=<yes|no|unknown>`.
 pub(super) fn line(advert: &Advert, anonymise: bool) -> String {
     let name = advert.name.as_deref().unwrap_or("?");
-    let model = match Model::from_ble_name(name) {
-        Some(Model::Eb3a) => "EB3A",
-        Some(Model::Ac180) => "AC180",
-        Some(Model::Elite200V2) => "Elite200V2",
-        None => "unknown",
-    };
+    let model = Model::from_ble_name(name).map_or("unknown", Model::name);
     let encrypted = match is_encrypted(&advert.manufacturer_data) {
         Some(true) => "yes",
         Some(false) => "no",
