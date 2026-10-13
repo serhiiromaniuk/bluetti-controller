@@ -296,22 +296,124 @@ The M0 code (`src/protocol/device.rs`) implements these maps with a
 
 ### 4.4 Encryption (V2 / BLUETTE stations)
 
-Summary of the community implementation (read the source before porting) [S6][S15]:
+Read at pinned commits, all MIT: nhurman `encryption.py` [S35], the
+`bluetti-bt-lib` port of it (same code + fragment reassembly) [S36], `rustytti`
+`crypto.rs`/`session.rs` (Rust, p256/aes/cbc/md-5, AC50P) [S37]. The three agree
+byte for byte; the static values are identical in all three (compared by hash).
+The GPL `x3ccd4828/bluetti-encryption` was not opened.
 
-1. Encrypted frames carry magic `0x2A2A` and a 2-byte length; before key exchange
-   a 4-byte IV seed is included.
-2. The station sends a challenge; a temporary AES-128-CBC key is derived from a
-   static key and `md5(seed)`.
-3. ECDH on SECP256R1: both sides exchange public keys signed with ECDSA-SHA256;
-   the signing/verification keys are static and were taken from the app/firmware.
-4. The shared secret becomes the session AES-128-CBC key; Modbus frames (§4.2) are
-   then wrapped in AES-CBC.
-5. The author notes the scheme is MITM-weak. Tested on AC180.
+**Framing.** Three shapes on the wire (ff01 notify / ff02 write, §4.1):
+
+- *Kex frame* (plaintext): `2A 2A` · type u8 · len u8 · payload[len] ·
+  checksum u16 BE = wrapping sum of the type, len and payload bytes. A
+  notification that starts with `2A 2A` is a kex frame; test this only when the
+  reassembly buffer is empty, since a continuation fragment can start with those
+  bytes by chance.
+- *Temp envelope*: plain_len u16 BE · AES-128-CBC ciphertext. No magic, no
+  seed; the IV is the per-session temp IV.
+- *Session envelope*: plain_len u16 BE · seed[4] · AES-256-CBC ciphertext,
+  IV = `md5(seed)` (seed **not** reversed), a fresh random seed per frame, both
+  directions.
+- Padding: zeros up to a 16-byte multiple (not PKCS#7); strip it with plain_len.
+  Envelope size = header (2 or 6) + `ceil(plain_len/16)*16`, so an envelope that
+  spans several notifications is reassembled by length [S36][S37].
+
+**Sequence** (the station speaks first: subscribe to ff01, then the challenge
+arrives as a notification) [S35][S37]:
+
+| # | Dir | Wire shape | Plaintext | Key / static value used |
+|---|---|---|---|---|
+| 1 | st→us | kex frame | type `01`, len 4, seed[4] | none |
+| 2 | us→st | kex frame, ATT **Write Request** | type `02`, len 4, temp_iv[8..12] | none: temp_iv = `md5(reverse(seed))`; temp_key = temp_iv XOR *local AES key* |
+| 3 | st→us | kex frame | type `03`, len 1, `00` = accepted | none |
+| 4 | st→us | temp envelope wrapping a kex frame | type `04`, len `80`: station point[64] · sig[64] | *station verifying key* checks sig over point ‖ temp_iv |
+| 5 | us→st | temp envelope wrapping a kex frame, Write Command | type `05`, len `80`: our ephemeral point[64] · sig[64] | *host signing key* signs our point ‖ temp_iv |
+| 6 | st→us | temp envelope wrapping a kex frame | type `06`, len 1, `00` = accepted | session_key = ECDH(our ephemeral secret, station point) |
+| 7+ | both | session envelope | Modbus RTU frame (§4.2) with its own CRC | session_key |
+
+- Curve P-256 (secp256r1). Points are raw X‖Y (64 bytes, SEC1 uncompressed
+  without the `04`). Signatures are ECDSA-SHA256, raw r‖s (2×32 bytes BE), not
+  DER. The session key is the raw 32-byte ECDH x-coordinate used directly as an
+  **AES-256** key (no KDF); only the temporary key is AES-128.
+- Write type (rustytti, matching the official app): message 2 must be a Write
+  Request (the station drops a Write Command); 5 and later are Write Commands.
+  If message 6 has not arrived ~1 s after message 5, resend the **identical**
+  message 5 ciphertext once; a new ephemeral pair is not accepted. rustytti
+  waits 8 s for message 1, 5 s for 4, 2.5 s + 1.5 s for 6, and after the
+  handshake sends a session-encrypted `01` ping the way the app does; nhurman
+  and bluetti-bt-lib skip the ping and still read AC180-class stations.
+- **Static values, by role** (shared by every station, extracted from the app
+  and firmware, not per station): *local AES key* (16 B), XORed into the temp
+  key at step 2; *host signing key* (P-256 private scalar, 32 B), signs message 5;
+  *station verifying key* (P-256 public key), verifies message 4. The DER SPKI
+  prefix for P-256 that nhurman also carries is a public ASN.1 constant: p256's
+  SEC1 parsing does not need it.
+- **`BLUETTE` vs `BLUETTF`:** no source has a different handshake per flag.
+  nhurman's `is_device_using_encryption` returns true only when the
+  manufacturer data equals `BLUETTF` exactly (constant `ENCRYPTED_ESP32_HEX`);
+  `BLUETTE` is declared but unused. bluetti-bt-lib ignores the advert and tries
+  encrypted first, then plaintext; rustytti matches on the name. The meaning of
+  the E/F split is unknown. We treat both as encrypted (§4.1) and `detect` logs
+  the flag; a `BLUETTE` station that sends no challenge is a finding, not a retry.
+- **MAC / SN:** no handshake message carries either. The signatures bind only
+  to the point and the session's temp IV. Session payloads may carry the SN in
+  Modbus registers, which the existing anonymiser masks.
+- **Station public key:** it travels inside the temp layer, so anyone with the
+  public *local AES key* and the sniffed seed can read it. It is signed with the
+  station's static signing key, the counterpart of the *station verifying key*.
+  All three sources run a full handshake on every connection and never cache
+  the point; whether the station's point changes between sessions is not stated
+  anywhere. Step 13 settles it by comparing a hash of the point across two
+  sessions (only same/different is logged). The design never depends on it:
+  verify the signature and run ECDH on every connection.
+- Open risks: a high-S station signature is accepted by nhurman (OpenSSL DER
+  verify); p256 verify behaviour on high-S is untested here, though rustytti
+  works on AC50P with p256 0.13. The checksum sum cannot overflow u16 (max body
+  130 × 255).
+
+**`keys.toml` schema** (gitignored, at the repo root for development, path from
+`[crypto].keys_file` §9; `deny_unknown_fields`; hex without `0x` or separators,
+either case; the loader names a bad field, never its value):
+
+| Field | Hex chars | Content |
+|---|---|---|
+| `local_aes_key` | 32 | 16-byte AES key XORed with `md5(reverse(seed))` |
+| `host_signing_key` | 64 | 32-byte P-256 private scalar, big-endian |
+| `station_verifying_key` | 130 | 65-byte SEC1 uncompressed point, starts `04` (the last 65 bytes of nhurman's 91-byte DER form) |
+
+**Committable artefacts** (golden rule #3). Allowed: messages 1–3 verbatim (a
+random seed, IV bytes and a 1-byte status: no key material); the header of every
+envelope (plain_len, and the seed for session envelopes) and its total length,
+with the ciphertext replaced by zeros of the same length; derived facts (type
+sequence, lengths, same/different). Never committed: message 4 or 6 ciphertext
+(the seed and the public local AES key decrypt them, exposing the station
+point), the station point or our ephemeral key in any form, the temp key, the
+session key, any static value, MAC/SN, and decrypted payloads that have not been
+through the anonymiser. Raw captures stay in gitignored `captures/`.
+
+**Recommendation:** port the state machine from `rustytti` (Rust, MIT) [S37],
+cross-checked against nhurman [S35] and credited in `README.md`. Use the
+RustCrypto crates in §4.9 at their current majors (rustytti is on the previous
+generation: p256 0.13, aes 0.8, cbc 0.1, md-5 0.10), with block-wise CBC and our
+own zero padding. Keep `protocol/crypto` pure: the ephemeral secret and the
+session seeds are inputs, and the RNG lives in `transport/`. Messages 2 and 5
+need a Write Request vs a Write Command, so the `Gatt` trait needs both write
+kinds. Test split: (1) `make check` uses **synthetic keys**: test-generated
+static values and a simulated station drive a full round trip, plus the bad
+signature, out-of-order and truncated cases; NIST SP 800-38A F.2.1/F.2.5 CBC
+vectors [S39]. (2) **Key-independent recorded vectors**, also in `make check`:
+rustytti's captured challenge `2a2a0104ffdf22b702bc` → reply
+`2a2a02045a4fd30e0190` (message 2 depends only on the seed; recomputed here),
+plus step 13's structure-only fixtures. (3) A **real-key `#[ignore]` test**
+replays a gitignored capture with the local `keys.toml`. It decrypts messages
+4 and 6 with the temp key, verifies the station signature, and checks that our
+message 5 verifies; a full session decrypt needs that run's ephemeral secret,
+which is stored only in `captures/`.
 
 Re-implementations: `nhurman/bluetti_mqtt` (Python, MIT), `bluetti-bt-lib` port
 (Python, MIT), `j4m3z0r/bluetti-monitor` (Python, MIT), `rustytti` (Rust, MIT,
 AC50P only) — **use `rustytti` and nhurman as references**;
-`x3ccd4828/bluetti-encryption` is GPLv3 and must not be copied. [S6][S16][S17]
+`x3ccd4828/bluetti-encryption` is GPLv3 and must not be copied. [S6][S16][S17][S35][S36][S37]
 
 Official alternative: `bluetti-official/bluetti-bluetooth-lib` 1.0.0 — closed
 x86_64 SWIG Python extension (`ble_crypt_link_handler` status 0→4,
@@ -374,7 +476,7 @@ None covers all three of our stations. [S16][S24]
 | clap | 4.6.7 | derive |
 | tracing / tracing-subscriber | 0.1.44 / 0.3.23 | env-filter, stdout → journald |
 | anyhow / thiserror | 1.0.104 / 2.0.21 | |
-| p256, aes, cbc, md-5 | (pick at M2) | for the handshake |
+| p256 / aes / cbc / md-5 | 0.14.0 / 0.9.3 / 0.2.1 / 0.11.0 | RustCrypto, MIT OR Apache-2.0; p256 features `ecdh`, `ecdsa`; AES-128 temp + AES-256 session CBC, md5 IVs (§4.4); aes needs Rust ≥ 1.89 [S38] |
 | uPlot (vendored JS) | 1.6.32 | 21.9 KB gzipped vs Chart.js 68.4 KB |
 
 Toolchain: rustup with Rust 1.99.0 pinned in `rust-toolchain.toml` (rustfmt +
@@ -997,6 +1099,11 @@ the unplug; DB < 10 MB per station-day.
 | S32 | https://legislation.gov.uk/eudr/2009/24/article/6, https://zakon.rada.gov.ua/laws/show/2811-20 |
 | S33 | Bluetti product pages and reviews: https://shop.bluettipower.com/pages/ac180, https://www.storagereview.com/review/portable-power-meets-lab-grade-reliability-bluetti-elite-200-v2-review, https://www.bluettipower.com.au/products/bluetti-eb3a-portable-power-station |
 | S34 | Bluetti community forum threads: "UPS Problem on EB3A", "EB3A fan always on in UPS mode", "Introduce an option for a 80% charge limit", "Encryption and decryption module provides APIs", "Official Bluetti Device API Survey" (community.bluettipower.com) |
+| S35 | https://github.com/nhurman/bluetti_mqtt/blob/b746f17c1f6c/bluetti_mqtt/bluetooth/encryption.py (MIT; also `bluetooth/__init__.py`, `manager.py`) |
+| S36 | https://github.com/Patrick762/bluetti-bt-lib/tree/0e11a80484a1 (MIT; `bluetti_bt_lib/bluetooth/encryption.py`, `device_reader.py`, `device_recognizer.py`) |
+| S37 | https://gitlab.com/spock/rustytti/-/tree/d2c651d54dcf (MIT; `src/crypto.rs`, `src/session.rs`, `src/timeouts.rs`) |
+| S38 | https://crates.io/crates/p256/0.14.0, https://crates.io/crates/aes/0.9.3, https://crates.io/crates/cbc/0.2.1, https://crates.io/crates/md-5/0.11.0 (crates.io API, 2026-10-13) |
+| S39 | https://csrc.nist.gov/pubs/sp/800/38/a/final (Appendix F.2, CBC example vectors) |
 
 ---
 
