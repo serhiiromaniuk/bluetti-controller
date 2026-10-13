@@ -1016,3 +1016,10 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Owner action 2026-10-13 18:47 — 12 h run restarted after JBL disconnect
+- Owner decision: the JBL Charge 4 was disconnected from the laptop adapter (18:43:13); the run restarted at once, no observation window.
+- Run 1 stopped (SIGTERM); its DB kept as `data/acceptance-24h-run1.db*` (not measured for the gate).
+- Run 2: same unit `bluetti-acceptance-24h`, same command and binary, fresh `data/acceptance-24h.db`.
+- **New window for step 18: start 1791906447, ETA 1791949647** (2026-10-14 03:47:27 UTC = 06:47 EEST). Supersedes start 1791904529.
+- Keep audio devices off the laptop's Bluetooth during runs (A18).
