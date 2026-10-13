@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 (merged with 3) in progress: `tasks/phase-2_ble-encryption/` (planned, 17 steps) |
+| **Gate status** | 🟢 Phase 2 (merged with 3) closed, tagged `v0.3-encryption`. Phase 4 next: `tasks/phase-4_collector/` (to open) |
 | **Blocked?** | no — owner answered everything up front 2026-10-13; physical checks go to `HUMAN-CHECKLIST.md` |
 
 ## Carry-forward — obligations that outlive the task that found them
@@ -15,6 +15,7 @@
 - ~~CF-2 → phase 2 (merged): Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.~~ Discharged 2026-10-13: `BLUETTF` + handshake, dump vs PR #49 in §4.3 (step 14), 20/20 acceptance (step 16).
 - ~~CF-4 → phase 2 (before the close): EB3A `ac_output_power` read 0 W on 20/20 acceptance polls while its AC outlet powered the router (~9 W) in a grid outage (owner observation, `HUMAN-CHECKLIST.md`). Plausible-range checks cannot catch it. Discharge: find the right register or a documented low-load floor (community maps, `dump`), recorded in LOG.~~ Discharged 2026-10-13: low-load floor documented in ROADMAP.md §4.3 (reg 38 stays; 0 W at ~9 W; H1 bounds it), phase-2 step 21.
 - ~~CF-3 → phase 2: transport reassembly must stop at 5 bytes when the function byte has 0x80 set (Modbus exception). Recorded in: PLAN A6, `src/protocol/modbus.rs` module doc. Discharge: pure `expected_frame_len` helper + exception-vector test in M1.~~ Discharged 2026-10-13: `expected_frame_len` + `frame_len_stops_at_five_on_exception` (phase-2 step 3).
+- CF-5 → phase 4 (before outage logic): Elite 200 V2 / AC180 `ac_input_voltage` (1314, ×0.1) and `ac_input_frequency` (1300) never read with the grid on. Recorded in: phase-2 OUTCOME (close-review M2). Discharge: grid-on `read` of both, values in LOG.
 
 ## Decisions — do not relitigate
 - 2026-10-13: read all stations over local BLE, porting the community handshake to Rust — beat the official cloud and the licensed crypto module (ROADMAP.md ADR-002).

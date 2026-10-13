@@ -1051,3 +1051,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-10-13 — close-reviewer VERDICT close; gate `v0.3-encryption` passed
+
+**Changed:**
+- `OUTCOME.md` written: summary, commits, A28 scope-change citation (owner 14:05 decision vs BRIEF **Out**), lessons, one reviewer calibration proposal.
+- `PLAN.md` A28 → fixed. `BRIEF.md` done-when: 8/8 ticked.
+- `loop/STATE.md`: gate row → phase 2 closed; CF-5 raised (close-review M2). `tasks/INDEX.md`: phase 2 done, phase 4 row in-progress (folder opens next iteration).
+
+**Check:**
+- `make amendments` → `33 finding(s), all disposed`.
+- close-reviewer re-ran: `make check` exit 0, `src/protocol/` 99.82%; bluer grep; handshake vectors (incl. ignored real-key test); no real MAC/key/ephemeral in fixtures; fixtures regenerate byte for byte; acceptance logs 20/20 ×3; §14 Q5; H1–H3 rows; no stubs. 0 TREE-CHANGED.
+
+**close-reviewer:** VERDICT close; 0 CRITICAL / 0 HIGH / 3 MEDIUM, all to OUTCOME `## Pending / Follow-up`:
+- M1 OUTCOME "no calibration line" wrong (A33, CF-4 passed by reviewer) → calibration line proposed.
+- M2 Elite/AC180 reg 1314/1300 never read with the grid on → CF-5 (phase 4).
+- M3 EB3A 20/20 run predates the reg-77 fix → recorded; poll ratio independent of scale.
+
+**Gate:** RULES.md v0.3 — 20/20 per station (≥ 19), decoding plausible; app comparison deferred to H1–H3. **Decision:** none. **Carry-forward:** CF-5 raised. **Next:** open `tasks/phase-4_collector/`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T12:04:15Z
+
+```text
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -29,20 +29,20 @@ deploy (phase 5); any write frame (0x06/0x10), pairing or device control
 (golden rule #2).
 
 ## Done when
-- [ ] `make check` green with `src/protocol/` ≥ 80% line coverage — check:
+- [x] `make check` green with `src/protocol/` ≥ 80% line coverage — check:
       `make check` output in LOG.md
-- [ ] `bluer` is used only under `src/transport/bluer/` — check: grep in LOG.md
-- [ ] Handshake unit-tested against recorded, anonymised vectors — check: test
+- [x] `bluer` is used only under `src/transport/bluer/` — check: grep in LOG.md
+- [x] Handshake unit-tested against recorded, anonymised vectors — check: test
       passes; fixtures hold no real MAC/SN/key
-- [ ] Replay test drives `detect` + `read` for the EB3A and the Elite 200 V2
+- [x] Replay test drives `detect` + `read` for the EB3A and the Elite 200 V2
       from anonymised fixtures — check: tests pass
-- [ ] Firmware and encryption flag of the EB3A and Elite 200 V2 in ROADMAP.md
+- [x] Firmware and encryption flag of the EB3A and Elite 200 V2 in ROADMAP.md
       §14 Q5 — check: `scan`/`detect` output in LOG.md
-- [ ] Acceptance run: ≥ 19/20 polls at 60 s per station, every decoded value
+- [x] Acceptance run: ≥ 19/20 polls at 60 s per station, every decoded value
       inside its plausibility range — check: run output in LOG.md
-- [ ] Official-app comparison per station is a row in `HUMAN-CHECKLIST.md`
+- [x] Official-app comparison per station is a row in `HUMAN-CHECKLIST.md`
       (deferred, does not block) — check: the rows exist
-- [ ] the phase gate passes (`v0.3-encryption`) — see RULES.md / AGENTS.md §6
+- [x] the phase gate passes (`v0.3-encryption`) — see RULES.md / AGENTS.md §6
 
 ## References
 - Governing spec: `ROADMAP.md`
