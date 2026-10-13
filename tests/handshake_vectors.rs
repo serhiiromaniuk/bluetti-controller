@@ -17,8 +17,12 @@ use bluetti_controller::transport::fixture::{Dir, Fixture, decode_hex};
 use md5::{Digest, Md5};
 
 /// Fixture and the register count of its one `dump` chunk (EB3A 36–49,
-/// Elite 100–110).
-const FIXTURES: [(&str, u16); 2] = [("handshake-eb3a", 14), ("handshake-elite200v2", 11)];
+/// Elite and AC180 100–110).
+const FIXTURES: [(&str, u16); 3] = [
+    ("handshake-eb3a", 14),
+    ("handshake-elite200v2", 11),
+    ("handshake-ac180", 11),
+];
 /// Kex frame around a payload: magic, type, len, checksum.
 const KEX_OVERHEAD: usize = 6;
 

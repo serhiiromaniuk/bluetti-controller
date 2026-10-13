@@ -874,3 +874,47 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 19 ✓ 2026-10-13 — AC180 replay + handshake fixtures; real-key replay of 6 captures
+
+**Changed:**
+- `tests/frames/ac180.json`: plaintext `read` session (14 frames), masked by `anonymise`.
+- `tests/frames/handshake-ac180.json`: wire capture of `dump mobile --from 100 --to 110` (9 frames), masked by `anonymise --wire`; 100–110 holds no serial register (V2 serial = 116–119).
+- `tests/replay.rs`: `ac180_read_session_replays` — identity + all 12 values + no problems + fixture consumed.
+- `tests/handshake_vectors.rs`: `FIXTURES` gains `("handshake-ac180", 11)`.
+
+**Check:**
+- Pre-flight §10.4: rfkill unblocked, adapter powered, `control.enabled = false` (config.toml:36).
+- Hardware (`--anonymise`, MACs sed-masked): `read mobile --record captures/ac180.json` → EXIT=0, 14 frames (33.09 V, 1.00 A, soc 93, AC out 0 W, ac_output_on 1; BMS 1052.03). `dump mobile --from 100 --to 110 --record-wire captures/hs-ac180-{1,2}.json` → 1 chunk, 0 unread, EXIT=0 each.
+- Hand-read: 100=0x0ced, 101=0x0a, 102=0x5d; 110–112 "AC180"; 6175–6176=0x9af3/1; 140–147 = 0; 1213=1; 1300=0, 1314=0x15; 2011=1, 2012=0. Serial regs 116–119 zero in the fixture.
+- Green on arrival (tests over existing code); teeth: expected AcInputVoltage 2.1→2.2 → `ac180_read_session_replays` FAILED; raw `hs-ac180-1` as the fixture → structure test panicked ("ciphertext kept"). Both restored.
+- Ignored test `cargo test --test handshake_vectors -- --ignored --nocapture`: 6 captures replayed byte for byte, 2 session frames each decrypted; AC180 station point across 2 sessions: different (ephemeral, as EB3A/Elite).
+- Grep of real MACs (4 separator forms + reversed), SN (digits, first/last 8), raw serial words, ephemerals, keys.toml values over `tests/frames/` → 28 patterns, 0 matches (count only).
+- A29: `mobile` is `BLUETTF`, so the plaintext branch does not apply → fixed (step ran as written).
+
+**reviewer:** batch (581ca45 step 18 + step 19): INTENT satisfied for both; 0 CRITICAL / 0 HIGH / 0 MEDIUM. It re-checked every hand-read value against the fixture frames and re-ran the count-only secret grep (0 hits).
+
+**Decision:** none. **Carry-forward:** none. **Next:** step 20 (AC180 acceptance run).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:29:09Z
+
+```text
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

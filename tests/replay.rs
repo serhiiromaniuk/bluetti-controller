@@ -116,3 +116,44 @@ async fn elite_200_v2_read_session_replays() {
     }
     assert_eq!(poll.problems, []);
 }
+
+#[tokio::test]
+async fn ac180_read_session_replays() {
+    let (identity, poll) = replay_read("ac180", Model::Ac180).await;
+    assert_eq!(
+        identity,
+        Identity {
+            // 110-112 byte-swapped: "AC" "18" "0"
+            device_type: "AC180".into(),
+            layout: Protocol::V2,
+            // 6175-6176 = 0x9af3, 1 → 0x1_9af3 = 105203
+            firmware: vec![("bms", "1052.03".into())],
+        }
+    );
+    // 100 = 3309 × 0.01, 101 = 10 × 0.1, 102 = 93, 1213 = 1 × 0.1,
+    // 1314 = 21 × 0.1, 2011 = 1; 140-147, 1300 and 2012 are 0 (on battery,
+    // AC output on, no load).
+    let expected = BTreeMap::from([
+        (Metric::PackVoltage, 33.09),
+        (Metric::PackCurrent, 1.0),
+        (Metric::BatterySoc, 93.0),
+        (Metric::DcOutputPower, 0.0),
+        (Metric::AcOutputPower, 0.0),
+        (Metric::DcInputPower, 0.0),
+        (Metric::AcInputPower, 0.0),
+        (Metric::DcInputVoltage, 0.1),
+        (Metric::AcInputFrequency, 0.0),
+        (Metric::AcInputVoltage, 2.1),
+        (Metric::AcOutputOn, 1.0),
+        (Metric::DcOutputOn, 0.0),
+    ]);
+    assert_eq!(
+        poll.values.keys().collect::<Vec<_>>(),
+        expected.keys().collect::<Vec<_>>()
+    );
+    for (metric, want) in &expected {
+        let got = poll.values[metric];
+        assert!((got - want).abs() < 1e-9, "{metric:?}: {got} != {want}");
+    }
+    assert_eq!(poll.problems, []);
+}
