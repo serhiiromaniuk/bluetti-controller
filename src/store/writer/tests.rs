@@ -10,6 +10,7 @@ use crate::store::{Stage, open_reader, open_writer, sync_stations};
 const P: i64 = 60;
 const ON: f64 = 230.0;
 const OFF: f64 = 0.0;
+const RETENTION: NonZeroU32 = NonZeroU32::new(30).unwrap();
 
 fn params() -> Params {
     debounced(2)
@@ -71,7 +72,7 @@ fn failed(station: &Station, ts: i64) -> Record {
 /// and wait for the thread to return.
 async fn run(path: &Path, stations: &[Station], records: Vec<Record>) {
     let conn = open_writer(path).unwrap();
-    let writer = Writer::restore(conn, stations.to_vec(), params()).unwrap();
+    let writer = Writer::restore(conn, stations.to_vec(), params(), RETENTION).unwrap();
     let (tx, rx) = mpsc::channel(4);
     let handle = writer.spawn(rx);
     for record in records {
@@ -154,8 +155,13 @@ async fn flapping_input_opens_no_event() {
 fn a_gap_is_unknown_and_opens_no_event() {
     let db = TempDb::new("writer-gap");
     let s = stations(&db.path(), &[("a", true), ("b", true)]);
-    let mut writer =
-        Writer::restore(open_writer(&db.path()).unwrap(), s.clone(), params()).unwrap();
+    let mut writer = Writer::restore(
+        open_writer(&db.path()).unwrap(),
+        s.clone(),
+        params(),
+        RETENTION,
+    )
+    .unwrap();
     for record in rounds(&s, &[(0, &[ON, ON]), (60, &[ON, ON])]) {
         writer.handle(&record).unwrap();
     }
@@ -185,7 +191,7 @@ fn an_unreachable_sensor_stops_voting_after_the_tick() {
         let db = TempDb::new(&format!("writer-tick-{debounce}"));
         let s = stations(&db.path(), &[("a", true), ("b", true)]);
         let conn = open_writer(&db.path()).unwrap();
-        let mut writer = Writer::restore(conn, s.clone(), debounced(debounce)).unwrap();
+        let mut writer = Writer::restore(conn, s.clone(), debounced(debounce), RETENTION).unwrap();
         for record in rounds(&s, &[(0, &[ON, ON]), (60, &[ON, ON])]) {
             writer.handle(&record).unwrap();
         }
@@ -262,8 +268,13 @@ async fn an_outage_stays_open_through_unknown_and_ends_backdated() {
 async fn stores_failures_and_snapshots_and_rejects_an_unknown_station() {
     let db = TempDb::new("writer-rows");
     let s = stations(&db.path(), &[("a", true)]);
-    let mut writer =
-        Writer::restore(open_writer(&db.path()).unwrap(), s.clone(), params()).unwrap();
+    let mut writer = Writer::restore(
+        open_writer(&db.path()).unwrap(),
+        s.clone(),
+        params(),
+        RETENTION,
+    )
+    .unwrap();
     writer.handle(&failed(&s[0], 0)).unwrap();
     let snapshot = Record::Snapshot {
         station: s[0].id,
@@ -294,6 +305,6 @@ async fn stores_failures_and_snapshots_and_rejects_an_unknown_station() {
 fn a_station_named_house_is_refused() {
     let db = TempDb::new("writer-house-name");
     let s = stations(&db.path(), &[("house", true)]);
-    let err = Writer::restore(open_writer(&db.path()).unwrap(), s, params()).err();
+    let err = Writer::restore(open_writer(&db.path()).unwrap(), s, params(), RETENTION).err();
     assert!(format!("{:#}", err.unwrap()).contains("house"));
 }

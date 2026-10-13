@@ -356,3 +356,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 9 ✓ 2026-10-13 — rollup, retention and compaction driven by the writer
+
+**Changed:** `src/store/rollup.rs` + `rollup/tests.rs`; `writer.rs` runs the jobs; `mod.rs` exports `rollup`, `retention`, `compact`.
+- `rollup(conn, station, interval, now)`: cursor `max(rollup_5m.ts)`; every bucket with samples after it and before `now`'s open bucket → one row via `metrics::energy::rollup`, fed the sample before each bucket (crossing segment). Plain `INSERT`: the PK refuses a double count.
+- `retention(conn, days, now)`: raw `sample`/`sample_extra` older than `days` AND inside a rolled-up bucket AND not the station's newest sample (A2); `register_snapshot`/`poll_failure` older than 90 days; `grid_event` untouched.
+- `compact`: `optimize` then `wal_checkpoint(TRUNCATE)` (other order leaves 12 KB of WAL: test caught it).
+- Writer: jobs timed by record ts, once per period (5-min bucket / UTC day / UTC week) on the first record entering it, plus once at start. Relies on records in ts order (sequential collector, step 10). A failed job logs and retries next period. `Writer::restore` takes `raw_retention_days`.
+
+**Check:** `cargo test --lib store::` 27/27. Failure-first by mutants, each caught: no preceding sample (4 fail), open bucket rolled (4), no rolled-up check (1), newest sample deleted (1), cursor ignored (4), writer never maintains (1).
+- Hand values: 100 W in / 40 W out every 60 s → bucket 0 = 6.667/2.667 Wh n 5; bucket 300 (incl. 240→300) = 8.333/3.333 Wh n 5; a 1140 s gap adds 0 Wh.
+
+**Amendments:** A2 fixed here (newest sample kept; test `retention_keeps_each_station_newest_sample`). A4 stays open: rollup rows carry no Δsoc, only `totals` does.
+
+**reviewer:** INTENT shortfall · 0 CRITICAL / 1 HIGH / 2 MEDIUM
+- HIGH H1 `rollup/tests.rs:120` — no test kept a rolled-up sample younger than the cutoff; mutant dropping `ts < ?1` passed → fixed: new `retention_keeps_rolled_up_raw_rows_younger_than_the_cutoff` (95 d rows rolled up, retention at 100 d keeps 3/3); same mutant now fails it; real code 28/28. Test-only fix, no second pass.
+- MEDIUM M1 `writer.rs:172` retention/compaction triggers untested → amendment A7.
+- MEDIUM M2 `writer.rs:163` out-of-order sample silently skipped by rollup → amendment A8.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 10 — collector loop (keep record ts nondecreasing, A8).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T13:45:14Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ff3da3329bfc40c0)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

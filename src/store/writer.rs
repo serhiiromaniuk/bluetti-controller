@@ -1,17 +1,22 @@
 //! The store writer task (ROADMAP.md §5.3): it owns the only write connection on
 //! its own blocking thread, stores every record the collector sends, and drives
 //! the §7.1 grid presence and the §7.2 house outage log into `grid_event` rows.
+//! It also runs the §6 jobs: rollup every 5 minutes, retention nightly, compaction
+//! weekly, timed by the records' own timestamps.
 
 use std::collections::BTreeMap;
+use std::num::NonZeroU32;
 
 use anyhow::{Context, bail};
 use rusqlite::{Connection, OptionalExtension, params};
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+use super::rollup::{compact, retention, rollup};
 use super::write::{
     Failure, Sample, close_outage, insert_failure, insert_sample, insert_snapshot, open_outage,
 };
+use crate::metrics::energy::BUCKET_S;
 use crate::metrics::grid::{Grid, GridState, Params};
 #[cfg(test)]
 use crate::metrics::house::HouseState;
@@ -65,7 +70,14 @@ pub struct Writer {
     house: House,
     /// The id of the open house `grid_event` row.
     house_open: Option<i64>,
+    raw_retention_days: NonZeroU32,
+    /// The 5-minute bucket, UTC day and week the §6 jobs last ran in.
+    ran: [Option<i64>; 3],
 }
+
+const DAY_S: i64 = 86_400;
+/// The §6 job periods: rollup, retention, compaction.
+const PERIODS: [i64; 3] = [BUCKET_S, DAY_S, 7 * DAY_S];
 
 impl Writer {
     /// Rebuilds the grid state after a restart (ROADMAP.md §6 "Restart"): each
@@ -75,6 +87,7 @@ impl Writer {
         conn: Connection,
         stations: Vec<Station>,
         params: Params,
+        raw_retention_days: NonZeroU32,
     ) -> anyhow::Result<Writer> {
         let mut tracked = Vec::with_capacity(stations.len());
         for station in stations {
@@ -99,6 +112,8 @@ impl Writer {
             stations: tracked,
             house: House::new(params.interval_s, house_open.map(|(_, start)| start)),
             house_open: house_open.map(|(id, _)| id),
+            raw_retention_days,
+            ran: [None; 3],
         })
     }
 
@@ -109,16 +124,14 @@ impl Writer {
         tokio::task::spawn_blocking(move || {
             while let Some(record) = rx.blocking_recv() {
                 if let Err(err) = self.handle(&record) {
-                    tracing::error!(
-                        error = format!("{err:#}"),
-                        "store writer: record not stored"
-                    );
+                    tracing::error!(error = format!("{err:#}"), "store writer: record failed");
                 }
             }
         })
     }
 
-    /// Stores one record, then updates the grid and house events at its time.
+    /// Stores one record, updates the grid and house events at its time, then
+    /// runs any §6 job whose period that time has entered.
     pub fn handle(&mut self, record: &Record) -> anyhow::Result<()> {
         let ts = match record {
             Record::Sample { station, sample } => {
@@ -142,7 +155,31 @@ impl Writer {
                 return insert_snapshot(&self.conn, *station, *ts, *start_reg, values);
             }
         };
-        self.update_events(ts)
+        self.update_events(ts)?;
+        self.maintain(ts).context("store maintenance")
+    }
+
+    /// Runs each §6 job once per period, on the first record that enters it (and
+    /// once at start). Records arrive in time order from the sequential collector
+    /// (§5.3), so a bucket before `ts` takes no more samples once `ts` is seen. A
+    /// failed job retries in its next period; the rollup catches up from its cursor.
+    fn maintain(&mut self, ts: i64) -> anyhow::Result<()> {
+        let due = |job: usize, ran: &mut [Option<i64>; 3]| {
+            let period = Some(ts.div_euclid(PERIODS[job]));
+            std::mem::replace(&mut ran[job], period) != period
+        };
+        if due(0, &mut self.ran) {
+            for t in &self.stations {
+                rollup(&mut self.conn, t.station.id, self.interval_s, ts)?;
+            }
+        }
+        if due(1, &mut self.ran) {
+            retention(&mut self.conn, self.raw_retention_days.get(), ts)?;
+        }
+        if due(2, &mut self.ran) {
+            compact(&self.conn)?;
+        }
+        Ok(())
     }
 
     fn index(&self, id: i64) -> anyhow::Result<usize> {
