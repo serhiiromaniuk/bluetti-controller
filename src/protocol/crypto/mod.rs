@@ -13,6 +13,7 @@ use aes::{Aes128, Aes256};
 use md5::{Digest, Md5};
 
 mod frame;
+pub mod handshake;
 
 pub use frame::*;
 

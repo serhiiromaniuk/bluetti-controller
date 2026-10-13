@@ -261,3 +261,42 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 7 ✓ 2026-10-13 — handshake state machine, pure: StaticKeys, Handshake, Session
+
+**Changed:**
+- `src/protocol/crypto/handshake.rs` (new, `pub mod handshake`): `StaticKeys::new` (redacted `Debug`, bad key named by field); `Handshake::new(keys, ephemeral)` + `on_message` → `Step::{Reply{frame, acked}, Wait, Done(Session)}`; `expecting()` gives the reassembly `Layer`; `HandshakeError` typed (OutOfOrder, BadPayloadLength, Rejected, BadStationPoint, BadStationSignature, InvalidKey, Finished, Frame); any error ends the handshake. Signed message = point ‖ temp IV (§4.4; re-checked against rustytti `crypto.rs` d2c651d, fetched to /tmp and deleted). No RNG, no I/O: ephemeral secret and session seeds are inputs.
+- `src/protocol/crypto/handshake/sim.rs` (`#[cfg(test)] pub(crate)`): station simulator with test-generated keys, for step 10's `SimStation`.
+- `src/protocol/crypto/handshake/tests.rs`: 10 tests — round trip (equal session keys, both directions decrypt, msg 2 acked, msg 5 not), bad signature, wrong station key, out-of-order (1 and 4), truncated (kex + temp), bad length, rejected status, off-curve point, rustytti msg-2 vector, invalid keys + `Debug`.
+- `README.md`: credit names `handshake.rs`.
+
+**Check:**
+- `cargo test --lib protocol::crypto::handshake` 10 passed.
+- Mutation: signature over point only + status check removed → 3 FAILED (round trip, rejection, off-curve); restored → 10 passed.
+- `make check` green; `src/protocol/` 99.81%.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM. High-S acceptance stays the §4.4 open risk (real-key test, step 13).
+
+**Carry-forward:** none. **Next:** step 8 — keys via the config module.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T08:59:24Z
+
+```text
+
+test result: ok. 93 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-871f4c6d900bafc2)
+
+running 2 tests
+test cli::scan::tests::unknown_station_still_prints ... ok
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.81% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
