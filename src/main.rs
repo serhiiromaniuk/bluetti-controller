@@ -18,6 +18,10 @@ struct Args {
     /// Mask MAC addresses and serial numbers in the output (RULES.md golden rule #3).
     #[arg(long, global = true)]
     anonymise: bool,
+    /// Save the plaintext session (above the encryption layer) as fixture
+    /// JSON; only under `captures/`, which is gitignored (raw: holds the serial).
+    #[arg(long, global = true, value_name = "PATH")]
+    record: Option<PathBuf>,
     #[command(subcommand)]
     command: cli::Command,
 }
@@ -38,5 +42,12 @@ async fn main() -> anyhow::Result<()> {
         }
         None => (Default::default(), Vec::new(), None),
     };
-    cli::run(args.command, &ble, &stations, keys.as_ref(), args.anonymise).await
+    let ctx = cli::Context {
+        ble: &ble,
+        stations: &stations,
+        keys: keys.as_ref(),
+        anonymise: args.anonymise,
+        record: args.record.as_deref(),
+    };
+    cli::run(args.command, &ctx).await
 }

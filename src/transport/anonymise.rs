@@ -5,6 +5,7 @@
 
 use super::fixture::{Dir, Fixture, FixtureError, PLACEHOLDER_ADDRESS, decode_hex, encode_hex};
 use crate::protocol::device::{Protocol, split_ble_name};
+use crate::protocol::identity::is_serial;
 use crate::protocol::modbus::{FrameError, crc16, parse_read_response};
 
 /// `AA:BB:CC:DD:EE:FF`.
@@ -64,18 +65,6 @@ pub fn mask_name(name: &str) -> String {
             .chars()
             .map(|c| if c.is_ascii_digit() { '0' } else { c })
             .collect(),
-    }
-}
-
-/// Serial-number registers (`ROADMAP.md` §4.3); `None` (unknown model) means
-/// both layouts.
-fn is_serial(register: u16, protocol: Option<Protocol>) -> bool {
-    let v1 = (17..=20).contains(&register);
-    let v2 = (116..=119).contains(&register);
-    match protocol {
-        Some(Protocol::V1) => v1,
-        Some(Protocol::V2) => v2,
-        None => v1 || v2,
     }
 }
 

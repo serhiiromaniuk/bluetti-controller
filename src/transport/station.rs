@@ -1,10 +1,13 @@
 //! Station-level reads over any [`Gatt`]: no `bluer` type appears here, so
 //! `tests/` can drive them through [`ReplayGatt`](super::replay::ReplayGatt).
 
+use std::collections::BTreeMap;
+
 use super::Advert;
 use super::Gatt;
-use super::read::{ReadError, ReadPolicy, read_block};
-use crate::protocol::device::{Model, Protocol};
+use super::read::{ReadError, ReadPolicy, read_block, read_profile};
+use crate::protocol::device::{self, Metric, Model, Problem, Profile, Protocol};
+use crate::protocol::identity::{self, Layout};
 
 /// What a station says about itself (`ROADMAP.md` §4.3 identity registers).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -25,29 +28,6 @@ pub enum DetectError {
     NoDeviceType,
 }
 
-/// Device type (start, count) and firmware registers of each layout.
-struct Layout {
-    protocol: Protocol,
-    device_type: (u16, u16),
-    /// ASCII bytes are stored low byte first (V2: "byte-swapped").
-    swapped: bool,
-    firmware: &'static [(&'static str, u16)],
-}
-
-const V1: Layout = Layout {
-    protocol: Protocol::V1,
-    device_type: (10, 6),
-    swapped: false,
-    firmware: &[("arm", 23), ("dsp", 25)],
-};
-
-const V2: Layout = Layout {
-    protocol: Protocol::V2,
-    device_type: (110, 6),
-    swapped: true,
-    firmware: &[("bms", 6175)],
-};
-
 /// Reads the identity registers, trying the layout the advertised model
 /// implies first and the other one when that yields no device type: the
 /// encrypted EB3A may use the V2 layout (`ROADMAP.md` §4.3). Fails only
@@ -62,12 +42,8 @@ pub async fn detect(
         .as_deref()
         .and_then(Model::from_ble_name)
         .map_or(Protocol::V1, |model| model.profile().protocol);
-    let order = match expected {
-        Protocol::V1 => [V1, V2],
-        Protocol::V2 => [V2, V1],
-    };
     let mut last = None;
-    for layout in order {
+    for layout in identity::layouts(expected) {
         match device_type(gatt, &layout, policy).await {
             Ok(Some(device_type)) => {
                 return Ok(Identity {
@@ -94,7 +70,7 @@ async fn device_type(
 ) -> Result<Option<String>, ReadError> {
     let (start, count) = layout.device_type;
     let words = read_block(gatt, start, count, policy).await?;
-    Ok(ascii(&words, layout.swapped))
+    Ok(identity::ascii(&words, layout.swapped))
 }
 
 /// Firmware versions the station answers for; one that fails is logged and
@@ -107,34 +83,34 @@ async fn firmware(
     let mut versions = Vec::new();
     for &(name, register) in layout.firmware {
         match read_block(gatt, register, 2, policy).await {
-            Ok(words) => versions.push((name, version(&words))),
+            Ok(words) => versions.push((name, identity::version(&[words[0], words[1]]))),
             Err(err) => tracing::warn!(name, register, error = %err, "firmware unread"),
         }
     }
     versions
 }
 
-/// ASCII text of `words`, NUL/space padding trimmed; `None` unless every
-/// remaining byte is printable and at least one is left.
-fn ascii(words: &[u16], swapped: bool) -> Option<String> {
-    let bytes: Vec<u8> = words
-        .iter()
-        .flat_map(|w| {
-            let [hi, lo] = w.to_be_bytes();
-            if swapped { [lo, hi] } else { [hi, lo] }
-        })
-        .collect();
-    let text = std::str::from_utf8(&bytes).ok()?;
-    let text = text.trim_matches(|c| c == '\0' || c == ' ');
-    let printable = !text.is_empty() && text.bytes().all(|b| b.is_ascii_graphic() || b == b' ');
-    printable.then(|| text.to_owned())
+/// One poll of a profile: what decoded and every field that failed the
+/// plausibility check (`ROADMAP.md` §4.3, RULES.md v0.3 gate).
+#[derive(Debug, Clone, PartialEq)]
+pub struct Poll {
+    pub values: BTreeMap<Metric, f64>,
+    /// Empty when every field is present and in range.
+    pub problems: Vec<Problem>,
 }
 
-/// A version pair, low word first, in hundredths (bt `VersionField`):
-/// `[0x0BB8, 0]` → `30.00`. Unverified on our stations.
-fn version(words: &[u16]) -> String {
-    let value = u32::from(words[0]) | u32::from(words[1]) << 16;
-    format!("{}.{:02}", value / 100, value % 100)
+/// Reads every block of `profile` and decodes it. A failed block fails the
+/// poll; a missing or implausible field is named in [`Poll::problems`].
+pub async fn poll(
+    gatt: &mut impl Gatt,
+    profile: &Profile,
+    policy: &ReadPolicy,
+) -> Result<Poll, ReadError> {
+    let registers = read_profile(gatt, profile, policy).await?;
+    Ok(Poll {
+        values: device::decode(profile, &registers),
+        problems: device::problems(profile, &registers),
+    })
 }
 
 #[cfg(test)]

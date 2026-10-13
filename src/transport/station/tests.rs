@@ -139,12 +139,3 @@ async fn neither_layout_answering_is_an_error() {
     let err = detect(&mut gatt, &advert, &policy()).await.unwrap_err();
     assert_eq!(err, DetectError::NoDeviceType);
 }
-
-#[test]
-fn ascii_trims_padding_and_rejects_garbage() {
-    assert_eq!(ascii(&EB3A_V1, false).as_deref(), Some("EB3A"));
-    assert_eq!(ascii(&[0x2045, 0x4200], false).as_deref(), Some("EB"));
-    assert_eq!(ascii(&[0x0145], false), None);
-    assert_eq!(ascii(&[0xFFFF], false), None);
-    assert_eq!(ascii(&[0x2020], false), None);
-}

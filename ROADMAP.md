@@ -255,7 +255,7 @@ counters. Pack registers 96–121 exist on AC300; unverified on EB3A — R1 swee
 | Reg | Field | Scale | Unit | Source |
 |---|---|---|---|---|
 | 100 | pack voltage | 0.01 | V | v2, *unverified* |
-| 101 | pack current | 0.1 | A | v2, *unverified* |
+| 101 | pack current | 0.1 | A | v2, *unverified*; unsigned magnitude (Elite 200 V2: +11.2 A discharging 445 W, 2026-10-13) |
 | 102 | battery SOC | 1 | % | bt |
 | 103 | pack charging status | — | — | v2, *unverified* |
 | 104 / 105 | time to full / time to empty | — | min? | v2, *unverified* |

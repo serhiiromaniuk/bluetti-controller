@@ -1,12 +1,18 @@
 //! The subcommands. Each one reaches a station only through
 //! [`bluetti_controller::transport`].
 
+use std::path::Path;
+
+use anyhow::bail;
 use bluetti_controller::config::{BleConfig, StationConfig};
 use bluetti_controller::protocol::crypto::handshake::StaticKeys;
 use clap::Subcommand;
 
 mod detect;
+mod dump;
+mod read;
 mod scan;
+mod session;
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -22,17 +28,45 @@ pub enum Command {
         /// A station name from the config, or a MAC address.
         station: String,
     },
+    /// Detect, then read and decode the station's profile once. Exits non-zero
+    /// when a field is missing or implausible.
+    Read {
+        /// A station name from the config, or a MAC address.
+        station: String,
+    },
+    /// Read-only sweep of a register range, in chunks of at most 40 registers.
+    Dump {
+        /// A station name from the config, or a MAC address.
+        station: String,
+        /// First register.
+        #[arg(long)]
+        from: u16,
+        /// Last register, inclusive.
+        #[arg(long)]
+        to: u16,
+    },
 }
 
-pub async fn run(
-    command: Command,
-    ble: &BleConfig,
-    stations: &[StationConfig],
-    keys: Option<&StaticKeys>,
-    anonymise: bool,
-) -> anyhow::Result<()> {
+/// What every command shares: config, keys and the global flags.
+pub struct Context<'a> {
+    pub ble: &'a BleConfig,
+    pub stations: &'a [StationConfig],
+    pub keys: Option<&'a StaticKeys>,
+    pub anonymise: bool,
+    /// `--record`: where the plaintext session is saved.
+    pub record: Option<&'a Path>,
+}
+
+pub async fn run(command: Command, ctx: &Context<'_>) -> anyhow::Result<()> {
     match command {
-        Command::Scan { timeout } => scan::run(ble, timeout, anonymise).await,
-        Command::Detect { station } => detect::run(ble, stations, keys, &station, anonymise).await,
+        Command::Scan { timeout } => {
+            if ctx.record.is_some() {
+                bail!("--record needs a command that connects (detect, read, dump)");
+            }
+            scan::run(ctx.ble, timeout, ctx.anonymise).await
+        }
+        Command::Detect { station } => detect::run(ctx, &station).await,
+        Command::Read { station } => read::run(ctx, &station).await,
+        Command::Dump { station, from, to } => dump::run(ctx, &station, from, to).await,
     }
 }

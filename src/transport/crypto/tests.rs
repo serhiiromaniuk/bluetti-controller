@@ -26,6 +26,11 @@ struct SimStation {
     /// Lose the first message 5, keeping its bytes here.
     drop_msg5: bool,
     dropped: Option<Vec<u8>>,
+    /// Message 6 comes as two halves, each this long after the previous call.
+    msg6_after: Option<[Duration; 2]>,
+    /// Pieces still in flight, each with its remaining delay; served first.
+    delayed: VecDeque<(Duration, Vec<u8>)>,
+    msg5_writes: usize,
     connected: Arc<AtomicBool>,
 }
 
@@ -39,6 +44,9 @@ impl SimStation {
             accepted: false,
             drop_msg5: false,
             dropped: None,
+            msg6_after: None,
+            delayed: VecDeque::new(),
+            msg5_writes: 0,
             connected: Arc::new(AtomicBool::new(true)),
         }
     }
@@ -76,8 +84,16 @@ impl Gatt for SimStation {
         } else if self.sim.session_key.is_none() {
             // A resend must repeat the lost ciphertext (§4.4).
             assert!(self.dropped.as_deref().is_none_or(|lost| lost == data));
+            self.msg5_writes += 1;
             let msg6 = self.sim.on_our_key(data);
-            self.queue.push_back(msg6);
+            match self.msg6_after {
+                Some([first, second]) => {
+                    let (head, tail) = msg6.split_at(msg6.len() / 2);
+                    self.delayed
+                        .extend([(first, head.to_vec()), (second, tail.to_vec())]);
+                }
+                None => self.queue.push_back(msg6),
+            }
         } else {
             self.answer(data);
         }
@@ -98,6 +114,15 @@ impl Gatt for SimStation {
 
     async fn next_notification(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
         self.check()?;
+        if let Some((delay, piece)) = self.delayed.pop_front() {
+            if delay <= timeout {
+                tokio::time::sleep(delay).await;
+                return Ok(piece);
+            }
+            tokio::time::sleep(timeout).await;
+            self.delayed.push_front((delay - timeout, piece));
+            return Err(TransportError::Timeout(timeout));
+        }
         match self.queue.pop_front() {
             Some(notification) => Ok(notification),
             None => {
@@ -225,4 +250,21 @@ async fn lost_message_5_is_resent_once_after_one_second() {
         read_block(&mut gatt, 36, 2, &policy()).await.unwrap(),
         [36, 37]
     );
+}
+
+#[tokio::test(start_paused = true)]
+async fn message_6_straddling_the_resend_mark_is_kept_whole() {
+    let keys = sim::keys();
+    let station = SimStation {
+        msg6_after: Some([Duration::from_millis(500), Duration::from_millis(1000)]),
+        ..SimStation::new()
+    };
+    let started = Instant::now();
+    let mut gatt = CryptoGatt::establish(station, &keys, TIMEOUT)
+        .await
+        .unwrap();
+    assert_eq!(started.elapsed(), Duration::from_millis(1500));
+    // Its first half had arrived, so message 5 was not resent.
+    assert_eq!(gatt.inner.msg5_writes, 1);
+    assert_eq!(read_block(&mut gatt, 36, 1, &policy()).await.unwrap(), [36]);
 }

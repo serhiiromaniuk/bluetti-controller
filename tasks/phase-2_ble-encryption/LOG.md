@@ -485,3 +485,56 @@ test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 12 ✓ 2026-10-13 — CLI `read` + `dump` + `--record` on hardware; A14, A17, A20–A22 fixed
+
+**Changed:**
+- `src/transport/station.rs`: `poll(gatt, profile, policy) -> Poll {values, problems}` = `read_profile` + `decode` + `problems`.
+- `src/protocol/identity.rs` (new, A22): identity layouts V1/V2, `layouts`, `is_serial` (moved from `anonymise.rs`), `ascii`, `version`; tests in `identity/tests.rs`. `station.rs` keeps the reads only.
+- `src/cli/session.rs` (new): find → `open` → body → disconnect → save capture. SIGINT handler installed before the scan (A20): aborts the scan, is held through `open`, cancels the body; every path past `open` disconnects. `--record` only under `captures/` (relative, no `..`).
+- `src/cli/read.rs`: detect + poll in one session, one line per field with `verified=`, then one per problem; any problem → `Err` → exit 1.
+- `src/cli/dump.rs`: `--from --to`, chunks ≤ 40, 500 ms pause; `--anonymise` masks 17–20 and 116–119; an exception/timeout chunk is reported and skipped, a broken link ends the sweep.
+- `src/cli/{mod,detect}.rs`, `main.rs`: `Context` (config + `--anonymise` + global `--record`); `detect` reuses `session`; `scan --record` refused.
+- A21 `src/transport/crypto.rs`: `next_frame` keeps a partial frame on timeout; message 5 is resent only when nothing of message 6 arrived; `next_notification` clears the stale partial itself.
+- A14 `device.rs`: `PackCurrent` range `0..=100` (unsigned magnitude); ROADMAP §4.3 row 101 annotated.
+
+**Check:**
+- New tests: `read` report + verdict (exit code), `dump` chunks (incl. 65500–65535) + row masking, capture-path guard, identity ×4, `message_6_straddling_the_resend_mark_is_kept_whole`.
+- Failing first: the straddling test against HEAD's `crypto.rs` → panicked; new → pass.
+- `grep -rn 'pub fn .*request' src/` → only `src/protocol/modbus.rs:37: pub fn read_request`.
+- Pre-flight §10.4: powered, rfkill unblocked, `control.enabled = false`.
+- Hardware (`--config config.toml --anonymise`, MACs sed-masked):
+  - `read router`: EB3A V1 arm=2197.02 dsp=2196.01; soc 94 %, ac_output_on 1, all powers 0 W, ac_input_voltage 0 V; exit 0.
+  - `read living-room`: Elite 200 V2; pack 39.51 V, **pack_current 11.20 A**, soc 86 %, ac_output 445 W, ac_input 0 V/0 Hz; exit 0. 445 W / 39.51 V = 11.26 A, so register 101 is an unsigned magnitude while discharging (A14).
+  - `dump router --from 10 --to 90`: 3 chunks, 0 unread; 17–20 masked; 43 = 94 (soc), 48 = 1 (AC on), 71 = 230.
+  - `--record /tmp/x.json` refused; `--record captures/…` 6 frames, first write `0103000a0006…` (plaintext); file removed.
+  - SIGINT right after the advert line: `connected, session established` → `disconnected` → `Error: interrupted`, exit 1; `bluetoothctl devices Connected` → 0.
+- Observation for H1: EB3A AC output on but 0 W, AC input 0 V on both stations (grid off at the time?); unverified map, app comparison decides.
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM: late reply to a timed-out `dump` chunk can pass as the next chunk's answer (`dump.rs:40`) → deferred to PLAN `## Amendments` A23, home step 14.
+
+**Decision:** register 101 (pack current) is an unsigned magnitude (A14, hardware). **Carry-forward:** none. **Next:** step 13 — key-free handshake vectors (`--record-wire`).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T09:34:32Z
+
+```text
+test cli::detect::tests::unknown_target_passes_through_as_an_address ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardware.rs (target/llvm-cov-target/debug/deps/hardware-e834033cf2500684)
+
+running 1 test
+test connects_subscribes_and_disconnects ... ignored, needs a station in BLE range and BLUETTI_TEST_MAC
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

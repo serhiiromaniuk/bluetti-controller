@@ -76,8 +76,12 @@ impl<G: Gatt + Send> Gatt for CryptoGatt<G> {
     }
 
     async fn next_notification(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
-        let envelope =
-            next_frame(&mut self.inner, &mut self.pending, Layer::Session, timeout).await?;
+        let envelope = next_frame(&mut self.inner, &mut self.pending, Layer::Session, timeout)
+            .await
+            .inspect_err(|_| {
+                // A frame cut off by the timeout must not prefix the next one.
+                self.pending.clear();
+            })?;
         self.session
             .decrypt(&envelope)
             .map_err(TransportError::Crypto)
@@ -121,8 +125,11 @@ async fn handshake<G: Gatt>(
             Some(frame) => match next_frame(inner, pending, layer, RESEND_AFTER.min(timeout)).await
             {
                 Err(TransportError::Timeout(_)) => {
-                    tracing::debug!("message 6 late, resending message 5");
-                    inner.write(&frame).await?;
+                    // Part of message 6 already arrived: it is on its way, keep it.
+                    if pending.is_empty() {
+                        tracing::debug!("message 6 late, resending message 5");
+                        inner.write(&frame).await?;
+                    }
                     next_frame(inner, pending, layer, timeout).await?
                 }
                 other => other?,
@@ -147,8 +154,9 @@ async fn handshake<G: Gatt>(
 }
 
 /// Reassembles the next complete `layer` frame from notifications within
-/// `timeout`; bytes past it stay in `pending` for the next frame. A frame cut
-/// off by the timeout is dropped, so it cannot prefix the next one.
+/// `timeout`; bytes past it stay in `pending` for the next frame. On a
+/// timeout a partial frame stays in `pending`: the caller decides whether it
+/// is still coming (handshake message 6) or stale (a session reply).
 async fn next_frame<G: Gatt>(
     inner: &mut G,
     pending: &mut Vec<u8>,
@@ -166,7 +174,6 @@ async fn next_frame<G: Gatt>(
         match inner.next_notification(remaining).await {
             Ok(fragment) => pending.extend(fragment),
             Err(TransportError::Timeout(_)) => {
-                pending.clear();
                 // Report the whole timeout, not the remainder that ran out.
                 return Err(TransportError::Timeout(timeout));
             }

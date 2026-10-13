@@ -140,8 +140,9 @@ impl Metric {
             Metric::AcOutputOn | Metric::DcOutputOn => (0.0, 1.0),
             // 16S LiFePO4 at 3.65 V/cell = 58.4 V full.
             Metric::PackVoltage => (0.0, 60.0),
-            // 2600 W at a 40 V empty pack ~ 65 A; signed for charge/discharge.
-            Metric::PackCurrent => (-100.0, 100.0),
+            // 2600 W at a 40 V empty pack ~ 65 A. Unsigned magnitude: the
+            // Elite 200 V2 read +11.2 A discharging 445 W at 39.5 V (§4.3).
+            Metric::PackCurrent => (0.0, 100.0),
         };
         RangeInclusive::new(min, max)
     }

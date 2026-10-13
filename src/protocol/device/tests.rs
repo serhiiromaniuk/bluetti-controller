@@ -236,5 +236,7 @@ fn every_range_accepts_the_idle_zero() {
     ] {
         assert!(metric.range().contains(&0.0), "{metric:?}");
     }
-    assert!(PackCurrent.range().contains(&-100.0), "discharge sign");
+    // Register 101 is a magnitude; 0xFFFF-style garbage stays out.
+    assert!(!PackCurrent.range().contains(&-0.1), "unsigned");
+    assert!(!PackCurrent.range().contains(&6553.5), "unsigned");
 }

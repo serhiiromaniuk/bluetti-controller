@@ -3,49 +3,26 @@
 //! encrypted), read its identity registers and disconnect (`ROADMAP.md`
 //! §4.3, §4.4).
 
-use anyhow::anyhow;
-use bluetti_controller::config::{BleConfig, StationConfig};
-use bluetti_controller::protocol::crypto::handshake::StaticKeys;
+use bluetti_controller::config::StationConfig;
 use bluetti_controller::protocol::device::Model;
+use bluetti_controller::transport::Advert;
 use bluetti_controller::transport::read::ReadPolicy;
 use bluetti_controller::transport::station::{self, Identity};
-use bluetti_controller::transport::{self, Advert, Gatt, Link};
 
-use super::scan;
+use super::{Context, scan, session};
 
-pub async fn run(
-    ble: &BleConfig,
-    stations: &[StationConfig],
-    keys: Option<&StaticKeys>,
-    target: &str,
-    anonymise: bool,
-) -> anyhow::Result<()> {
-    let advert = transport::find(ble, resolve(stations, target)).await?;
-    println!("{}", line(&advert, anonymise));
-    let mut link = transport::open(ble, &advert, keys).await?;
-    match link {
-        Link::Plain(_) => println!("connected"),
-        Link::Encrypted(_) => println!("connected, session established"),
-    }
-    let policy = ReadPolicy::from_ble(ble);
-    let identity = tokio::select! {
-        identity = station::detect(&mut link, &advert, &policy) => identity.map_err(Into::into),
-        _ = tokio::signal::ctrl_c() => Err(anyhow!("interrupted")),
-    };
-    // Disconnect before acting on the result, so no path leaves the link up.
-    let closed = link.disconnect().await;
-    match &identity {
-        Ok(identity) => println!("{}", identity_line(identity)),
-        Err(err) => println!("identity: none ({err:#})"),
-    }
-    closed?;
-    println!("disconnected");
-    identity.map(drop)
+pub async fn run(ctx: &Context<'_>, target: &str) -> anyhow::Result<()> {
+    session::run(ctx, target, async |gatt, advert| {
+        let identity = station::detect(gatt, advert, &ReadPolicy::from_ble(ctx.ble)).await?;
+        println!("{}", identity_line(&identity));
+        Ok(())
+    })
+    .await
 }
 
 /// A configured station name maps to its address; anything else is taken as
 /// a MAC address and validated by the transport.
-fn resolve<'a>(stations: &'a [StationConfig], target: &'a str) -> &'a str {
+pub(super) fn resolve<'a>(stations: &'a [StationConfig], target: &'a str) -> &'a str {
     stations
         .iter()
         .find(|station| station.name == target)
@@ -53,7 +30,7 @@ fn resolve<'a>(stations: &'a [StationConfig], target: &'a str) -> &'a str {
 }
 
 /// The scan line plus the register layout and the raw encryption flag.
-fn line(advert: &Advert, anonymise: bool) -> String {
+pub(super) fn line(advert: &Advert, anonymise: bool) -> String {
     let protocol = advert
         .name
         .as_deref()
@@ -72,7 +49,7 @@ fn line(advert: &Advert, anonymise: bool) -> String {
 }
 
 /// Device type, the layout that answered and each firmware version read.
-fn identity_line(identity: &Identity) -> String {
+pub(super) fn identity_line(identity: &Identity) -> String {
     let firmware: Vec<String> = identity
         .firmware
         .iter()
