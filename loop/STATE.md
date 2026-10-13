@@ -32,4 +32,5 @@
 - 2026-10-13: standing delegation + deferred physical checks (RULES.md); the loop never stops to ask what it can answer (owner).
 - 2026-10-13: static keys from the MIT sources may go into a gitignored local keys file (owner).
 - 2026-10-13 14:05: AC180 (`mobile`) is on and in range; its MAC is in `config.toml`. Read-only access is allowed like the others: scan, detect, read, dump, acceptance run. Add it to phase 2 by a PLAN amendment before the close; only the app comparison stays in `HUMAN-CHECKLIST.md` H3 (owner).
+- 2026-10-13: v0.4 acceptance run is 12 h, not 24 h (owner; RULES.md, phase-4 PLAN A17).
 - 2026-10-13: Q4 router on EB3A AC · Q7 poll 60 s · Q8 LAN only · M5 soak on the dev laptop, user-level systemd (owner).

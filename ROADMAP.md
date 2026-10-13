@@ -1115,9 +1115,9 @@ v0.3 poll criteria; app comparisons H1–H3.
 - [ ] Hourly `register_snapshot` for configured ranges.
 - [ ] `serve` subcommand (collector + store, web stub with `/healthz`).
 - [ ] Unit tests for every metric (flapping input, gaps, unknown state).
-- [ ] **Human:** 24 h run; unplug a sensor station's AC input once.
+- [ ] **Human:** 12 h run; unplug a sensor station's AC input once.
 
-**Acceptance:** ≥ 95% polls per station over 24 h; outage recorded ≤ 2 min after
+**Acceptance:** ≥ 95% polls per station over 12 h; outage recorded ≤ 2 min after
 the unplug; DB < 10 MB per station-day.
 
 ### M4 — Web UI (part of Phase 5)

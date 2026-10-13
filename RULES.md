@@ -97,8 +97,8 @@ criteria (never weaken them; fix the work, not the threshold):
   *Arithmetic:* BLE links drop now and then (community reports, ROADMAP.md §4.6),
   so 1 miss in 20 is tolerated; ±5 W is the display resolution of the app plus
   the time skew of two reads a few seconds apart.
-- **v0.4 — the collector is reliable.** A 24 h run: ≥ 95% successful polls per
-  station (≤ 72 misses of 1440); a deliberate unplug of a station's AC input is
+- **v0.4 — the collector is reliable.** A 12 h run (owner, 2026-10-13; was 24 h): ≥ 95% successful polls per
+  station (≤ 36 misses of 720); a deliberate unplug of a station's AC input is
   recorded as an outage within 2 poll intervals (≤ 2 min); the database stays
   below 10 MB per station-day. *Arithmetic:* 2880 rows/day × ~100 B ≈ 0.3 MB, so
   10 MB is a 30× headroom that only a bug can exceed. The unplug is deferred to

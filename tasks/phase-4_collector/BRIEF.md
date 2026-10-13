@@ -23,7 +23,7 @@ integration, §7.5 extras into `sample_extra`), hourly `register_snapshot`,
 `serve` with a `/healthz` web stub, the config sections these need (§9:
 `[storage]`, `[metrics]`, `[web] listen`) through `src/config.rs`; CF-5
 (grid-on `read` of Elite/AC180 regs 1314 and 1300) before outage logic relies
-on them; the 24 h acceptance run on the dev laptop.
+on them; the 12 h acceptance run on the dev laptop (owner, 2026-10-13; was 24 h).
 **Out:** web pages, JSON API, SSE (phase 5, M4); systemd unit and 7-day soak
 (phase 5, M5); any write frame (0x06/0x10) or device control (golden rule
 #2); notifications, Prometheus, cloud (§2); battery-health analytics (R1).
@@ -41,8 +41,8 @@ on them; the 24 h acceptance run on the dev laptop.
       `src/config.rs` — check: grep in LOG.md
 - [ ] CF-5 discharged: grid-on `read` of Elite 200 V2 / AC180 regs 1314 and
       1300, values in LOG.md
-- [ ] 24 h `serve` run: ≥ 95% successful polls per configured station
-      (≤ 72 misses of 1440), DB < 10 MB per station-day — check: SQL counts
+- [ ] 12 h `serve` run: ≥ 95% successful polls per configured station
+      (≤ 36 misses of 720), DB < 10 MB per station-day — check: SQL counts
       and file size in LOG.md
 - [ ] Unplug test is a row in `HUMAN-CHECKLIST.md` (H4, deferred; a real grid
       outage recorded during the run satisfies it) — check: the row exists
