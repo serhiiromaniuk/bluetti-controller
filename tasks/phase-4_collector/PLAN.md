@@ -1,4 +1,166 @@
 # Plan
 
-> Not yet written — the `planner` writes this from `BRIEF.md` next iteration,
-> then the `plan-reviewer` audits it (`loop/where.sh` reports `needs_plan`).
+> Written before work starts. **Do not edit the steps once work begins** —
+> append changes under `## Amendments`. One step = one loop increment.
+
+## Questions for the owner
+
+- Q1 — Which stations count in the 24 h acceptance run? · blocks: 14, 15, 18 · answer: delegated 2026-10-13 — every `[[station]]` in the local `config.toml` (EB3A `router`, AC180 `mobile`, Elite `living-room`). The AC180 is in read-only scope since the owner's 14:05 decision. If a station is out of range for long stretches, its misses count, and the per-poll deadline (step 1 j, step 10) keeps one absent station from costing the others their ticks. The fix is a re-run, never dropping the station from the count (RULES.md v0.4: "per station").
+- Q2 — Where and how does the 24 h run execute? · blocks: 15, 18 · answer: delegated 2026-10-13 — a transient user-level unit (`systemd-run --user`) on the dev laptop, with `--working-directory` set to the repo (relative `data/` paths and `keys_file` resolve), wrapped in `systemd-inhibit --what=sleep:idle` so the laptop does not suspend. The binary is copied to `data/run/`, and the DB and a config copy live under the gitignored `data/` (RULES.md standing delegation: user-level units on the dev laptop). A session-less user unit likely hits polkit `auth_admin_keep` for the inhibit; step 14 verifies. If refused, run without it and add an H-row: "keep the laptop awake and the lid open for 24 h".
+- Q3 — Which timezone sets the day boundaries for the daily outage and energy totals (spec §7.2, spec §7.4)? · blocks: 5, 7 · answer: delegated 2026-10-13 — the metrics functions take window bounds as unix seconds. `general.timezone` → local-day bounds arrive with the M4 energy table. No timezone crate in this phase (fewer dependencies; nothing in M3 renders a day).
+- Q4 — A poll that decodes but has a missing or implausible field: is it a sample or a failure? · blocks: 1, 3, 10 · answer: delegated 2026-10-13 — a `poll_failure` row with stage `decode` that lists the problems, and no sample. This matches the v0.3 gate, where a poll counted as OK only with exit 0 (every field present and plausible), and RULES.md "validate at the boundary".
+- Q5 — What if the AC180 is not plugged into the grid when CF-5 is checked (it is the mobile station)? · blocks: 14, 18 · answer: delegated 2026-10-13 — CF-5 is discharged on the Elite alone, and the AC180 half goes to a new `HUMAN-CHECKLIST.md` row: "plug `mobile` into the grid, then the loop or the owner runs `read mobile --anonymise`; reg 1314 ≈ 230 V, 1300 ≈ 50 Hz". Plugging a station in is a physical check (RULES.md deferred physical checks).
+
+## Steps
+- [ ] 1. Design record for M3 (spec §5.3, spec §5.4, spec §5.5, spec §6, spec §7) (needs Q3, Q4). This is doc-only and settles in ROADMAP.md what §6/§7 leave open (RULES.md decision process):
+  - (a) Migrations are embedded `migrations/NNN_*.sql` files, versioned by `PRAGMA user_version`, with no migration crate.
+  - (b) A poll's core fields go to `sample` and every other decoded field to `sample_extra`. A poll with any `problems` becomes `poll_failure` stage `decode` (Q4). Stages are `discover|connect|handshake|read|decode`.
+  - (c) `unreachable` is derived: the station's newest 3 poll results are all failures. It needs no schema change.
+  - (d) Each completed 5-min bucket is rolled up within the next bucket. Rollup progress = `max(rollup_5m.ts)` per station, so the table's primary key forbids a double count. Retention deletes raw rows older than `raw_retention_days` only once their bucket is rolled up; snapshots and failures go after 90 days; events are kept forever. A weekly `wal_checkpoint(TRUNCATE)` + `optimize`.
+  - (e) Energy: a segment between consecutive samples counts toward the bucket of its later sample. A gap > 3 intervals adds no energy and counts as missing coverage.
+  - (f) Restart: grid state is rebuilt from the open `grid_event` rows plus the last `debounce_samples` samples per station. An open event stays open through `unknown` and ends only when grid is seen again, backdated as in §7.1.
+  - (g) The runtime forecast and the daily totals are pure functions over a window of samples, so they have no state to persist (Q3).
+  - (h) A `register_snapshot` holds every profile block from the first successful poll of each UTC hour.
+  - (i) `/healthz` returns JSON `{status, last_poll_age_s}` with 200 while the process runs.
+  - (j) Per-round time budget: a round of n stations must fit one interval. Today an absent station costs ~80 s (find ≤ 35 s + connect 3×15 s + backoff 6 s) > 60 s. Set a per-poll deadline ≤ interval / n_stations, and a station already `unreachable` gets 1 attempt with no fresh scan. Show the arithmetic.
+  - CF-5 now (read-only, unattended-allowed): while EB3A reg 77 ≥ 180 V (grid on), run `read living-room` and `read mobile`; log reg 1314 (×0.1, expect 200–250 V) and 1300 (×0.1, expect 49–51 Hz); discharge CF-5 in `loop/STATE.md`. Grid off → step 14 as written; AC180 not on grid → Q5; wrong scale → amendment fixing `src/protocol/device.rs` before step 4.
+  - check: §5.4/§5.5/§6/§7 hold items a–i, each with a stated recommendation (j with its arithmetic); CF-5 values in the LOG or deferred to step 14 with the reason; `make loop-hygiene` clean · review: risky (decision record)
+- [ ] 2. Store schema (spec §6, spec §4.9). Add `rusqlite = { version = "0.40.2", features = ["bundled"] }` and run `cargo build --all-targets` (unlocked, insertions only; not `make lock`, which re-resolves every dependency). Write `migrations/001_init.sql` as §6 verbatim. `src/store/{mod,schema}.rs`: `open_writer(path)` sets the §6 pragmas (WAL, `synchronous=NORMAL`, `busy_timeout=5000`) and migrates by `user_version`; `open_reader(path)` opens read-only. TDD on a temp-dir DB: a fresh DB gets every §6 table and `user_version = 1`; re-opening runs no migration twice; the reader refuses an `INSERT` — check: `cargo test store::`; `make check`; the `Cargo.lock` diff only adds the rusqlite tree · review: risky
+- [ ] 3. Store writes + extras (spec §6, spec §7.5, spec §5.5) (needs Q4). Write `src/store/write.rs`:
+  - `sync_stations(&[StationConfig])`: `capacity_wh` comes from `Profile::nominal_capacity_wh`; a station removed from the config keeps its rows.
+  - `Sample::from_poll` splits the core fields from the extras (step 1 b). A poll with problems becomes a `Failure` (Q4).
+  - Inserts for `sample`, `sample_extra`, `poll_failure`, `register_snapshot`, and `grid_event` open/close.
+  - `station_health(station)` → `Ok | Unreachable { since }` (step 1 c).
+  - State the size budget in the LOG: extras per poll per model × 1440 × ~40 B (Elite ≈ 40 extras ≈ 2.3 MB/day) plus `sample`, against 10 MB per station-day.
+  - TDD with hand-computed rows: an EB3A-shaped poll lands 6 core columns and N extras; a poll with a problem lands only a failure row; 3 failures make the station unreachable, and a sample clears it.
+  - check: `cargo test store::`; `make check` · review: risky
+- [ ] 4. Grid presence (spec §7.1) + coverage gate on `src/metrics/`.
+  - `src/lib.rs` gets `pub mod metrics`. `src/metrics/mod.rs` declares `grid`, `house`, `runtime`, `energy`; the last three files hold only their module doc and are filled by group A.
+  - `src/metrics/grid.rs` is a pure per-station state machine: present when `ac_in_v ≥ grid_voltage_min`, with `ac_in_w > 0` as the fallback when the voltage is missing; a change is accepted after `debounce_samples` and backdated to the first sample of the new state; no successful poll for > 3 intervals → `Unknown`, never an outage.
+  - TDD with hand-computed timestamps: flapping on/off/on never flips; debounce 2 backdates; a gap gives `Unknown`, then recovers.
+  - `Makefile` `COV_FILTER` checks `src/protocol/` and `src/metrics/` each ≥ `COV_MIN`, printing one line per directory, and errors when a directory has no files.
+  - check: `cargo test metrics::grid`; `make check` prints both coverage lines ≥ 80%; a scratch `make test COV_MIN=101` fails naming a directory (LOG) · review: risky (Makefile gate)
+- [ ] 5. [parallel: A] House outage log (spec §7.2) (needs Q3) in `src/metrics/house.rs`. Only sensor stations vote.
+  - Unknown when every sensor is unknown or unreachable.
+  - An outage starts when every reachable sensor has no grid, and ends when any sensor has grid. The precision is the poll interval.
+  - `totals(events, from, to)` returns the count, the total seconds without power and the longest outage. An open event is clipped to `to`.
+  - TDD with hand-computed values: one sensor unreachable while the other has no grid → outage; both unreachable → unknown with no new event; flapping sensor input.
+  - check: `cargo test metrics::house` · review: risky
+- [ ] 6. [parallel: A] Runtime forecast (spec §7.3, spec §4.3) in `src/metrics/runtime.rs`.
+  - The load is an EWMA of `ac_out_w + dc_out_w` over irregular samples, with `α = 1 − e^(−Δt/600)`.
+  - `remaining_wh = capacity × soc / 100 × usable_factor`, and `runtime_h = remaining_wh / max(load, 1)`.
+  - Low-load floor: when the station discharges (SOC falling, or no grid) and its outputs read 0 W, the load comes from the SOC slope over ≥ 2 SOC steps. Otherwise the result is `Unknown`, never the 1 W floor.
+  - On battery the result is "until ts"; on grid it is "if the power goes now".
+  - TDD with hand-computed values, including 268.8 Wh at 89 → 87 % over 38 min ≈ 8.5 W.
+  - check: `cargo test metrics::runtime` · review: risky
+- [ ] 7. [parallel: A] Energy accounting (spec §7.4) (needs Q3) in `src/metrics/energy.rs`.
+  - Trapezoid integration of the AC + DC input and output power. A gap > 3 intervals is skipped and reported as missing coverage.
+  - `Δstored_wh = capacity × Δsoc / 100`, and losses = in − out − Δstored, labelled an estimate.
+  - `rollup(samples, bucket)` gives the `rollup_5m` row values (averages, minimum SOC, energy in/out, n), with the segment attribution of step 1 e.
+  - TDD with hand-computed values: constant 100 W for 10 min = 16.667 Wh; a ramp; a gap; a segment that crosses a bucket boundary.
+  - check: `cargo test metrics::energy` · review: risky
+- [ ] 8. Store writer task (spec §5.3, spec §7.1, spec §7.2) in `src/store/writer.rs`.
+  - It owns the only write connection, on its own blocking thread (`spawn_blocking` + `blocking_recv`), and takes `Record::{Sample, Failure, Snapshot}` over `mpsc`.
+  - It runs `metrics::grid` and `house` on every record and opens or closes `grid_event` rows.
+  - On start it restores state per step 1 f. On channel close it flushes and returns.
+  - TDD on a temp DB: a house outage across a simulated restart (drop the writer mid-outage, start a new one on the same file) gives exactly one event, closed once and backdated; flapping input opens no event; a gap gives unknown with no new event.
+  - check: `cargo test store::writer`; `make check` · review: risky
+- [ ] 9. Rollup + retention (spec §6) in `src/store/rollup.rs`. The writer runs it every 5 min, retention nightly, and `wal_checkpoint(TRUNCATE)` + `optimize` weekly. Each job uses `metrics::energy::rollup`. TDD:
+  - running the rollup twice gives identical rows;
+  - a restart between runs continues from `max(ts)`;
+  - the open current bucket is never rolled up;
+  - retention deletes only rolled-up raw rows older than `raw_retention_days`, and snapshots and failures older than 90 days;
+  - `grid_event` is untouched.
+  - check: `cargo test store::rollup`; `make check` · review: risky
+- [ ] 10. Collector loop (spec §5.3, spec §5.4, spec §5.5) (needs Q4) in `src/collector/{mod,bluez}.rs`.
+  - A `Connect` trait opens one station as a `Gatt` and names the failed stage. `BluezConnect` implements it with `transport::find` + `transport::open`, with no `bluer` import, reusing `src/cli/session.rs`'s find → open → always-disconnect core (lift it into `transport` so the CLI and the collector share one disconnect path); `find` errors are `discover`, and handshake errors are told apart from connect errors by their typed source.
+  - Stations are polled sequentially, one link at a time, and every poll ends in `disconnect`, on error too.
+  - Each result goes to the writer as a `Record`. A third consecutive failure logs `unreachable` once.
+  - Ticks run at `start + k × interval`; a late round skips the ticks it missed instead of bursting.
+  - Every poll runs under the step 1 j deadline (`tokio::time::timeout`, disconnect still runs).
+  - A `watch<Control { Run, Pause { until }, Shutdown }>` controls the loop: shutdown ends the current poll (with its disconnect) and stops; pause skips polls.
+  - Unit tests run under `start_paused` with a fake `Connect`: never two links open at once; one disconnect per open; failure stages are recorded; shutdown during the sleep returns at once; pause skips polls; an always-failing (hanging) station never delays the others' ticks.
+  - check: `cargo test collector::`; `grep -rn bluer src/collector` → no match; `make check` · review: risky
+- [ ] 11. Hourly `register_snapshot` (spec §M3, spec §6). The collector reads the profile's registers once per poll: `read_profile`, then `device::decode`/`problems`, or `station::poll` also returns the `Registers`. The first successful poll of each UTC hour sends one `Snapshot` per profile block (big-endian u16 data). Size: 24 × the profile's register count × ~(2 B + row overhead) per day, stated in the LOG. TDD: two polls in one hour → one snapshot set; the next hour → a second set; a failed poll sends none — check: `cargo test collector::`; `make check` · review: risky
+- [ ] 12. Replay end-to-end test (spec §11, spec §M3) in `tests/collector.rs`. The collector and the writer run on a temp DB, in virtual time. A `Connect` impl hands out a fresh `ReplayGatt` per poll from `tests/frames/{eb3a,ac180,elite200v2}.json`, and a fourth station always fails to connect. After the rounds:
+  - the `sample` and `sample_extra` rows hold the values hand-read from the fixtures, as `tests/replay.rs` already asserts;
+  - `poll_failure` rows have stage `connect`;
+  - `station_health` is `Unreachable` after 3 failures;
+  - no hardware is used.
+  - check: `cargo test --test collector`; `make check` · review: risky
+- [ ] 13. `serve` + `/healthz` (spec §5.3, spec §8.2, spec §9). Add `axum = "0.8.9"` and tokio `net`, then `cargo build --all-targets` (as step 2).
+  - `src/web/mod.rs`: a router with `/healthz` that reads through the read-only connection in `spawn_blocking`.
+  - `src/cli/serve.rs` wires it up: config + keys (fail fast), store open + migrate + `sync_stations`, then the writer, the collector and the web server.
+  - SIGINT/SIGTERM sends `Shutdown`: the collector stops and disconnects, the writer drains and flushes, and the server closes gracefully.
+  - Add a `make run` target (`CONFIG ?= config.toml`).
+  - The §9 sections are already in `src/config.rs`; any new value goes there. If the file passes ~400 lines, move its tests to `src/config/tests.rs`.
+  - Test: `/healthz` on `127.0.0.1:0`, with a raw `TcpStream` GET against a temp DB (no new dev-dependency).
+  - check: `make check`; `serve` with a scratch config that has no stations starts, `/healthz` answers 200, and SIGTERM exits 0 (LOG) · review: risky
+- [ ] 14. Hardware smoke + CF-5, read-only (spec §10.4, spec §4.3, spec §M3) (needs Q1, Q5).
+  - Run the §10.4 pre-flight and `make build`. Make a config copy `data/smoke.toml` with `storage.path = "data/smoke.db"`, then start it the way step 15 will: `systemd-run --user --working-directory="$PWD" --unit=bluetti-smoke systemd-inhibit --what=sleep:idle --why="v0.4 smoke" target/release/bluetti-controller serve --config data/smoke.toml`, and `systemctl --user stop bluetti-smoke` after 16 min (in separate commands, never a foreground wait > 10 min).
+  - If the inhibit is refused (polkit), drop it, record that in the LOG, and add Q2's H-row; step 15 then uses the verified form.
+  - Smoke: the unit starts and stops clean (`systemctl --user status` / journal exit 0); an SQL count of samples and failures per station; each station's `bluetoothctl info` shows `Connected: no` (counts only, no MAC in the LOG); `/healthz` answers during the run.
+  - CF-5 (re-confirm, or discharge here if step 1 deferred it): while the EB3A reads `ac_in_v ≥ 180` (grid on), the Elite's (and the AC180's) `sample.ac_in_v` (reg 1314 ×0.1) lies in 200–250 V and `sample_extra.ac_input_frequency` (reg 1300 ×0.1) in 49–51 Hz. Write the values to the LOG and discharge CF-5 in `loop/STATE.md`.
+  - A wrong scale → fix it in `src/protocol/device.rs` with a decode test, then smoke again before step 15.
+  - Grid off for the whole window → CF-5 is checked instead from step 18's DB, and the smoke still counts.
+  - AC180 not on the grid → Q5.
+  - check: smoke counts (each station ≥ 14 samples in 16 min) and CF-5 values in the LOG · review: risky
+- [ ] 15. Start the 24 h run (spec §M3, RULES.md v0.4 gate) (needs Q1, Q2).
+  - Copy the release binary to `data/run/`. Make `data/acceptance.toml` from the local config with `storage.path = "data/acceptance-24h.db"` (a fresh file).
+  - Start it with `systemd-run --user --working-directory="$PWD" --unit=bluetti-acceptance-24h systemd-inhibit --what=sleep:idle --why="v0.4 acceptance" data/run/bluetti-controller serve --config data/acceptance.toml`, in the form step 14 verified (without the inhibit if it was refused).
+  - Write to the LOG the start (UTC unix ts), the unit name and the ETA as the relaunch time.
+  - From here until step 18, no command touches a station (golden rule #5), and nothing rebuilds the copied binary.
+  - check: `systemctl --user is-active bluetti-acceptance-24h` → `active`; after 3 min every station has ≥ 1 sample (SQL); `/healthz` answers 200 · review: risky (host user unit)
+- [ ] 16. Acceptance measurement script (spec §11, RULES.md v0.4 gate): `scripts/acceptance_v04.py`, run with `python3 -I`, stdlib `sqlite3` only, opened read-only through `file:…?mode=ro`.
+  - Arguments: `<db> <from_ts> <to_ts> <interval_s> [--min-pct 95] [--max-mb 10]`.
+  - Per station: scheduled polls = `(to − from) / interval`, the samples in the window, the misses, the success % and PASS at ≥ 95 %.
+  - DB size = (db + WAL bytes) / stations / days, with PASS below 10 MB, plus bytes per table (`dbstat` if available, else row counts × average row size) so an overage names its table.
+  - It also lists the `grid_event` rows in the window, and exits 1 on any FAIL.
+  - It runs during the 24 h run and touches no station.
+  - check: on `data/smoke.db` it reproduces step 14's counts; with `--min-pct 101` it exits 1 (LOG) · review: risky (script)
+- [ ] 17. Docs close-out during the run (spec §M3, spec §5.2), with no station access.
+  - ROADMAP.md: tick the §12 M3 items the LOG evidences, leaving the Human 24 h item for step 18; update §5.2's milestone column.
+  - README.md: `serve` and `make run`.
+  - `config.example.toml`: comments on what `serve` uses (`storage.path`, `web.listen`).
+  - Done-when greps: `grep -rnE 'bluer::|use bluer' src/` hits only `src/transport/bluer/` plus the re-export lines in `src/transport/mod.rs` (doc comments that mention bluer are not code); `grep -rnE 'std::env::var|env::var' src/` hits only `src/config*`; `grep -c '^| H4 ' HUMAN-CHECKLIST.md` → 1.
+  - Settle the open `A<n>` amendments.
+  - check: grep output in the LOG; `make check`; `make amendments` → none open · review: low-risk
+- [ ] 18. Measure the 24 h run (RULES.md v0.4 gate, spec §M3) (needs Q1, Q2, Q5).
+  - If `now < start + 24 h`: write the ETA to the LOG and emit `<<LOOP:BLOCKED>>` (no in-step wait); no step remains that can run meanwhile.
+  - Then `systemctl --user stop bluetti-acceptance-24h` (SIGTERM, clean exit), and run step 16's script over `[start, start + 86400)`.
+  - The script's output goes to the LOG. Each station needs ≥ 1368/1440 polls and the DB < 10 MB per station-day.
+  - CF-5 is checked here if step 14 deferred it.
+  - On PASS, tick ROADMAP §12 M3's 24 h item (objective half); the unplug half points at H4.
+  - If a real house outage was recorded, note its `grid_event` row and detection delay in the LOG for the owner's H4; the loop does not mark H4.
+  - check: the script exits 0; any FAIL → `<<LOOP:GATE_FAILED>>` (fix the work, then re-run 15 → 18 by amendment; never the threshold) · review: risky (stops the host unit)
+- [ ] 19. Phase gate `v0.4-collector` (RULES.md v0.4 gate, AGENTS.md §6).
+  - `make check` is green, with both coverage lines ≥ 80 %.
+  - Every BRIEF done-when item points at its LOG evidence (steps 2–18), and ROADMAP §12 M3's 24 h item is ticked; the unplug item points at H4.
+  - The `loop/STATE.md` gate line shows the verdict. All pass → the close: OUTCOME and the tag, through the loop's close path and the `close-reviewer`.
+  - check: `make check`; `make amendments` → none open; each done-when item has its evidence line in the LOG · review: low-risk (the `close-reviewer` audits the close)
+
+## Risks / Dependencies
+- **Order.** The design record (1) comes first. Store (2–3) and grid (4) come before group A, then the writer (8–9) and the collector (10–12), then `serve` (13), then hardware (14–15). Steps 16–17 run during the 24 h window, and 18–19 come after it.
+- **Parallel group A (5–7)** fills `house.rs`, `runtime.rs` and `energy.rs`. Step 4 creates all three files as doc-only stubs and declares them in `metrics/mod.rs`, so the group writes three disjoint files and no shared module line.
+  - House uses step 4's `GridState`, which is already merged; runtime and energy depend only on `protocol::device`.
+  - None consumes another's output. Each edits a file that exists, so each gets its own worktree branch through `loop/merge-gate.sh` (AGENTS.md §8a).
+  - Every other step touches shared files (`Cargo.toml`, `src/lib.rs`, the writer, the stations), so none is tagged.
+- **CF-5 is placed where the registers are first relied on live.** The pure metric code (4–9) is tested with hand-computed values and never reads reg 1314 or 1300. The live outage path first relies on them in the smoke and 24 h runs, so CF-5 sits in step 14, read from the smoke DB's samples: a grid-on read with no extra BLE session.
+  - If the grid is off, nothing waits: CF-5 moves to step 18's DB, since 24 h almost surely include grid-on time.
+  - A wrong scale found only at step 18 invalidates that run's outage rows, not the poll or size gate; after the `device.rs` fix, H4 still proves outage detection.
+- **The 24 h run blocks station access.** Golden rule #5 allows one connection per station, so steps 16–17 are station-free.
+  - The copied binary in `data/run/` means `make check` and `make build` cannot disturb the run.
+  - If 16–17 finish early, step 18 is the only BLOCKED wait, by design.
+- **Laptop suspend or the owner's phone app during the run** cause misses, not a wrong metric (Q2). Misses → `GATE_FAILED` → fix the setup and re-run. A re-run costs 24 h, so step 14's smoke must be clean first.
+- **Restart safety** comes by construction: rollup progress is `max(rollup_5m.ts)` under its primary key; open events and debounce state are rebuilt from the DB; runtime and totals are pure over windows (step 1 f/g). Steps 8 and 9 test it on a real file.
+- **Coverage.** `make test` currently gates only `src/protocol/` (`Makefile` `COV_FILTER`). Step 4 extends it to `src/metrics/` before group A adds most of the metrics code.
+- **Dependencies.** rusqlite 0.40.2 (`bundled`, so no system libsqlite) and axum 0.8.9 follow spec §4.9 / ADR-004, pinned; `Cargo.lock` updated by an unlocked `cargo build` (insertions only), then `make check` builds `--locked`. No timezone crate (Q3), and no test-only crates (raw `TcpStream` for `/healthz`). The measurement script uses only `python3`'s stdlib, which is dev tooling, not runtime.
+- **File size.** `src/config.rs` is 333 lines; if step 13 adds to it, its tests move to `src/config/tests.rs`. The collector and the store are split by responsibility (`schema`/`write`/`writer`/`rollup`) to stay ≤ ~400 lines.
+
+## Escape hatches
+- If a step fails 3 times: stop, log the blocker, set status: blocked, emit `<<LOOP:BLOCKED>>`. A station unreachable during a hardware step (app connected, out of range) is logged and retried; it counts toward the 3.
+- If a destructive / secret-touching / irreversible external action is required: stop and hand to a human. This covers any 0x06/0x10 frame, `control.enabled = true`, pairing, `sudo` (a system package such as the `sqlite3` CLI, a polkit rule for the sleep inhibit, BlueZ settings), a system-level unit, and a MAC/SN or key that reached a pushed commit.
+- Waiting for the 24 h window (step 18) with nothing else left: `<<LOOP:BLOCKED>>` with the ETA in the LOG. Never cut the window short.
+- Gate failures — `src/protocol/` or `src/metrics/` coverage < 80 %, or a station < 95 % polls, or the DB ≥ 10 MB per station-day: `<<LOOP:GATE_FAILED>>`. Fix the work, never the threshold; a wrong metric goes only through the falsified-metric path (AGENTS.md §6).
+
+## Amendments
