@@ -6,6 +6,7 @@
 //! until the M1/M2 acceptance runs.
 
 use std::collections::BTreeMap;
+use std::ops::RangeInclusive;
 
 /// Bluetti company id in BLE manufacturer data (ASCII "BL", little-endian).
 pub const COMPANY_ID: u16 = 0x4C42;
@@ -115,6 +116,34 @@ impl Metric {
             Metric::PackCurrent => "A",
             Metric::AcOutputOn | Metric::DcOutputOn => "",
         }
+    }
+
+    /// Plausible decoded values, shared by every model; a value outside fails
+    /// the poll (RULES.md v0.3 gate). Each bound admits 0, the idle reading.
+    pub const fn range(self) -> RangeInclusive<f64> {
+        let (min, max) = match self {
+            // A state of charge is a percentage.
+            Metric::BatterySoc => (0.0, 100.0),
+            // ~2x the largest inverter (Elite 200 V2, 2600 W) and above the
+            // AC180's 2700 W power lifting; catches garbage such as 0xFFFF.
+            Metric::AcInputPower
+            | Metric::DcInputPower
+            | Metric::AcOutputPower
+            | Metric::DcOutputPower => (0.0, 5000.0),
+            // 230 V nominal grid +30%; 0 while unplugged (an outage).
+            Metric::AcInputVoltage => (0.0, 300.0),
+            // 50/60 Hz grid with headroom; 0 while unplugged.
+            Metric::AcInputFrequency => (0.0, 70.0),
+            // Low-voltage solar/car input: tens of volts, 150 V is far above.
+            Metric::DcInputVoltage => (0.0, 150.0),
+            // A switch is 0 (off) or 1 (on).
+            Metric::AcOutputOn | Metric::DcOutputOn => (0.0, 1.0),
+            // 16S LiFePO4 at 3.65 V/cell = 58.4 V full.
+            Metric::PackVoltage => (0.0, 60.0),
+            // 2600 W at a 40 V empty pack ~ 65 A; signed for charge/discharge.
+            Metric::PackCurrent => (-100.0, 100.0),
+        };
+        RangeInclusive::new(min, max)
     }
 
     fn is_plausible(self, value: f64) -> bool {
@@ -243,6 +272,35 @@ pub fn decode(profile: &Profile, registers: &Registers) -> BTreeMap<Metric, f64>
         .filter_map(|f| {
             let value = f64::from(registers.get(f.register)?) * f.scale;
             f.metric.is_plausible(value).then_some((f.metric, value))
+        })
+        .collect()
+}
+
+/// A profile field that fails the plausibility check of one poll.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Problem {
+    /// The field's register was not in the poll.
+    Missing { metric: Metric },
+    /// The decoded value lies outside [`Metric::range`].
+    OutOfRange { metric: Metric, value: f64 },
+}
+
+/// Names every profile field, in profile order, that is missing from
+/// `registers` or decodes outside its [`Metric::range`]. Empty means the poll
+/// is plausible. [`decode`] is unaffected: it still keeps what it can.
+pub fn problems(profile: &Profile, registers: &Registers) -> Vec<Problem> {
+    profile
+        .fields
+        .iter()
+        .filter_map(|f| {
+            let Some(raw) = registers.get(f.register) else {
+                return Some(Problem::Missing { metric: f.metric });
+            };
+            let value = f64::from(raw) * f.scale;
+            (!f.metric.range().contains(&value)).then_some(Problem::OutOfRange {
+                metric: f.metric,
+                value,
+            })
         })
         .collect()
 }

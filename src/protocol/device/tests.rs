@@ -108,3 +108,133 @@ fn drops_implausible_output_flag() {
     assert!(!DcOutputOn.is_plausible(2.0));
     assert!(PackCurrent.is_plausible(-5.0));
 }
+
+/// AC180 registers with every field set from `(register, raw)` pairs, the
+/// rest of each polled block zero.
+fn ac180_registers(values: &[(u16, u16)]) -> Registers {
+    let mut registers = Registers::default();
+    for &(start, count) in Model::Ac180.profile().blocks {
+        registers.insert_block(start, &vec![0; usize::from(count)]);
+    }
+    for &(register, raw) in values {
+        registers.insert_block(register, &[raw]);
+    }
+    registers
+}
+
+#[test]
+fn plausible_poll_has_no_problems() {
+    // 53.20 V, 5.2 A, 87 %, 120 W AC out, 50.0 Hz, 230.1 V, AC on.
+    let registers = ac180_registers(&[
+        (100, 5320),
+        (101, 52),
+        (102, 87),
+        (142, 120),
+        (1300, 500),
+        (1314, 2301),
+        (2011, 1),
+    ]);
+    assert_eq!(problems(Model::Ac180.profile(), &registers), vec![]);
+}
+
+#[test]
+fn names_each_out_of_range_field_with_its_value() {
+    let registers = ac180_registers(&[(102, 101), (142, 5001)]);
+    assert_eq!(
+        problems(Model::Ac180.profile(), &registers),
+        vec![
+            Problem::OutOfRange {
+                metric: BatterySoc,
+                value: 101.0
+            },
+            Problem::OutOfRange {
+                metric: AcOutputPower,
+                value: 5001.0
+            },
+        ]
+    );
+}
+
+#[test]
+fn names_each_field_whose_register_is_absent() {
+    let mut registers = Registers::default();
+    registers.insert_block(10, &[0; 40]); // block (70, 21) not read
+    assert_eq!(
+        problems(Model::Eb3a.profile(), &registers),
+        vec![
+            Problem::Missing {
+                metric: AcInputVoltage
+            },
+            Problem::Missing {
+                metric: DcInputVoltage
+            },
+        ]
+    );
+}
+
+/// Raw values that decode to exactly each AC180 field's upper bound.
+const AC180_AT_BOUND: [(u16, u16); 12] = [
+    (100, 6000), // 60.00 V
+    (101, 1000), // 100.0 A
+    (102, 100),  // 100 %
+    (140, 5000), // W
+    (142, 5000),
+    (144, 5000),
+    (146, 5000),
+    (1213, 1500), // 150.0 V
+    (1300, 700),  // 70.0 Hz
+    (1314, 3000), // 300.0 V
+    (2011, 1),
+    (2012, 1),
+];
+
+#[test]
+fn accepts_values_exactly_at_the_bound() {
+    let registers = ac180_registers(&AC180_AT_BOUND);
+    assert_eq!(problems(Model::Ac180.profile(), &registers), vec![]);
+}
+
+#[test]
+fn rejects_one_raw_step_past_the_bound() {
+    let over: Vec<_> = AC180_AT_BOUND
+        .iter()
+        .map(|&(r, raw)| (r, raw + 1))
+        .collect();
+    let found = problems(Model::Ac180.profile(), &ac180_registers(&over));
+    let named: Vec<_> = found
+        .iter()
+        .map(|p| match p {
+            Problem::OutOfRange { metric, .. } => *metric,
+            Problem::Missing { metric } => panic!("{metric:?} reported missing"),
+        })
+        .collect();
+    let expected: Vec<_> = Model::Ac180
+        .profile()
+        .fields
+        .iter()
+        .map(|f| f.metric)
+        .collect();
+    assert_eq!(named, expected);
+}
+
+#[test]
+fn every_range_accepts_the_idle_zero() {
+    // An unplugged input or an idle output reads 0 and must stay plausible.
+    for metric in [
+        BatterySoc,
+        AcInputPower,
+        DcInputPower,
+        AcOutputPower,
+        DcOutputPower,
+        AcInputVoltage,
+        AcInputFrequency,
+        DcInputVoltage,
+        AcOutputOn,
+        DcOutputOn,
+        PackVoltage,
+        PackCurrent,
+    ] {
+        assert!(metric.range().contains(&0.0), "{metric:?}");
+    }
+    assert!(PackCurrent.range().contains(&-100.0), "discharge sign");
+}
