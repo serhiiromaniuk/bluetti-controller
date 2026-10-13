@@ -852,3 +852,45 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 17c ✓ 2026-10-13 — A6 + A7 + A8 (writer)
+
+**Changed (no station touched; run `active`, `data/run/` untouched):**
+- `src/store/writer.rs`: A6 — `house_open` holds `(id, started_at)`; a failed house `open_outage` resets `House` (next round re-opens), a failed `close_outage` restores `House` open and the id (next round re-closes, backdated). A8 — `rolled_past` (sample ts < rollup cursor + 300) → `tracing::warn!` in `handle`; the sample is still stored. Collector record ts stay nondecreasing (step 10 `Clock`; A9 covers its edge).
+- `src/store/writer/tests.rs`: `a_failed_house_write_is_retried_next_round` (temp trigger `RAISE(ABORT)` on house INSERT, then UPDATE).
+- `src/store/writer/tests/jobs.rs` (new; keeps `tests.rs` ≤ 400 lines): `retention_runs_daily_and_compaction_weekly` (retention 1 day; day 1 deletes rolled rows < 600, no second run same day, week 1 deletes again + WAL 0 B), `a_sample_behind_the_rollup_is_stored_and_flagged`.
+
+**Check:**
+- Failure first (`rolled_past` stubbed `Ok(None)`): A6 test FAILED — house row missing (`[("a",120,None,60)]`); A8 test FAILED `None` vs `Some(300)`. A7 test green on unchanged code (pins existing triggers).
+- After the fix: `cargo test --lib store::` 31/31; `make check` green.
+
+- A7 mutation (retention period → 5 min, compaction → 1 day): `retention_runs_daily_and_compaction_weekly` FAILED (`[87000, 87600]` vs `[600, 87000, 87600]`); restored.
+
+**Amendments:** A6 fixed, A7 fixed, A8 fixed.
+
+**reviewer:** risky, before commit: INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM. Noted, no action: a persistent house-write error blocks the §6 jobs for later records, as per-station event errors already do; only an outside DB edit can cause it (one-writer rule).
+
+**Next:** step 17d — A9 + A10 + A11 + A16 (collector, transport).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:33:42Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

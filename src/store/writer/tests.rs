@@ -308,3 +308,55 @@ fn a_station_named_house_is_refused() {
     let err = Writer::restore(open_writer(&db.path()).unwrap(), s, params(), RETENTION).err();
     assert!(format!("{:#}", err.unwrap()).contains("house"));
 }
+
+/// Amendment A6: a failed house insert or close is retried on the next round,
+/// so the outage is stored once and closed once, backdated.
+#[test]
+fn a_failed_house_write_is_retried_next_round() {
+    let db = TempDb::new("writer-house-retry");
+    let s = stations(&db.path(), &[("a", true)]);
+    let mut writer = Writer::restore(
+        open_writer(&db.path()).unwrap(),
+        s.clone(),
+        params(),
+        RETENTION,
+    )
+    .unwrap();
+    let fail = |writer: &Writer, op: &str| {
+        let row = if op == "INSERT" { "NEW" } else { "OLD" };
+        writer
+            .conn
+            .execute_batch(&format!(
+                "CREATE TEMP TRIGGER fail BEFORE {op} ON grid_event WHEN {row}.scope = 'house'
+                 BEGIN SELECT RAISE(ABORT, 'injected'); END;"
+            ))
+            .unwrap();
+    };
+    let heal = |writer: &Writer| writer.conn.execute_batch("DROP TRIGGER fail").unwrap();
+    for record in rounds(&s, &[(0, &[ON]), (60, &[ON]), (120, &[OFF])]) {
+        writer.handle(&record).unwrap();
+    }
+    fail(&writer, "INSERT");
+    assert!(writer.handle(&volts(&s[0], 180, OFF)).is_err());
+    heal(&writer);
+    writer.handle(&volts(&s[0], 240, OFF)).unwrap();
+    assert_eq!(
+        events(&db.path()),
+        vec![("a".into(), 120, None, P), ("house".into(), 120, None, P)]
+    );
+
+    writer.handle(&volts(&s[0], 300, ON)).unwrap();
+    fail(&writer, "UPDATE");
+    assert!(writer.handle(&volts(&s[0], 360, ON)).is_err());
+    heal(&writer);
+    writer.handle(&volts(&s[0], 420, ON)).unwrap();
+    assert_eq!(
+        events(&db.path()),
+        vec![
+            ("a".into(), 120, Some(300), P),
+            ("house".into(), 120, Some(300), P)
+        ]
+    );
+}
+
+mod jobs;

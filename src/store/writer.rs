@@ -68,8 +68,8 @@ pub struct Writer {
     interval_s: i64,
     stations: Vec<Tracked>,
     house: House,
-    /// The id of the open house `grid_event` row.
-    house_open: Option<i64>,
+    /// The open house `grid_event` row: (id, started_at).
+    house_open: Option<(i64, i64)>,
     raw_retention_days: NonZeroU32,
     /// The 5-minute bucket, UTC day and week the §6 jobs last ran in.
     ran: [Option<i64>; 3],
@@ -111,7 +111,7 @@ impl Writer {
             interval_s: params.interval_s,
             stations: tracked,
             house: House::new(params.interval_s, house_open.map(|(_, start)| start)),
-            house_open: house_open.map(|(id, _)| id),
+            house_open,
             raw_retention_days,
             ran: [None; 3],
         })
@@ -136,6 +136,14 @@ impl Writer {
         let ts = match record {
             Record::Sample { station, sample } => {
                 let index = self.index(*station)?;
+                if let Some(cursor) = rolled_past(&self.conn, *station, sample.ts)? {
+                    tracing::warn!(
+                        station,
+                        ts = sample.ts,
+                        cursor,
+                        "store writer: sample in a rolled-up bucket; it is never rolled up"
+                    );
+                }
                 insert_sample(&mut self.conn, *station, sample)?;
                 self.stations[index].grid.observe(sample.ts, &sample.values);
                 sample.ts
@@ -216,17 +224,29 @@ impl Writer {
             .map(|t| t.grid.state())
             .collect();
         match self.house.update(&sensors) {
+            // The house event is edge-based: on a failed write, put `House` back so
+            // the next round sees the edge again (amendment A6).
             Some(Event {
                 start,
                 end: None,
                 precision_s,
-            }) => self.house_open = Some(open_outage(&self.conn, HOUSE, start, precision_s)?),
+            }) => match open_outage(&self.conn, HOUSE, start, precision_s) {
+                Ok(id) => self.house_open = Some((id, start)),
+                Err(err) => {
+                    self.house = House::new(self.interval_s, None);
+                    return Err(err);
+                }
+            },
             Some(Event { end: Some(end), .. }) => {
-                let id = self
+                let (id, start) = self
                     .house_open
                     .take()
                     .context("house outage ended but none is open")?;
-                close_outage(&self.conn, id, end)?;
+                if let Err(err) = close_outage(&self.conn, id, end) {
+                    self.house = House::new(self.interval_s, Some(start));
+                    self.house_open = Some((id, start));
+                    return Err(err);
+                }
             }
             None => {}
         }
@@ -259,6 +279,18 @@ fn last_samples(
         .collect::<Result<Vec<_>, _>>()?;
     rows.reverse();
     Ok(rows)
+}
+
+/// The station's rollup cursor when `ts` falls in a bucket the rollup has
+/// passed (amendment A8): such a sample is stored but never rolled up, and
+/// retention later deletes it. The collector keeps record times nondecreasing.
+fn rolled_past(conn: &Connection, station_id: i64, ts: i64) -> anyhow::Result<Option<i64>> {
+    let cursor: Option<i64> = conn.query_row(
+        "SELECT max(ts) FROM rollup_5m WHERE station_id = ?1",
+        [station_id],
+        |row| row.get(0),
+    )?;
+    Ok(cursor.filter(|cursor| ts < cursor + BUCKET_S))
 }
 
 /// The newest open outage of `scope`: (id, started_at).
