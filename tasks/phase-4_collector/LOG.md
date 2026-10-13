@@ -400,3 +400,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10 ✓ 2026-10-13 — collector loop: sequential polls under a deadline, always released
+
+**Changed:** `src/collector/{mod,bluez,tests}.rs` (new); `lib.rs` `pub mod collector`.
+- `Connect` trait: `open(station, retry, &mut stage)` → `(Gatt, encrypted)`; `release(station)` = disconnect by address. `stage` starts `discover` and moves as the open gets further, so a deadline names where it stopped.
+- `BluezConnect`: `find` (or `find_cached` when unreachable, 1 connect attempt) → advertised-model check → `transport::open`; a `HandshakeFailed` source → `handshake`. Error text MAC-masked.
+- `Collector::run`: ticks at `start + k × interval` (own `next_tick`; tokio `Skip` fired one late round at once — test caught it), stations in turn, poll under `timeout(interval / n)`, shutdown via `select!`; `release` after every poll on every path; 3rd consecutive failure warns `unreachable` once; `Record` to the writer; writer gone → stop.
+- Record ts: `Clock` = max(last, wall, start + monotonic): nondecreasing (A8, collector half).
+- Transport lift: `transport::with_disconnect` (body, then always disconnect) now used by `cli/session.rs` and the collector; `transport::{release, find_cached}` in `bluer/gatt.rs`; `link::HandshakeFailed` wraps the key-exchange error.
+- ROADMAP §5.4: the deadline bounds a timed-out connect; `connect_attempts` retries fast failures (A1 fixed).
+
+**Check:** `cargo test --lib collector::` 12/12 under `start_paused`. Failure-first: `a_late_round_skips_the_ticks_it_missed` failed with tokio `MissedTickBehavior::Skip` (opens `[0, 130]`, want `[0, 180]`); `a_deadline_during_the_read…` added after mutant "stage not moved to read" survived.
+- Mutants, each caught: no release (5 fail), deadline = interval (1), always retry (1), pause ignored (1), no shutdown branch in the poll (1), stage not moved to read (1).
+- `grep -rn bluer src/collector` → no match (exit 1).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 1 HIGH / 2 MEDIUM
+- HIGH H1 `bluer/gatt.rs` `release` skipped the disconnect when `is_connected()` was false, so a connect cancelled mid-attempt by the deadline could finish after the poll → fixed: unconditional bounded `disconnect()` (cancels a pending Connect, as `connect` already relies on); an error counts only while still connected. Hardware path, no unit test; second review pass on the fix: no findings.
+- MEDIUM M1 `collector/mod.rs:211` clock floor can freeze `ts` after a wall-clock step back → amendment A9.
+- MEDIUM M2 `collector/bluez.rs:59` `HandshakeFailed` → `handshake` mapping untested → amendment A10.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 11 — hourly `register_snapshot`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T14:14:30Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ff3da3329bfc40c0)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

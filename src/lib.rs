@@ -3,8 +3,9 @@
 //! The hardware-independent protocol layer (Modbus framing, device detection,
 //! register decoding), config loading, the BLE transport, SQLite storage and
 //! the derived metrics.
-//! The collector and the web UI follow milestone by milestone (see `ROADMAP.md` §12).
+//! The collector polls the stations; the web UI follows milestone by milestone (see `ROADMAP.md` §12).
 
+pub mod collector;
 pub mod config;
 pub mod metrics;
 pub mod protocol;

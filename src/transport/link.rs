@@ -16,6 +16,12 @@ use crate::protocol::device::is_encrypted;
 /// The BlueZ channel with its frames teed, as they crossed the air.
 pub type Wire = RecordingGatt<BluerGatt>;
 
+/// The key exchange failed after the link came up: a typed source, so a
+/// caller tells a `handshake` failure from a `connect` one (§5.4 stages).
+#[derive(Debug, thiserror::Error)]
+#[error("key exchange: {0}")]
+pub struct HandshakeFailed(#[source] pub TransportError);
+
 /// A connected station: plaintext, or behind an established session.
 pub enum Link {
     Plain(Wire),
@@ -61,7 +67,9 @@ pub async fn open(
     let timeout = Duration::from_secs(ble.request_timeout_secs.get());
     // `establish_with` disconnects on failure.
     Ok(Link::Encrypted(
-        CryptoGatt::establish_with(wire, keys, timeout, ephemeral).await?,
+        CryptoGatt::establish_with(wire, keys, timeout, ephemeral)
+            .await
+            .map_err(HandshakeFailed)?,
     ))
 }
 

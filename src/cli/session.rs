@@ -8,7 +8,7 @@ use std::path::{Component, Path};
 use anyhow::{anyhow, bail};
 use bluetti_controller::transport::fixture::Fixture;
 use bluetti_controller::transport::record::RecordingGatt;
-use bluetti_controller::transport::{self, Advert, Gatt, Link};
+use bluetti_controller::transport::{self, Advert, Link};
 use tokio::signal::unix::{SignalKind, signal};
 
 use super::{Context, detect};
@@ -45,12 +45,14 @@ pub(super) async fn run<T>(
         Link::Encrypted(_) => println!("connected, session established"),
     }
     let mut session = RecordingGatt::new(link, &advert);
-    let result = tokio::select! {
-        result = body(&mut session, &advert) => result,
-        _ = sigint.recv() => Err(anyhow!("interrupted")),
-    };
     // Disconnect and save before acting on the result, so no path skips them.
-    let closed = session.disconnect().await;
+    let (result, closed) = transport::with_disconnect(&mut session, async |session| {
+        tokio::select! {
+            result = body(session, &advert) => result,
+            _ = sigint.recv() => Err(anyhow!("interrupted")),
+        }
+    })
+    .await;
     if let Some(path) = ctx.record {
         save(session.fixture(), path);
     }

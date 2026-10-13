@@ -650,6 +650,11 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
   fresh scan.
   Worst round: 3 × 20 s = 60 s = one interval; a round that still overruns
   skips the missed ticks (ticks at `start + k × interval`), never bursts.
+  The deadline, not `connect_attempts`, bounds a connect that times out: one
+  timed-out attempt (15 s + cleanup) leaves no room for a second inside 20 s.
+  `connect_attempts = 3` still retries a connect that fails fast (an abort, a
+  refusal). Recommendation: keep both; no per-attempt timeout derived from the
+  deadline (phase-4 A1).
 
 ### 5.5 Error handling
 

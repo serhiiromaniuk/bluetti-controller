@@ -20,10 +20,10 @@ pub mod record;
 pub mod replay;
 pub mod station;
 
-pub use self::bluer::gatt::{BluerGatt, connect, find};
+pub use self::bluer::gatt::{BluerGatt, connect, find, find_cached, release};
 pub use self::bluer::scan::scan;
 pub use self::crypto::CryptoGatt;
-pub use self::link::{Link, open};
+pub use self::link::{HandshakeFailed, Link, open};
 
 /// One BLE advertisement of a station, in our own types.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -81,4 +81,14 @@ pub trait Gatt {
     /// Closes the connection; every later call fails with
     /// [`TransportError::NotConnected`].
     fn disconnect(&mut self) -> impl Future<Output = Result<(), TransportError>> + Send;
+}
+
+/// Runs `body` on `gatt`, then disconnects whatever the body returned: the
+/// one always-disconnect path of the CLI and the collector (golden rule #5).
+pub async fn with_disconnect<G: Gatt, T>(
+    gatt: &mut G,
+    body: impl AsyncFnOnce(&mut G) -> T,
+) -> (T, Result<(), TransportError>) {
+    let result = body(gatt).await;
+    (result, gatt.disconnect().await)
 }

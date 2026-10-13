@@ -59,6 +59,39 @@ pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
         })
 }
 
+/// [`find`] without the scan: BlueZ's device cache only, for a station
+/// already unreachable (§5.4 per-round budget).
+pub async fn find_cached(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
+    let timeout = Duration::from_secs(ble.connect_timeout_secs.get());
+    cached(&ble.adapter, parse_address(address)?, timeout)
+        .await?
+        .ok_or_else(|| anyhow!("station not in the BlueZ cache"))
+}
+
+/// Disconnects `address` whatever handle a cancelled poll left behind, and
+/// cancels a connect still in progress (§5.4). Each call is bounded by
+/// `request_timeout_secs`.
+pub async fn release(ble: &BleConfig, address: &str) -> anyhow::Result<()> {
+    let address = parse_address(address)?;
+    let timeout = Duration::from_secs(ble.request_timeout_secs.get());
+    let session = bounded(timeout, "open a D-Bus session", Session::new()).await?;
+    let adapter = session
+        .adapter(&ble.adapter)
+        .with_context(|| format!("no Bluetooth adapter {}", ble.adapter))?;
+    let known = bounded(timeout, "list devices", adapter.device_addresses()).await?;
+    if !known.contains(&address) {
+        return Ok(());
+    }
+    let device = adapter.device(address).map_err(ble_error("device"))?;
+    // Unconditional: it also cancels a Connect BlueZ may still be running,
+    // when `is_connected` is still false. An error is real only while connected.
+    match bounded(timeout, "disconnect", device.disconnect()).await {
+        Ok(()) => Ok(()),
+        Err(err) if bounded(timeout, "connected?", device.is_connected()).await? => Err(err.into()),
+        Err(_) => Ok(()),
+    }
+}
+
 /// Connects to `advert`'s station with `connect_attempts` tries, resolves
 /// `ff01`/`ff02` and subscribes to `ff01`.
 pub async fn connect(ble: &BleConfig, advert: &Advert) -> anyhow::Result<BluerGatt> {
