@@ -14,6 +14,7 @@ mod detect;
 mod dump;
 mod read;
 mod scan;
+pub mod serve;
 mod session;
 
 #[derive(Debug, Subcommand)]
@@ -47,6 +48,9 @@ pub enum Command {
         #[arg(long)]
         to: u16,
     },
+    /// Poll every configured station, store the readings and serve
+    /// `/healthz` until SIGINT/SIGTERM (`ROADMAP.md` §5.3). Needs `--config`.
+    Serve,
     /// Mask a capture for commit under `tests/frames/` (RULES.md golden rule
     /// #3). No station is touched.
     Anonymise {
@@ -86,6 +90,8 @@ pub async fn run(command: Command, ctx: &Context<'_>) -> anyhow::Result<()> {
         Command::Detect { station } => detect::run(ctx, &station).await,
         Command::Read { station } => read::run(ctx, &station).await,
         Command::Dump { station, from, to } => dump::run(ctx, &station, from, to).await,
+        // main runs it with the owned config and keys.
+        Command::Serve => bail!("serve is dispatched by main"),
         Command::Anonymise {
             input,
             output,

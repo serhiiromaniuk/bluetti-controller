@@ -88,7 +88,7 @@
   - `station_health` is `Unreachable` after 3 failures;
   - no hardware is used.
   - check: `cargo test --test collector`; `make check` · review: risky
-- [ ] 13. `serve` + `/healthz` (spec §5.3, spec §8.2, spec §9). Add `axum = "0.8.9"` and tokio `net`, then `cargo build --all-targets` (as step 2).
+- [x] 13. `serve` + `/healthz` (spec §5.3, spec §8.2, spec §9). Add `axum = "0.8.9"` and tokio `net`, then `cargo build --all-targets` (as step 2).
   - `src/web/mod.rs`: a router with `/healthz` that reads through the read-only connection in `spawn_blocking`.
   - `src/cli/serve.rs` wires it up: config + keys (fail fast), store open + migrate + `sync_stations`, then the writer, the collector and the web server.
   - SIGINT/SIGTERM sends `Shutdown`: the collector stops and disconnects, the writer drains and flushes, and the server closes gracefully.
@@ -175,3 +175,5 @@
 - A9 · 2026-10-13 · MEDIUM `src/collector/mod.rs:211` — `Clock::now` = max(last, wall, anchor + monotonic): a wall clock stepped forward then back by ≥ one interval freezes `ts` at `last`, so a station's next record repeats its `(station_id, ts)` key, the insert fails and the writer drops it until the wall clock catches up; the anchor floor also keeps a clock that was ahead at startup ahead until restart. Drop the anchor floor and bump `last + 1` per station (paused tests then need another clock source), or record the trade-off · disposition: open
 - A10 · 2026-10-13 · MEDIUM `src/collector/bluez.rs:59` — the `HandshakeFailed` → `Stage::Handshake` mapping (spec §5.4 typed source) is untested; the collector fake sets the stage itself. Move the error-to-stage mapping into a pure function and test it with `anyhow::Error::from(HandshakeFailed(..))` and a plain connect error · disposition: open
 - A11 · 2026-10-13 · MEDIUM `src/collector/tests.rs:1` — the file grew to 436 lines, past RULES.md "≤ ~400 lines" (800 hard max); move the snapshot tests and `snapshots()` helper into a sibling module (e.g. `src/collector/tests/snapshot.rs`) · disposition: open
+- A12 · 2026-10-13 · MEDIUM `src/cli/serve.rs:99` — on a writer `JoinError` (panic), `writer.await…?` returns before the server is stopped and awaited, so the axum task is left detached mid-shutdown; keep the writer result, stop and await the server, then propagate · disposition: open
+- A13 · 2026-10-13 · MEDIUM `src/web/mod.rs:55` — `SELECT max(ts) FROM sample` cannot use the `(station_id, ts)` PK and scans the table (~130k rows at 30 days × 3 stations) on every `/healthz` probe; take the max of per-station `max(ts)` (`GROUP BY station_id`) so the PK serves it · disposition: open

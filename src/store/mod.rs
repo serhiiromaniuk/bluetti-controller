@@ -4,7 +4,7 @@
 mod rollup;
 mod schema;
 #[cfg(test)]
-mod temp_db;
+pub(crate) mod temp_db;
 mod write;
 mod writer;
 

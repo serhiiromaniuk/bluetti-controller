@@ -112,6 +112,11 @@ amendments:                     ## warn which deferred reviewer findings (the PL
 build:                          ## release binary: target/release/bluetti-controller
 	$(CARGO) build --release --locked
 
+CONFIG ?= config.toml
+.PHONY: run
+run:                            ## poll the stations and serve /healthz with a local config (CONFIG=config.toml)
+	$(CARGO) run --release --locked -- --config $(CONFIG) serve
+
 .PHONY: help
 help:                           ## list targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) \

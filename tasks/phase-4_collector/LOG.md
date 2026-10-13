@@ -524,3 +524,46 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 13 ✓ 2026-10-13 — `serve` + `/healthz`
+
+**Changed:**
+- `Cargo.toml`/`Cargo.lock`: `axum = "0.8.9"`, tokio `net`; `cargo build --all-targets`, lock diff insertions only (+229).
+- `src/web/{mod,tests}.rs` (new): `router(reader)` with `/healthz` → 200 `{status:"ok", last_poll_age_s}` (now − `max(sample.ts)`, `null` before the first sample; a DB error logs and still answers 200, §8.2), read in `spawn_blocking` over `Arc<Mutex<Connection>>` from `open_reader`; `serve(listener, router, shutdown)` with graceful shutdown.
+- `src/cli/serve.rs` (new): signals installed first; `open_writer` (migrates) → `sync_stations` → `Writer::restore` → `open_reader` → bind `web.listen` (all fail fast, before any poll) → writer, server, collector (`BluezConnect`, `ReadPolicy::from_ble`). SIGINT/SIGTERM → `Control::Shutdown`; collector returns after its poll's release, its sender drops, the writer drains, then the server stops. An early collector/server exit is an error.
+- `src/main.rs`: keeps the whole `Config`; `Serve` dispatched there with owned config + keys (`StaticKeys` is not `Clone`); `cli::run`'s `Serve` arm is unreachable (`bail!`).
+- `Makefile`: `make run` (`CONFIG ?= config.toml`). `src/store/mod.rs`: `temp_db` `pub(crate)` for the web test. No new config value (`config.rs` unchanged).
+
+**Check:** `cargo test --lib web::` 1/1 — raw `TcpStream` GET on `127.0.0.1:0`, temp DB: `null` before a sample, age 30–35 s after one at now − 30, 404 on `/nope`, server returns `Ok` on stop. Mutant `last_poll_age_s` = 0 → fails (`age 0`).
+- Smoke, zero-station scratch config under gitignored `data/` (deleted after): `/healthz` → `{"status":"ok","last_poll_age_s":null}` HTTP 200; SIGTERM → exit 0 (log `SIGTERM, shutting down` → `stopped`); SIGINT → exit 0.
+- Fail fast: no `--config` → `serve needs --config`; port taken → `Address already in use`; missing `keys_file` → `No such file or directory` before serving.
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 2 MEDIUM
+- MEDIUM writer `JoinError` skips the server stop → amendment A12.
+- MEDIUM `/healthz` `max(ts)` full scan → amendment A13.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 14 — hardware smoke + CF-5 (read-only).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T14:26:16Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
