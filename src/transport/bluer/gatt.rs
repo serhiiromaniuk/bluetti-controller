@@ -129,6 +129,25 @@ impl Gatt for BluerGatt {
     }
 }
 
+/// A session dropped while connected (a cancelled future, a panic) still
+/// disconnects: on a spawned task, since `Drop` cannot wait (spec §4.6).
+/// shortcut: best effort; a runtime that shuts down right after may cancel
+/// the task before BlueZ hears it, so callers still end with `disconnect`.
+impl Drop for BluerGatt {
+    fn drop(&mut self) {
+        if !self.disconnect_owed {
+            return;
+        }
+        let Ok(runtime) = tokio::runtime::Handle::try_current() else {
+            tracing::warn!("dropped while connected outside a runtime, link left up");
+            return;
+        };
+        tracing::warn!("dropped while connected, disconnecting");
+        let (device, timeout) = (self.device.clone(), self.request_timeout);
+        runtime.spawn(async move { disconnect_quietly(&device, timeout).await });
+    }
+}
+
 impl BluerGatt {
     async fn write_op(&mut self, data: &[u8], op_type: WriteOp) -> Result<(), TransportError> {
         if self.notify.is_none() {

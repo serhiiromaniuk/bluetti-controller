@@ -49,10 +49,16 @@ fn line_of_an_unknown_station() {
 }
 
 #[test]
-fn header_shows_length_and_four_bytes() {
+fn identity_line_names_type_layout_and_firmware() {
+    let mut identity = Identity {
+        device_type: "EB3A".into(),
+        layout: bluetti_controller::protocol::device::Protocol::V1,
+        firmware: vec![("arm", "40.12".into()), ("dsp", "40.10".into())],
+    };
     assert_eq!(
-        header(&[0x2A, 0x2A, 0x01, 0x04, 0xDE, 0xAD]),
-        "first notification: 6 bytes, starts 2a2a0104"
+        identity_line(&identity),
+        "device type=EB3A  layout=V1  firmware: arm=40.12 dsp=40.10"
     );
-    assert_eq!(header(&[0x01]), "first notification: 1 bytes, starts 01");
+    identity.firmware.clear();
+    assert!(identity_line(&identity).ends_with("firmware: not found over BLE"));
 }

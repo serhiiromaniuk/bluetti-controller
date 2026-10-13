@@ -29,12 +29,14 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
     let args = Args::parse();
-    let (ble, stations) = match &args.config {
+    let (ble, stations, keys) = match &args.config {
         Some(path) => {
             let config = bluetti_controller::config::load(path)?;
-            (config.ble, config.stations)
+            // Fail fast on a bad keys file, before any station is touched.
+            let keys = config.crypto.as_ref().map(|c| c.load_keys()).transpose()?;
+            (config.ble, config.stations, keys)
         }
-        None => (Default::default(), Vec::new()),
+        None => (Default::default(), Vec::new(), None),
     };
-    cli::run(args.command, &ble, &stations, args.anonymise).await
+    cli::run(args.command, &ble, &stations, keys.as_ref(), args.anonymise).await
 }

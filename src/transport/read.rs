@@ -9,6 +9,7 @@ use std::time::Duration;
 use tokio::time::Instant;
 
 use super::{Gatt, TransportError};
+use crate::config::BleConfig;
 use crate::protocol::device::{Profile, Registers};
 use crate::protocol::modbus::{FrameError, expected_frame_len, parse_read_response, read_request};
 
@@ -21,6 +22,18 @@ pub struct ReadPolicy {
     pub attempts: NonZeroU32,
     /// Pause before the first retry; doubles on each further retry.
     pub backoff: Duration,
+}
+
+impl ReadPolicy {
+    /// `ble.request_timeout_secs` per try, 3 tries, 1 s first backoff
+    /// (`ROADMAP.md` §4.6: bounded retries).
+    pub fn from_ble(ble: &BleConfig) -> Self {
+        Self {
+            timeout: Duration::from_secs(ble.request_timeout_secs.get()),
+            attempts: NonZeroU32::new(3).expect("nonzero"),
+            backoff: Duration::from_secs(1),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]

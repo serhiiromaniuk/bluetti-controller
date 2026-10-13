@@ -19,6 +19,9 @@ use crate::protocol::crypto::{Layer, envelope_len};
 /// bounded by this many request timeouts.
 const STATION_MESSAGES: u32 = 4;
 
+/// Wait for message 6 before message 5 is resent (`ROADMAP.md` §4.4).
+const RESEND_AFTER: Duration = Duration::from_secs(1);
+
 /// An inner [`Gatt`] with an established session. No `Debug`: it holds the
 /// session key.
 pub struct CryptoGatt<G> {
@@ -108,10 +111,23 @@ async fn handshake<G: Gatt>(
     random(&mut ephemeral)?;
     // A scalar outside 1..n (odds ~2^-32) fails this connection only.
     let mut exchange = Handshake::new(keys, &ephemeral).map_err(TransportError::Handshake)?;
+    // Message 5, the one unacknowledged reply, until message 6 arrives.
+    let mut unacked: Option<Vec<u8>> = None;
     loop {
-        let msg = next_frame(inner, pending, exchange.expecting(), timeout).await?;
-        // shortcut: no resend of message 5 when message 6 is late (§4.4,
-        // rustytti); add it if hardware runs lose message 6.
+        let layer = exchange.expecting();
+        let msg = match unacked.take() {
+            None => next_frame(inner, pending, layer, timeout).await?,
+            // §4.4: if message 6 is ~1 s late, resend the identical message 5 once.
+            Some(frame) => match next_frame(inner, pending, layer, RESEND_AFTER.min(timeout)).await
+            {
+                Err(TransportError::Timeout(_)) => {
+                    tracing::debug!("message 6 late, resending message 5");
+                    inner.write(&frame).await?;
+                    next_frame(inner, pending, layer, timeout).await?
+                }
+                other => other?,
+            },
+        };
         match exchange
             .on_message(&msg)
             .map_err(TransportError::Handshake)?
@@ -120,7 +136,10 @@ async fn handshake<G: Gatt>(
             Step::Reply {
                 frame,
                 acked: false,
-            } => inner.write(&frame).await?,
+            } => {
+                inner.write(&frame).await?;
+                unacked = Some(frame);
+            }
             Step::Wait => {}
             Step::Done(session) => return Ok(session),
         }

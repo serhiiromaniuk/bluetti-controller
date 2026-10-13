@@ -435,3 +435,53 @@ test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 11 ✓ 2026-10-13 — encrypted `detect` reads both stations; handshake proven on hardware, A17 + A19
+
+**Changed:**
+- `src/transport/link.rs` (new): `transport::open(ble, advert, keys)` → `Link::{Plain, Encrypted}` (`Gatt` by delegation; RPITIT trait is not `dyn`). Unknown flag or encrypted-without-keys refused before any connect.
+- `src/transport/station.rs` (new): `detect(&mut impl Gatt, &Advert, &ReadPolicy) -> Identity {device_type, layout, firmware}`. Tries the advertised model's layout first (V1 10–15 / V2 110–115 byte-swapped), the other on no printable type; firmware best-effort (V1 23/25, V2 6175; bt `VersionField` low word first, /100), a failed one logged + left out.
+- `ReadPolicy::from_ble`: request timeout, 3 tries, 1 s backoff (§4.6).
+- `src/cli/detect.rs`: open → `station::detect` raced against `ctrl_c` → disconnect → identity line; first-notification header removed. `main.rs` loads keys whenever `[crypto]` is set (fail fast).
+- A17: `impl Drop for BluerGatt` spawns a bounded disconnect while `disconnect_owed` (`shortcut:` best effort on runtime shutdown). SIGINT raced only after `open`; during connect/handshake the default handler still ends the process.
+- A19: `crypto.rs` keeps message 5; no message 6 within `min(1 s, timeout)` → resend the identical bytes once, then wait the full timeout.
+
+**Check:**
+- `cargo test --lib transport::station transport::link transport::crypto`: 14 passed (5 station over `ReplayGatt`, 3 link refusals, 6 crypto incl. new `lost_message_5_is_resent_once_after_one_second`: handshake done at exactly 1 s, paused clock).
+- Mutations: resend write removed → `lost_message_5…` FAILED; layout order `[V1, V1]` → `v1_station_without_a_v1_type_falls_back_to_v2` FAILED; restored → pass.
+- Pre-flight §10.4: adapter powered, rfkill unblocked, `control.enabled = false`.
+- Hardware (`--config config.toml --anonymise`, MACs sed-masked):
+  - `detect router`: `EB3A encrypted=yes protocol=V1 flag=BLUETTF` → `connected, session established` → `device type=EB3A layout=V1 firmware: arm=2197.02 dsp=2196.01` → disconnected, exit 0.
+  - `detect living-room`: `Elite200V2 encrypted=yes protocol=V2 flag=BLUETTF` → session established → `device type=Elite 200 V2 layout=V2 firmware: bms=1068.11` → disconnected, exit 0.
+- Finding: the encrypted EB3A keeps the V1 layout, so no `EB3A` profile switch. Firmware decoding unverified (H-row via step 14 / §14 Q5).
+- `link.rs` imports `BluerGatt`/`connect` via the `transport` re-exports; `grep -rn bluer src/` outside `src/transport/bluer/` + `mod.rs`: only a doc comment in `station.rs`.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 3 MEDIUM, all deferred (home step 12):
+  - SIGINT during `open` unhandled → A20; A17 back to open (partly fixed).
+  - 1 s early wait drops a straddling message 6 fragment → A21.
+  - identity map/decoders belong in `protocol/` → A22.
+
+**Decision:** none. **Carry-forward:** none. **Next:** step 12 — CLI `read`/`dump`/recording (+ A14, A17, A20–A22).
+
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T09:25:41Z
+
+```text
+test cli::detect::tests::unknown_target_passes_through_as_an_address ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardware.rs (target/llvm-cov-target/debug/deps/hardware-e834033cf2500684)
+
+running 1 test
+test connects_subscribes_and_disconnects ... ignored, needs a station in BLE range and BLUETTI_TEST_MAC
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.81% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

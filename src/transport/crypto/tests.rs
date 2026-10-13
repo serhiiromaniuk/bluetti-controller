@@ -23,6 +23,9 @@ struct SimStation {
     merge_3_4: bool,
     /// Message 2 arrived as a Write Request.
     accepted: bool,
+    /// Lose the first message 5, keeping its bytes here.
+    drop_msg5: bool,
+    dropped: Option<Vec<u8>>,
     connected: Arc<AtomicBool>,
 }
 
@@ -34,6 +37,8 @@ impl SimStation {
             split: 1,
             merge_3_4: false,
             accepted: false,
+            drop_msg5: false,
+            dropped: None,
             connected: Arc::new(AtomicBool::new(true)),
         }
     }
@@ -66,7 +71,11 @@ impl Gatt for SimStation {
         self.check()?;
         if !self.accepted {
             // A station drops message 2 sent as a Write Command (§4.4).
+        } else if self.sim.session_key.is_none() && self.drop_msg5 && self.dropped.is_none() {
+            self.dropped = Some(data.to_vec());
         } else if self.sim.session_key.is_none() {
+            // A resend must repeat the lost ciphertext (§4.4).
+            assert!(self.dropped.as_deref().is_none_or(|lost| lost == data));
             let msg6 = self.sim.on_our_key(data);
             self.queue.push_back(msg6);
         } else {
@@ -197,4 +206,23 @@ async fn bad_station_signature_fails_and_disconnects() {
         TransportError::Handshake(HandshakeError::BadStationSignature)
     );
     assert!(!connected.load(Ordering::SeqCst));
+}
+
+#[tokio::test(start_paused = true)]
+async fn lost_message_5_is_resent_once_after_one_second() {
+    let keys = sim::keys();
+    let station = SimStation {
+        drop_msg5: true,
+        ..SimStation::new()
+    };
+    let started = Instant::now();
+    let mut gatt = CryptoGatt::establish(station, &keys, TIMEOUT)
+        .await
+        .unwrap();
+    assert_eq!(started.elapsed(), RESEND_AFTER);
+    assert!(gatt.inner.dropped.is_some());
+    assert_eq!(
+        read_block(&mut gatt, 36, 2, &policy()).await.unwrap(),
+        [36, 37]
+    );
 }

@@ -1,37 +1,46 @@
 //! `detect`: find one station and print its model, protocol and encryption
-//! flag, then connect, print the header of its first notification and
-//! disconnect (`ROADMAP.md` §4.1, §4.4: an encrypted station speaks first).
+//! flag, then connect (running the key exchange when the flag says
+//! encrypted), read its identity registers and disconnect (`ROADMAP.md`
+//! §4.3, §4.4).
 
-use std::time::Duration;
-
+use anyhow::anyhow;
 use bluetti_controller::config::{BleConfig, StationConfig};
+use bluetti_controller::protocol::crypto::handshake::StaticKeys;
 use bluetti_controller::protocol::device::Model;
-use bluetti_controller::transport::fixture::encode_hex;
-use bluetti_controller::transport::{self, Advert, Gatt};
+use bluetti_controller::transport::read::ReadPolicy;
+use bluetti_controller::transport::station::{self, Identity};
+use bluetti_controller::transport::{self, Advert, Gatt, Link};
 
 use super::scan;
 
 pub async fn run(
     ble: &BleConfig,
     stations: &[StationConfig],
+    keys: Option<&StaticKeys>,
     target: &str,
     anonymise: bool,
 ) -> anyhow::Result<()> {
     let advert = transport::find(ble, resolve(stations, target)).await?;
     println!("{}", line(&advert, anonymise));
-    let mut gatt = transport::connect(ble, &advert).await?;
-    println!("connected");
-    let timeout = Duration::from_secs(ble.request_timeout_secs.get());
+    let mut link = transport::open(ble, &advert, keys).await?;
+    match link {
+        Link::Plain(_) => println!("connected"),
+        Link::Encrypted(_) => println!("connected, session established"),
+    }
+    let policy = ReadPolicy::from_ble(ble);
+    let identity = tokio::select! {
+        identity = station::detect(&mut link, &advert, &policy) => identity.map_err(Into::into),
+        _ = tokio::signal::ctrl_c() => Err(anyhow!("interrupted")),
+    };
     // Disconnect before acting on the result, so no path leaves the link up.
-    let first = gatt.next_notification(timeout).await;
-    let closed = gatt.disconnect().await;
-    match first {
-        Ok(bytes) => println!("{}", header(&bytes)),
-        Err(err) => println!("first notification: none ({err})"),
+    let closed = link.disconnect().await;
+    match &identity {
+        Ok(identity) => println!("{}", identity_line(identity)),
+        Err(err) => println!("identity: none ({err:#})"),
     }
     closed?;
     println!("disconnected");
-    Ok(())
+    identity.map(drop)
 }
 
 /// A configured station name maps to its address; anything else is taken as
@@ -62,10 +71,22 @@ fn line(advert: &Advert, anonymise: bool) -> String {
     )
 }
 
-/// Length and first 4 bytes only: a kex frame's type and length, no payload.
-fn header(bytes: &[u8]) -> String {
-    let head = encode_hex(&bytes[..bytes.len().min(4)]);
-    format!("first notification: {} bytes, starts {head}", bytes.len())
+/// Device type, the layout that answered and each firmware version read.
+fn identity_line(identity: &Identity) -> String {
+    let firmware: Vec<String> = identity
+        .firmware
+        .iter()
+        .map(|(name, version)| format!("{name}={version}"))
+        .collect();
+    let firmware = if firmware.is_empty() {
+        "not found over BLE".to_owned()
+    } else {
+        firmware.join(" ")
+    };
+    format!(
+        "device type={}  layout={:?}  firmware: {firmware}",
+        identity.device_type, identity.layout
+    )
 }
 
 #[cfg(test)]

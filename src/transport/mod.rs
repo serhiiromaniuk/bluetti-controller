@@ -14,13 +14,16 @@ pub mod anonymise;
 pub mod bluer;
 pub mod crypto;
 pub mod fixture;
+pub mod link;
 pub mod read;
 pub mod record;
 pub mod replay;
+pub mod station;
 
 pub use self::bluer::gatt::{BluerGatt, connect, find};
 pub use self::bluer::scan::scan;
 pub use self::crypto::CryptoGatt;
+pub use self::link::{Link, open};
 
 /// One BLE advertisement of a station, in our own types.
 #[derive(Debug, Clone, PartialEq, Eq)]
