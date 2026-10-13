@@ -486,3 +486,41 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 12 ✓ 2026-10-13 — replay end-to-end test: collector + writer on a temp DB
+
+**Changed:** `tests/collector.rs` (new, 312 lines; no `src/` change).
+- `Replay` implements `Connect`: a fresh `ReplayGatt` per poll from `tests/frames/{eb3a,ac180,elite200v2}.json`; `station::detect` consumes the fixture's leading identity reads, so the collector's `read_profile` gets the profile frames. A fourth station `absent` fails at stage `connect`.
+- `start_paused`: 3 rounds (ticks 0/60/120 s), `Shutdown` at 150 s. The writer (`Writer::restore` + `spawn`) drains the channel after the collector stops, so virtual time never waits on its blocking thread.
+- Asserts: each replay station has 3 samples whose core columns + `sample_extra` equal `tests/replay.rs`'s hand-read values, 0 failures, `Health::Ok`; `absent` has 3 `poll_failure` rows, all `connect`, 0 samples, `Unreachable { since: first failure }`.
+
+**Check:** `cargo test --locked --test collector` 1/1, green on arrival. Mutants, each caught (src restored by `git checkout`): extras not inserted, failure stage forced to `discover`, unreachable threshold 4, core `soc` not stored.
+- Hardware: none (fixture MAC placeholder).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM. Noted, not a finding: the collector and the writer do not run concurrently (no backpressure coverage); the step does not ask for it.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 13 — `serve` + `/healthz`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T14:21:28Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ff3da3329bfc40c0)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
