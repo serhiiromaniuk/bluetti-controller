@@ -163,6 +163,30 @@ fn fewer_than_two_soc_steps_with_zero_watts_is_unknown() {
 }
 
 #[test]
+fn a_fall_seen_from_the_window_edge_needs_three_soc_levels() {
+    // 89 at the edge is the top plateau (its start is not a fall), so Δt starts
+    // at 88: 88 → 87 is one step → Unknown, one SOC step later than 89 → 87.
+    let edge = vec![
+        (0, sample(Some(89.0), 0.0, 0.0)),
+        (1140, sample(Some(88.0), 0.0, 0.0)),
+        (2280, sample(Some(87.0), 0.0, 0.0)),
+    ];
+    assert_eq!(
+        forecast(&view(&edge), 268.8, 0.85, GridState::Absent),
+        Forecast::Unknown
+    );
+    // One 2-point jump 90 → 88 has no observed transition after the top.
+    let jump = vec![
+        (0, sample(Some(90.0), 0.0, 0.0)),
+        (1140, sample(Some(88.0), 0.0, 0.0)),
+    ];
+    assert_eq!(
+        forecast(&view(&jump), 268.8, 0.85, GridState::Absent),
+        Forecast::Unknown
+    );
+}
+
+#[test]
 fn charging_with_zero_watts_on_grid_is_unknown_not_the_floor() {
     let rising = vec![
         (0, sample(Some(80.0), 0.0, 0.0)),

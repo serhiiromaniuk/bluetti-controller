@@ -112,6 +112,20 @@ fn soc_delta_skips_gap_segments() {
 }
 
 #[test]
+fn soc_carries_over_a_sample_without_soc() {
+    let s = |soc: Option<f64>| soc.map_or_else(BTreeMap::new, |v| vals(&[(Metric::BatterySoc, v)]));
+    // 89, None, 87 in one gap-free run: Δsoc = −2 → 1000 × −2 / 100 = −20 Wh.
+    let owned = vec![(0, s(Some(89.0))), (60, s(None)), (120, s(Some(87.0)))];
+    let t = totals(&refs(&owned), IV, 1000.0, 0, 1000);
+    close(t.stored_delta_wh, -20.0);
+    // A gap resets the carry: 89 → gap → None → 87 counts nothing.
+    let owned = vec![(0, s(Some(89.0))), (600, s(None)), (660, s(Some(87.0)))];
+    let t = totals(&refs(&owned), IV, 1000.0, 0, 1000);
+    close(t.stored_delta_wh, 0.0);
+    assert_eq!(t.missing_s, 600);
+}
+
+#[test]
 fn rollup_averages_min_and_count_over_bucket_samples() {
     let owned = vec![
         // Previous bucket: only its segment toward 300 matters, not its values.

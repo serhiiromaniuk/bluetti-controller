@@ -845,8 +845,9 @@ runtime_h   = remaining_wh / max(load_w, 1)
 - Cross-check with the V2 lifetime energy counters (regs 150–159) once verified.
 - *M3:* a segment between two consecutive samples counts toward the 5-minute
   bucket (and the day) of its **later** sample. A gap > 3 intervals adds no
-  energy and counts as missing coverage. Recommendation: one rule for rollups
-  and daily totals, so the two always agree.
+  energy and counts as missing coverage. Within a gap-free run, a sample
+  without SOC carries the last SOC forward, so Δsoc across it is kept.
+  Recommendation: one rule for rollups and daily totals, so the two always agree.
 
 ### 7.5 Extra telemetry
 

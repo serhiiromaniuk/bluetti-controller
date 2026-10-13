@@ -4,7 +4,8 @@
 //! consecutive samples counts toward the window of its **later** sample, so the
 //! caller passes the sample just before the window too. A segment longer than
 //! 3 intervals is a gap: it adds no energy and no SOC change, and its length is
-//! reported as missing coverage. Samples are `(ts, values)` in unix seconds,
+//! reported as missing coverage; within a gap-free run, a sample without SOC
+//! carries the last SOC forward. Samples are `(ts, values)` in unix seconds,
 //! oldest first; a missing power field counts as 0 W. Pure: no I/O.
 
 use std::collections::BTreeMap;
@@ -21,7 +22,8 @@ pub struct Totals {
     pub energy_in_wh: f64,
     /// AC + DC output; under-counts loads below the low-load floor (§4.3).
     pub energy_out_wh: f64,
-    /// `capacity_wh × Δsoc / 100`, Δsoc summed over the counted segments.
+    /// `capacity_wh × Δsoc / 100`, Δsoc summed over the counted segments (the
+    /// last SOC carried over samples without one).
     pub stored_delta_wh: f64,
     /// `in − out − stored`: an estimate, it absorbs the uncounted low loads.
     pub losses_estimate_wh: f64,
@@ -79,22 +81,29 @@ fn integrate(
         soc_delta: 0.0,
         missing_s: 0,
     };
+    // The last SOC seen in the current gap-free run, so a sample without SOC
+    // mid-run does not drop the change across it.
+    let mut soc = samples
+        .first()
+        .and_then(|(_, v)| v.get(&Metric::BatterySoc).copied());
     for pair in samples.windows(2) {
         let ((t0, v0), (t1, v1)) = (pair[0], pair[1]);
         let dt = t1 - t0;
-        if !(from..to).contains(&t1) || dt <= 0 {
-            continue;
+        let gap = dt > 3 * interval_s;
+        let soc1 = v1.get(&Metric::BatterySoc).copied();
+        if (from..to).contains(&t1) && dt > 0 {
+            if gap {
+                sums.missing_s += dt;
+            } else {
+                let hours = dt as f64 / 3600.0;
+                sums.in_wh += (power_in(v0) + power_in(v1)) / 2.0 * hours;
+                sums.out_wh += (power_out(v0) + power_out(v1)) / 2.0 * hours;
+                if let (Some(s0), Some(s1)) = (soc, soc1) {
+                    sums.soc_delta += s1 - s0;
+                }
+            }
         }
-        if dt > 3 * interval_s {
-            sums.missing_s += dt;
-            continue;
-        }
-        let hours = dt as f64 / 3600.0;
-        sums.in_wh += (power_in(v0) + power_in(v1)) / 2.0 * hours;
-        sums.out_wh += (power_out(v0) + power_out(v1)) / 2.0 * hours;
-        if let (Some(s0), Some(s1)) = (v0.get(&Metric::BatterySoc), v1.get(&Metric::BatterySoc)) {
-            sums.soc_delta += s1 - s0;
-        }
+        soc = soc1.or(if gap { None } else { soc });
     }
     sums
 }

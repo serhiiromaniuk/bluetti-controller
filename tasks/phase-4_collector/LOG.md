@@ -812,3 +812,43 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 17b ✓ 2026-10-13 — A4 + A5 (metrics)
+
+**Changed (no station touched; run `active`, `data/run/` untouched):**
+- `src/metrics/energy.rs` `integrate`: carries the last SOC forward within a gap-free run; a gap clears it. Module doc + `stored_delta_wh` doc say so. `rollup` does not use Δsoc, so production rollups are unchanged; `totals` has no production caller yet.
+- ROADMAP.md §7.4 M3: one sentence on the SOC carry.
+- Tests: `soc_carries_over_a_sample_without_soc` (89/None/87 → −20 Wh; gap before None → 0 Wh, missing 600 s); `a_fall_seen_from_the_window_edge_needs_three_soc_levels` (89→88→87 from the edge and 90→88 jump → `Unknown`).
+
+**Check:**
+- Failure first: `cargo test --lib metrics` → `soc_carries_over_a_sample_without_soc` FAILED, "got 0, want -20". A5 test is a pinning test: green on the unchanged code, as intended.
+- After the fix: 35/35 metrics tests; `make check` green, `src/metrics/` 98.96 %.
+
+**Amendments:** A4 fixed, A5 fixed.
+
+**reviewer:** one pass over `@{u}..HEAD` (17a, batched) + the 17b diff: INTENT satisfied for both · 0 CRITICAL / 0 HIGH / 0 MEDIUM.
+
+**Next:** step 17c — A6 + A7 + A8 (writer).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:29:06Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.96% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
