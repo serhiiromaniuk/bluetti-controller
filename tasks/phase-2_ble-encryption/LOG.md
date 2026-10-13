@@ -342,3 +342,49 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 9 ✓ 2026-10-13 — BluerGatt, A8, `detect` part 1: both stations send the §4.4 challenge
+
+**Changed:**
+- `src/transport/bluer/gatt.rs` (new): `find(ble, mac)` = BlueZ cache, then `scan` for `connect_timeout_secs`; `connect(ble, advert)` = `connect_attempts` tries at 2 s doubling backoff, resolve ff00/ff01/ff02, subscribe via `notify_io`; `BluerGatt: Gatt` (write = Write Command). Every D-Bus call under a timeout (`bounded`); a failed connect or setup disconnects; error texts MAC-masked (D-Bus paths hold the address).
+- `src/transport/mod.rs`: `TransportError::Ble(String)`; re-exports `BluerGatt`, `connect`, `find`.
+- A8 `src/transport/bluer/scan.rs`: shared `advert_of`; a device whose property read fails is skipped with `tracing::debug!` (masked); adapter calls keep `?`.
+- `src/cli/detect.rs` (+ `detect/tests.rs`): `detect <station|mac>` prints scan line + `protocol=` + `flag=`, then connected → first-notification length + 4 bytes → disconnected; disconnect runs before the result is used. `main.rs` passes config stations.
+- `tests/hardware.rs`: `#[ignore]` test on `BLUETTI_TEST_MAC`: find, connect, first notification, disconnect, `NotConnected` after; encrypted → starts `2a2a0104`.
+- A13 not here: `shortcut:` comment in `write`; Write Request lands with `CryptoGatt` (step 10).
+
+**Check:**
+- `cargo test --bin bluetti-controller detect` 5 passed. Tests written with the code; mutation: `resolve` returning the target → `station_name_resolves_to_its_address` FAILED; restored → pass.
+- `grep -rn bluer src/` outside `src/transport/bluer/`: only `src/transport/mod.rs` lines 4 (doc), 11 (`mod`), 17–18 (re-exports).
+- Pre-flight §10.4: adapter powered, rfkill unblocked, `control.enabled = false`, `captures/` ignored; app not checked (owner's phone) — stations advertised, so not connected.
+- Hardware (`--config config.toml --anonymise`, MACs also sed-masked):
+  - `detect router`: `EB3A… -57 dBm EB3A encrypted=yes protocol=V1 flag=BLUETTF` → connected → `first notification: 10 bytes, starts 2a2a0104` → disconnected, exit 0.
+  - `detect living-room`: `Elite200V2 encrypted=yes protocol=V2 flag=BLUETTF` (from BlueZ cache, RSSI `?`) → same 10-byte `2a2a0104` → disconnected, exit 0.
+  - `BLUETTI_TEST_MAC=<router> cargo test --test hardware -- --ignored`: 1 passed.
+- Finding: both stations speak first with kex type 01, len 4 (10 B = 2+1+1+4+2), as §4.4 says.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 2 MEDIUM, deferred to A17 (no `Drop`/Ctrl-C disconnect fallback) and A18 (`disconnect` retry after a failed D-Bus call reports `Ok`), both home step 10.
+
+**Carry-forward:** none. **Next:** step 10 — `CryptoGatt` (+ A13, A17, A18).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T09:11:13Z
+
+```text
+test cli::detect::tests::unknown_target_passes_through_as_an_address ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardware.rs (target/llvm-cov-target/debug/deps/hardware-2d8db31929c076b8)
+
+running 1 test
+test connects_subscribes_and_disconnects ... ignored, needs a station in BLE range and BLUETTI_TEST_MAC
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.81% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -19,7 +19,7 @@ pub async fn run(ble: &BleConfig, timeout_secs: u64, anonymise: bool) -> anyhow:
 }
 
 /// `<address>  <name>  <rssi> dBm  <model>  encrypted=<yes|no|unknown>`.
-fn line(advert: &Advert, anonymise: bool) -> String {
+pub(super) fn line(advert: &Advert, anonymise: bool) -> String {
     let name = advert.name.as_deref().unwrap_or("?");
     let model = match Model::from_ble_name(name) {
         Some(Model::Eb3a) => "EB3A",

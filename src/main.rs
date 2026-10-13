@@ -11,7 +11,8 @@ mod cli;
 #[derive(Debug, Parser)]
 #[command(version, about)]
 struct Args {
-    /// Config file (`config.example.toml`); without it the `[ble]` defaults apply.
+    /// Config file (`config.example.toml`); without it the `[ble]` defaults apply
+    /// and no station names resolve.
     #[arg(long, global = true)]
     config: Option<PathBuf>,
     /// Mask MAC addresses and serial numbers in the output (RULES.md golden rule #3).
@@ -28,9 +29,12 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
     let args = Args::parse();
-    let ble = match &args.config {
-        Some(path) => bluetti_controller::config::load(path)?.ble,
-        None => Default::default(),
+    let (ble, stations) = match &args.config {
+        Some(path) => {
+            let config = bluetti_controller::config::load(path)?;
+            (config.ble, config.stations)
+        }
+        None => (Default::default(), Vec::new()),
     };
-    cli::run(args.command, &ble, args.anonymise).await
+    cli::run(args.command, &ble, &stations, args.anonymise).await
 }

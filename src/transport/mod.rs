@@ -14,6 +14,7 @@ pub mod read;
 pub mod record;
 pub mod replay;
 
+pub use self::bluer::gatt::{BluerGatt, connect, find};
 pub use self::bluer::scan::scan;
 
 /// One BLE advertisement of a station, in our own types.
@@ -37,6 +38,9 @@ pub enum TransportError {
     NotConnected,
     #[error("unexpected write {got}, expected {expected}")]
     UnexpectedWrite { expected: String, got: String },
+    /// A BlueZ call failed or hung; the text holds no MAC address.
+    #[error("BLE: {0}")]
+    Ble(String),
 }
 
 /// The Modbus channel of one connected station (`ROADMAP.md` §4.1).
