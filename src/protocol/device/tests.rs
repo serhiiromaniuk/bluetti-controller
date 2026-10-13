@@ -240,3 +240,25 @@ fn every_range_accepts_the_idle_zero() {
     assert!(!PackCurrent.range().contains(&-0.1), "unsigned");
     assert!(!PackCurrent.range().contains(&6553.5), "unsigned");
 }
+
+/// Hand-read from the step-14 dump of our Elite 200 V2 (2026-10-13, on
+/// battery, grid off): 100 = 3949, 101 = 98, 102 = 77, 142 = 389, the rest 0.
+/// 389 W / 39.49 V = 9.85 A matches 101; 6003–6005 echoed 3950/98/77.
+#[test]
+fn decodes_elite_200_v2_dump() {
+    let mut registers = Registers::default();
+    let mut first = [0u16; 20];
+    first[..3].copy_from_slice(&[3949, 98, 77]);
+    registers.insert_block(100, &first);
+    registers.insert_block(140, &[0, 0, 389, 0, 0, 0, 0, 0]);
+    registers.insert_block(1300, &[0; 15]);
+
+    let profile = Model::Elite200V2.profile();
+    let metrics = decode(profile, &registers);
+    assert!((metrics[&PackVoltage] - 39.49).abs() < 1e-9);
+    assert!((metrics[&PackCurrent] - 9.8).abs() < 1e-9);
+    assert_eq!(metrics[&BatterySoc], 77.0);
+    assert_eq!(metrics[&AcOutputPower], 389.0);
+    assert_eq!(metrics[&AcInputVoltage], 0.0);
+    assert_eq!(problems(profile, &registers), []);
+}

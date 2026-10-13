@@ -75,7 +75,6 @@ pub async fn read_block(
         tracing::warn!(start, count, attempt, error = %err, "read failed, retrying");
         tokio::time::sleep(backoff).await;
         backoff = backoff.saturating_mul(2);
-        drain(gatt).await;
         attempt += 1;
     }
 }
@@ -101,6 +100,7 @@ async fn read_once(
     count: u16,
     timeout: Duration,
 ) -> Result<Vec<u16>, ReadError> {
+    drain(gatt).await;
     gatt.write(&read_request(start, count)).await?;
     let deadline = Instant::now() + timeout;
     let mut frame = Vec::new();
@@ -122,8 +122,8 @@ async fn read_once(
     Ok(parse_read_response(&frame, count)?)
 }
 
-/// Drops notifications already queued, so a late fragment of the failed reply
-/// cannot prefix the retried one.
+/// Drops notifications already queued, so a late reply (or fragment) to an
+/// earlier timed-out request cannot pass as, or prefix, this one's reply.
 async fn drain(gatt: &mut impl Gatt) {
     while gatt.next_notification(Duration::ZERO).await.is_ok() {}
 }

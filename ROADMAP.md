@@ -288,8 +288,32 @@ No merged profile upstream. PR #49 in bt (open since 2026-02-10) proposes the ba
 V2 map plus: 104 time remaining, 152 battery voltage /100 (conflicts with the
 energy counter at 152 in v2), 1315 AC input current, 1432 AC output current, 1470
 AC output frequency. Generic V2 readers (nhurman fork) read it. An Elite-specific
-MIT bridge exists (JordiGrasvi/bluetti-elite200v2-mqtt). Everything is
-*unverified* until our M2 dump. [S9][S11][S14]
+MIT bridge exists (JordiGrasvi/bluetti-elite200v2-mqtt). [S9][S11][S14]
+
+**Our dump (2026-10-13, read-only, firmware BMS 1068.11, on battery, grid off,
+389 W AC load).** Every field stays *unverified* until H2 (app comparison).
+
+| Reg | Raw | Reading | vs PR #49 / v2 |
+|---|---|---|---|
+| 100 / 101 / 102 | 3949 / 98 / 77 | 39.49 V, 9.8 A, 77 % | agrees; 389 W / 39.49 V = 9.85 A |
+| 103 | 2 | charging status (discharging?) | v2 |
+| 104 / 105 | 249 / 249 | minutes left: 77 % × 2073.6 Wh / 389 W ≈ 246 | agrees (104) |
+| 110–115 | `Elite 200 V2` byte-swapped | device type | agrees |
+| 140 / 142 / 144 / 146 | 0 / 389 / 0 / 0 | DC out, AC out, PV in, grid in (W) | agrees |
+| 148 | 485 | unknown (apparent power, VA?) | — |
+| 150–159 | 1, 0, 1959, 0, 0, 0, 2238, 0, 404, 0 | u32 low word first fits the v2 energy counters (0.1 kWh) | **contradicts** PR #49's 152 = battery V/100 (19.59 V vs 39.49 V) |
+| 180–200 | — | Modbus exception 0x02 | — |
+| 1300 / 1314 / 1315 | 0 / 0 / 0 | AC in Hz, V, A (grid off) | agrees (1315) |
+| 1315–1419 | — | exception 0x02 on 40-register reads from 1300, 1340, 1380 | the poll block stays (1300, 15) |
+| 1430 / 1431 / 1432 | 389 / 2300 / 16 | AC out W, 230.0 V, 1.6 A | agrees (1432) |
+| 1460–1499 | — | exception 0x02 as one read; 1470 alone = 499 | agrees: 1470 = 49.9 Hz AC out |
+| 1500 / 1510 / 1511 / 1512 | 499 / 483 / 2287 / 21 | AC out 49.9 Hz, ~VA, 228.7 V, 2.1 A | v2 |
+| 6003 / 6004 / 6005 | 3950 / 98 / 77 | pack block echoes 100–102 | v2 |
+| 6007 | 71 | temperature: 71 °F = 21.7 °C (room) | v2 °F suspected |
+
+No dumped value contradicts `ELITE_200_V2` in `src/protocol/device.rs`; its
+decode test uses the values above. Sweep a range only in blocks that avoid the
+exception ranges: one bad address fails the whole read.
 
 The M0 code (`src/protocol/device.rs`) implements these maps with a
 `verified` flag per field.
@@ -427,6 +451,9 @@ support; no LICENSE file; no confirmed success. Not used (ADR-002). [S18]
 - **AC180:** encrypted on units/firmware since ~2024-07; "latest firmware" needs
   encryption (2025-07); a plaintext AC180P was seen in 2026-06. [S12][S19]
 - **Elite 200 V2:** conflicting (#131 scanned encrypted; bt #86 says no) → detect.
+- **Ours (2026-10-13, `detect`):** EB3A and Elite 200 V2 both advertise
+  `BLUETTF` and complete the §4.4 handshake; the EB3A keeps the V1 layout. The
+  AC180 is off (H3). See §14 Q5.
 
 ### 4.6 Polling behaviour and BLE reliability
 
@@ -1055,7 +1082,7 @@ the unplug; DB < 10 MB per station-day.
 | Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP; the M5 soak runs on the dev laptop (owner 2026-10-13) | — |
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
 | Q4 | ~~Router powered from EB3A AC or DC 12 V?~~ — AC outlet (owner 2026-10-13) | — |
-| Q5 | Station firmware versions and the encryption flag of each (the `scan` output) | M1/M2 |
+| Q5 | ~~Station firmware versions and the encryption flag of each~~ — EB3A `BLUETTF`, V1 layout, ARM 2197.02 / DSP 2196.01; Elite 200 V2 `BLUETTF`, V2 layout, BMS 1068.11 (register 6175) (`detect`, 2026-10-13); AC180 off, see `HUMAN-CHECKLIST.md` H3 | — |
 | Q6 | ~~Names/roles for the stations~~ — defaults approved by the owner 2026-10-13 (phase 2 PLAN Q5): EB3A `router`, AC180 `mobile`, Elite 200 V2 `living-room` | — |
 | Q7 | ~~Poll interval~~ — 60 s (owner 2026-10-13) | — |
 | Q8 | ~~LAN or VPN~~ — LAN only (owner 2026-10-13) | — |

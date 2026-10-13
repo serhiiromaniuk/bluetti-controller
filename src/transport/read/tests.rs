@@ -138,6 +138,21 @@ async fn retry_drains_a_late_fragment() {
     assert_eq!(read_block(&mut gatt, 43, 1, &policy(2)).await, Ok(vec![7]));
 }
 
+/// A23: a late reply to an earlier timed-out read (same length, and a Modbus
+/// reply names no start register) must not pass as this read's answer.
+#[tokio::test]
+async fn late_reply_to_an_earlier_read_is_drained_first() {
+    let mut gatt = replay(&[
+        notify(&response(&[1, 2])),
+        write(140, 2),
+        notify(&response(&[3, 4])),
+    ]);
+    assert_eq!(
+        read_block(&mut gatt, 140, 2, &policy(1)).await,
+        Ok(vec![3, 4])
+    );
+}
+
 #[tokio::test]
 async fn not_connected_is_not_retried() {
     let mut gatt = replay(&[write(43, 1)]);

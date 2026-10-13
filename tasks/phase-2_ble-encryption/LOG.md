@@ -584,3 +584,52 @@ test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 14 ✓ 2026-10-13 — Elite 200 V2 dump agrees with `ELITE_200_V2`; §14 Q5 filled; A1, A23 settled
+
+**Changed:**
+- `transport/read.rs`: `read_once` drains queued notifications before every write (was: between retries only) — A23.
+- `transport/read/tests.rs`: `late_reply_to_an_earlier_read_is_drained_first`.
+- `protocol/device/tests.rs`: `decodes_elite_200_v2_dump` on the hand-read values below; profile unchanged (no contradiction), all fields `verified: false`.
+- ROADMAP §4.3 Elite dump table, §4.5 "Ours", §14 Q5 struck with flag + firmware. PLAN A1, A23 → fixed.
+
+**Check:**
+- A23 test failed first (`UnexpectedWrite`: stale notification ahead of the write), green after the drain move; `cargo test --lib transport` 55 ok.
+- Pre-flight §10.4: rfkill unblocked, `control.enabled = false`.
+- Hardware `dump living-room --anonymise` (BLUETTF, session established, disconnected each time; raw in gitignored `captures/dump-elite-*.txt`), non-zero rows:
+  - 100–200: 100=3949 101=98 102=77 103=2 104=249 105=249 107=1 108=1 110–115 `lE ti e 02 0 2V`, 116–119 masked, 120–122=1 123=8 124=10 125=404 130=4304 131=4 142=389 148=485 150=1 152=1959 156=2238 158=404 161=1 162/164/165=404 167=3635 169=230 170=50 171=32; **180–200 exception 0x02**.
+  - 1300–1520: **1300–1419 and 1460–1499 exception 0x02** (40-reg chunks); 1420=389 1422=1959 1429=1 1430=389 1431=2300 1432=16 1500=499 1501=1664 1508=1 1509=1 1510=483 1511=2287 1512=21; 6 chunks, 4 unread.
+  - 6000–6020: 6000–6002=1 6003=3950 6004=98 6005=77 6006=100 6007=71 6008=34 6009=2 6010=426 6011=108 6012=864 6013=3 6016=1 6017=249 6018=249 6019=5681.
+  - Probes: 1300–1314 ok (1303=2238 1305=404 1312=1, 1300/1314=0, grid off); 1315 ok =0; 1470 ok =499; 1440–1459 all 0.
+- Cross-check: 389 W / 39.49 V = 9.85 A ≈ 101; 77 % × 2073.6 Wh / 389 W ≈ 246 min ≈ 104/105; PR #49's 152 = battery V/100 contradicted (19.59 V).
+- §14 Q5: EB3A BLUETTF V1 ARM 2197.02/DSP 2196.01; Elite BLUETTF V2 BMS 1068.11 (step 11 `detect`).
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 3 MEDIUM.
+- `1315–1419` range overstated (1315 reads alone) → deferred to A24.
+- §4.5 bullet lacks firmware → deferred to A25.
+- drain covers only already-queued late replies; comment overstates → deferred to A26.
+
+**Decision:** Elite poll block (1300, 15) stays — a 40-register read from 1300 fails, 15 succeeds. **Carry-forward:** none. **Next:** step 15 — replay fixtures.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T10:00:34Z
+
+```text
+test recorded_handshakes_have_the_documented_structure ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardware.rs (target/llvm-cov-target/debug/deps/hardware-e834033cf2500684)
+
+running 1 test
+test connects_subscribes_and_disconnects ... ignored, needs a station in BLE range and BLUETTI_TEST_MAC
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
