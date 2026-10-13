@@ -119,8 +119,10 @@ pub fn parse_read_response(frame: &[u8], count: u16) -> Result<Vec<u16>, FrameEr
         });
     }
     Ok(body[3..]
-        .chunks_exact(2)
-        .map(|pair| u16::from_be_bytes([pair[0], pair[1]]))
+        .as_chunks::<2>()
+        .0
+        .iter()
+        .map(|&pair| u16::from_be_bytes(pair))
         .collect())
 }
 

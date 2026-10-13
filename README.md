@@ -31,3 +31,7 @@ Protocol knowledge comes from these MIT-licensed community projects:
 and the [nhurman fork](https://github.com/nhurman/bluetti_mqtt),
 [bluetti-monitor](https://github.com/j4m3z0r/bluetti-monitor) (James),
 [rustytti](https://gitlab.com/spock/rustytti). Not affiliated with Bluetti.
+
+The encryption layer (`src/protocol/crypto/`) is ported from rustytti (MIT) and
+cross-checked against the nhurman fork's `encryption.py` (MIT); ROADMAP.md §4.4
+pins the commits read.

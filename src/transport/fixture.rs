@@ -108,7 +108,7 @@ pub fn encode_hex(bytes: &[u8]) -> String {
 pub fn decode_hex(text: &str) -> Result<Vec<u8>, FixtureError> {
     let bad = || FixtureError::Hex(text.to_owned());
     // from_str_radix alone would accept a sign ("+1").
-    if text.len() % 2 != 0 || !text.bytes().all(|b| b.is_ascii_hexdigit()) {
+    if !text.len().is_multiple_of(2) || !text.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err(bad());
     }
     (0..text.len())

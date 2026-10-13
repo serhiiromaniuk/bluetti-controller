@@ -220,3 +220,44 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-10-13 — crypto envelope, pure: kex frame, temp + session envelopes, temp key
+
+**Changed:**
+- `Cargo.toml`: aes 0.9.3, cbc 0.2.1, md-5 0.11.0, p256 0.14.0 (`ecdh`,`ecdsa`, no defaults; used from step 7); comment now "pure: std + RustCrypto, no I/O or async"; `rust-version` 1.85 → 1.89 (aes 0.9.3 needs 1.89).
+- `Cargo.lock`: via `cargo build` (365 lines, insertions only) instead of `make lock` (`generate-lockfile` would bump every other dependency).
+- MSRV bump armed two clippy lints in old code, fixed mechanically: `modbus.rs` `as_chunks::<2>`, `fixture.rs` `is_multiple_of`.
+- `src/protocol/crypto/mod.rs`: `CryptoError` (no payload bytes), `TempKey::derive` (iv = md5(reverse(seed)), key = iv XOR local key, no `Debug`), `reply()`, `session_iv`, private block-wise CBC for AES-128 and AES-256 (A12).
+- `src/protocol/crypto/frame.rs`: `encode_kex`/`parse_kex` (magic, exact length, checksum), `Layer` + `envelope_len`, `seal`/`open` for temp and session envelopes, zero padding checked on open.
+- `README.md` credits: crypto ported from rustytti, cross-checked against nhurman (both MIT).
+
+**Check:**
+- Failing first (mutation): padding check disabled + seed reversal removed → 3 FAILED (bad padding, recorded vector, temp key); restored → `cargo test --lib protocol::crypto` 11 passed.
+- Vectors: NIST SP 800-38A F.2.1 (AES-128) and F.2.5 (AES-256) both ways; rustytti challenge `2a2a0104…02bc` → reply `2a2a02045a4fd30e0190`.
+- `make check` green; `src/protocol/` 99.71% (crypto/frame.rs 99.2%, mod.rs 100%).
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM. A12 → fixed (both widths).
+
+**Carry-forward:** none. **Next:** step 7 — handshake state machine.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T08:53:12Z
+
+```text
+
+test result: ok. 83 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-871f4c6d900bafc2)
+
+running 2 tests
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+test cli::scan::tests::unknown_station_still_prints ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.71% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
