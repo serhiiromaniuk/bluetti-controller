@@ -6,13 +6,13 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 in progress: `tasks/phase-2_ble-transport/` (opened 2026-10-13) |
-| **Blocked?** | **yes** — step 8 `scan`: the EB3A advertises `BLUETTF` (encrypted), PLAN escape hatch; owner decides the scope change (phase-3 handshake first, or re-target M1) |
+| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 (merged with 3) in progress: `tasks/phase-2_ble-encryption/` (needs plan) |
+| **Blocked?** | no — owner answered everything up front 2026-10-13; physical checks go to `HUMAN-CHECKLIST.md` |
 
 ## Carry-forward — obligations that outlive the task that found them
 
 - ~~CF-1 → phase 2: install `libdbus-1-dev` + `pkg-config` on the dev host before adding `bluer`. Recorded in: ROADMAP.md §4.9. Discharge: `cargo build` with bluer succeeds.~~ Discharged 2026-10-13: `cargo build --locked` compiles bluer 0.17.4 (phase-2 step 1).
-- CF-2 → phase 3: Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.
+- CF-2 → phase 2 (merged): Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.
 - ~~CF-3 → phase 2: transport reassembly must stop at 5 bytes when the function byte has 0x80 set (Modbus exception). Recorded in: PLAN A6, `src/protocol/modbus.rs` module doc. Discharge: pure `expected_frame_len` helper + exception-vector test in M1.~~ Discharged 2026-10-13: `expected_frame_len` + `frame_len_stops_at_five_on_exception` (phase-2 step 3).
 
 ## Decisions — do not relitigate
@@ -26,3 +26,7 @@
 - 2026-10-13: owner resumed development; Phase 2 may open (owner).
 - 2026-10-13: M1 runs on the owner's dev laptop (internal BT adapter); the homelab host arrives after MVP (owner, ROADMAP.md §14 Q2).
 - 2026-10-13: AC180 stays off for now; M1 validates on the EB3A, the Elite 200 V2 is in BLE range (owner).
+- 2026-10-13: phases 2 and 3 merged — the EB3A advertises `BLUETTF`; handshake built and validated on the EB3A + Elite, AC180 deferred (owner).
+- 2026-10-13: standing delegation + deferred physical checks (RULES.md); the loop never stops to ask what it can answer (owner).
+- 2026-10-13: static keys from the MIT sources may go into a gitignored local keys file (owner).
+- 2026-10-13: Q4 router on EB3A AC · Q7 poll 60 s · Q8 LAN only · M5 soak on the dev laptop, user-level systemd (owner).

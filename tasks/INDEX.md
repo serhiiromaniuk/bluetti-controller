@@ -16,13 +16,13 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | Started | Phase | Task | Folder | Status | Milestone tag |
 |---------|-------|------|--------|--------|---------------|
 | 2026-10-13 | 1 | Foundation (M0) | [OUTCOME](./phase-1_foundation/OUTCOME.md) | done | `v0.1-foundation` |
-| 2026-10-13 | 2 | BLE transport + CLI, EB3A (M1) | [phase-2_ble-transport](./phase-2_ble-transport/) | in-progress | `v0.2-ble` |
+| 2026-10-13 | 2 | BLE transport + CLI (superseded) | [OUTCOME](./phase-2_ble-transport/OUTCOME.md) | done | — |
+| 2026-10-13 | 2 | BLE + encryption, EB3A + Elite (M1+M2) | [phase-2_ble-encryption](./phase-2_ble-encryption/) | in-progress | `v0.3-encryption` |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:
   1  Foundation (M0)                         → v0.1-foundation
-  2  BLE transport + CLI, EB3A (M1)          → v0.2-ble
-  3  Encryption + V2 stations (M2)           → v0.3-encryption
+  2  BLE + encryption, EB3A + Elite (M1+M2)  → v0.3-encryption
   4  Collector, storage, metrics (M3)        → v0.4-collector
   5  Web UI + deploy + 7-day soak (M4 + M5)  → v1.0-mvp
 -->

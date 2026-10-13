@@ -50,13 +50,14 @@ row, and `git status --porcelain`. Then:
      are found by EXECUTING them. Two real cases: a plan revised 16 -> 20 steps
      mid-objective because a whole area was missing, and a step that grew into
      "part 1...part 8" because one step was really eight.
-   - `.unasked_questions > 0` → ask ALL of them in ONE batch — interactively, one
-     message to the owner; in the loop, one LOG entry listing them for the human
-     — and set each `answer: asked <date>` in `PLAN.md`. That IS this increment;
-     later steps that do not wait on them proceed meanwhile.
-   - `.waiting_on` non-empty → the step needs an unanswered owner question. In
-     the loop: `<<LOOP:BLOCKED>>` naming the questions. Interactively: ask them
-     (one batch with any other pending ones) and wait.
+   - `.unasked_questions > 0` or `.waiting_on` non-empty → apply RULES.md
+     "Standing owner delegation" FIRST: answer every question it covers yourself
+     (`answer: delegated <date> — <choice, why>`) and continue with the step. A
+     physical check goes to `HUMAN-CHECKLIST.md` instead (RULES.md "Deferred
+     physical checks"). Only a question whose every option crosses the
+     human-only list is asked — all of them in ONE LOG entry, `answer: asked
+     <date>` — and only then `<<LOOP:BLOCKED>>`, and only if no other step or
+     task can proceed.
    - `.spec_stub == true` → the governing spec is still a stub. **Write it first —
      that IS this iteration.** No code precedes its spec. Review it as a risky
      step (§4b): every later step follows it. Commit it with
@@ -83,7 +84,9 @@ row, and `git status --porcelain`. Then:
        The next close fixes them — each fix reviewed per §4b and committed with
        `--no-tick` — then asks again. When n would reach 3, that is the §6
        escape hatch: record the findings, then `<<LOOP:BLOCKED>>`.
-     - `hold` on UNVERIFIED boxes only → commit the draft the same way, then
+     - `hold` on UNVERIFIED boxes only → if each is a physical check, add it to
+       `HUMAN-CHECKLIST.md`, mark the box `deferred → HUMAN-CHECKLIST.md`, and
+       close. Otherwise commit the draft the same way, then
        `<<LOOP:BLOCKED>>` naming what the owner must check. The owner writes and
        commits their own record — a `STATE.md` decision line, or a LOG line
        `human-verified <date>: <what> → <result>` — and it clears the box at the
@@ -105,10 +108,11 @@ reading the whole control plane.
   command, e.g. `make check`, is green; the phase's documented acceptance
   criteria are met). Tag, push the tag, open the next phase's task from
   `_template/`, and continue. Never weaken a gate threshold to get a tag.
-- **The human-only boundary is permanent — never cross it.** Never touch
-  secrets, production deploys, destructive infrastructure, or irreversible
-  external actions. If any next step would cross that boundary, stop and emit
-  `<<LOOP:BLOCKED>>` with an explanation for the human.
+- **The human-only boundary is permanent — never cross it.** The list is in
+  RULES.md "Before crossing a human-only boundary"; everything else is covered
+  by its "Standing owner delegation". If a next step would cross the list,
+  defer it to `HUMAN-CHECKLIST.md` when it is a physical check, else stop and
+  emit `<<LOOP:BLOCKED>>` with an explanation for the human.
 
 ## 3. Do ONE step
 - Pick the **single next unchecked step** in the active `PLAN.md`. Exactly one.

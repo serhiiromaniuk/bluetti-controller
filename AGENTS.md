@@ -320,7 +320,9 @@ gate) is crossed only once that sign-off is on record.
 - **Human-only gate — permanent:** secrets / production credentials, production
   deploys, destructive infra, and irreversible external actions are **never**
   agent actions (golden rules #2/#3/#5). The agent reaches the boundary and
-  **stops** (`<<LOOP:DONE>>` or `<<LOOP:BLOCKED>>`).
+  **stops** (`<<LOOP:DONE>>` or `<<LOOP:BLOCKED>>`). The exact list, the
+  standing owner delegation and the deferred physical checks
+  (`HUMAN-CHECKLIST.md`) are in RULES.md "Before crossing a human-only boundary".
 - **Harmless local setup is NOT that boundary — don't over-block.** Full
   permission means you MAY act without prompting. A **missing local tool** is not
   a `<<LOOP:BLOCKED>>` reason: install it (via the project's sanctioned tool

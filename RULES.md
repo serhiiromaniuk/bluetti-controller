@@ -80,17 +80,20 @@ a human-only boundary" below. Detailed tasks per phase: ROADMAP.md §12.
 | Phase | Deliverable | Milestone tag |
 |-------|-------------|---------------|
 | 1 | Foundation: research, ROADMAP, agent scaffold, protocol layer (M0) — owner-reviewed | `v0.1-foundation` |
-| 2 | BLE transport + CLI (`scan`, `detect`, `read`, `dump`) validated on the EB3A (M1) | `v0.2-ble` |
-| 3 | Encryption handshake + V2 profiles validated on AC180 and Elite 200 V2 (M2) | `v0.3-encryption` |
+| 2 | BLE transport + encryption handshake + CLI (`scan`, `detect`, `read`, `dump`), validated on the EB3A and Elite 200 V2 (M1 + M2) | `v0.3-encryption` |
+| 3 | Merged into phase 2 (owner, 2026-10-13: the EB3A advertises encrypted, so M1 cannot validate without M2) | — |
 | 4 | Collector, SQLite storage, outage log, runtime forecast, energy accounting (M3) | `v0.4-collector` |
-| 5 | Web UI + deployment on the homelab host, 7 days unattended (M4 + M5) | `v1.0-mvp` |
+| 5 | Web UI + deployment on the dev laptop (user-level systemd), 7 days unattended (M4 + M5) | `v1.0-mvp` |
 
 **Acceptance gate.** Every code phase: `make check` green. Phase-specific
 criteria (never weaken them; fix the work, not the threshold):
 
-- **v0.2 / v0.3 — reading is correct.** For each station in scope, 20
+- **v0.3 — reading is correct.** For each station in scope, 20
   consecutive polls at a 60 s interval: ≥ 19 succeed (95%), and battery % equals
   the official app's value at the same moment, power readings within ±5 W.
+  The app comparison is deferred to `HUMAN-CHECKLIST.md` (see "Deferred
+  physical checks" below); the loop's gate is the poll ratio plus decoding
+  plausibility.
   *Arithmetic:* BLE links drop now and then (community reports, ROADMAP.md §4.6),
   so 1 miss in 20 is tolerated; ±5 W is the display resolution of the app plus
   the time skew of two reads a few seconds apart.
@@ -98,8 +101,9 @@ criteria (never weaken them; fix the work, not the threshold):
   station (≤ 72 misses of 1440); a deliberate unplug of a station's AC input is
   recorded as an outage within 2 poll intervals (≤ 2 min); the database stays
   below 10 MB per station-day. *Arithmetic:* 2880 rows/day × ~100 B ≈ 0.3 MB, so
-  10 MB is a 30× headroom that only a bug can exceed.
-- **v1.0 — it runs unattended.** 7 days on the homelab host with ≤ 1 manual
+  10 MB is a 30× headroom that only a bug can exceed. The unplug is deferred to
+  `HUMAN-CHECKLIST.md`; a real grid outage during the run satisfies it instead.
+- **v1.0 — it runs unattended.** 7 days on the dev laptop with ≤ 1 manual
   intervention, resident memory ≤ 50 MB, the status page served in ≤ 1 s on the
   LAN. *Arithmetic:* tokio + axum + SQLite typically use under 20 MB; 50 MB
   leaves room for caches without hiding a leak over 7 days.
@@ -227,18 +231,44 @@ the boundary (`<<LOOP:BLOCKED>>`, or `<<LOOP:DONE>>` at the final milestone) and
 hands over here. Human-only actions:
 
 - Station actions beyond reading: pairing, any write frame (0x06/0x10),
-  unplugging a station to simulate an outage, capturing phone traffic, and the
-  comparison with the official app that signs off an acceptance run.
-  **Read-only access is allowed unattended** (owner, 2026-10-13): `scan`,
-  `detect`, `read` and `dump` with function 0x03 only, under golden rule #5.
+  capturing phone traffic. **Read-only access is allowed unattended** (owner,
+  2026-10-13): `scan`, `detect`, `read` and `dump` with function 0x03 only,
+  under golden rule #5.
 - Enabling device control (`control.enabled = true`) or adding a register to the
   write allow-list.
-- Putting encryption keys, credentials, MACs or serial numbers into a config on
-  the host.
-- Installing or changing anything on the homelab host (packages, systemd units,
-  BlueZ settings, firewall).
+- Bluetti account credentials anywhere.
+- Anything that needs `sudo` or changes the host system-wide (packages, system
+  systemd units, BlueZ settings, firewall).
 - Changing repo visibility, publishing releases, or anything else outside this
   repo.
+
+### Standing owner delegation (owner, 2026-10-13)
+
+The owner answers once, at the start; the loop then runs to the end. Inside the
+golden rules and the list above, the loop **decides for itself** and never
+stops to ask:
+
+- **Read and discover anything:** stations (read-only, above), the repo, public
+  sources, the local host.
+- **Local, reversible, harmless changes are allowed:** gitignored local files —
+  `config.toml` with station MACs, a keys file with the static keys from the
+  MIT-licensed sources in ROADMAP.md §4.4 (never committed; the secret scan
+  still runs); `bluetoothctl disconnect`/`remove`; user-level systemd units
+  (`systemctl --user`) on the dev laptop.
+- **An open question with a documented or safe default:** the loop takes the
+  default, writes `answer: delegated <date> — <choice, why>` in `PLAN.md`, and
+  continues. It asks the owner only when every option would cross the list
+  above. Asked questions go in ONE batch at task open, never mid-task.
+- **Owner answers relayed by an interactive Claude session** at the owner's
+  request (`… recorded at the owner's request`) count as owner answers.
+
+### Deferred physical checks — `HUMAN-CHECKLIST.md`
+
+A check that needs the owner's hands or eyes (comparing with the official app,
+unplugging a station, switching the AC180 on) **never stops the loop**. The
+loop adds a row to `HUMAN-CHECKLIST.md`, passes the gate on its objective part,
+and continues. The owner works through the list once, at the end. A failed
+row there becomes a fix task, not a re-tag.
 
 Do the documented pre-flight checklist in ROADMAP.md §10, then a human performs
 the action (golden rules #2/#3/#5).

@@ -799,7 +799,12 @@ WantedBy=multi-user.target
 ## 12. Milestones
 
 Effort is in focused sessions (~2–4 h). Phases map to RULES.md: Phase 1 = M0,
-Phase 2 = M1, Phase 3 = M2, Phase 4 = M3, Phase 5 = M4 + M5.
+Phase 2 = M1 + M2 (merged by the owner 2026-10-13: the EB3A is encrypted; M2
+covers the EB3A and Elite 200 V2, the AC180 is a `HUMAN-CHECKLIST.md` row),
+Phase 4 = M3, Phase 5 = M4 + M5 (M5 soak on the dev laptop as a user-level
+systemd unit). **Human:** items below that compare with the app, unplug a
+station or need the AC180 are deferred to `HUMAN-CHECKLIST.md` and do not block
+(RULES.md "Deferred physical checks"); read-only station access is unattended.
 
 ### M0 — Foundation → `v0.1-foundation` (Phase 1)
 
@@ -944,13 +949,13 @@ the unplug; DB < 10 MB per station-day.
 | # | Question | Blocks |
 |---|---|---|
 | Q1 | ~~Confirm or edit the golden rules, phase table and thresholds in RULES.md~~ — approved 2026-10-13 | — |
-| Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP | M5 |
+| Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP; the M5 soak runs on the dev laptop (owner 2026-10-13) | — |
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
-| Q4 | Router powered from EB3A AC or DC 12 V? (ECO mode, runtime math, Appendix A) | M3 forecast calibration |
+| Q4 | ~~Router powered from EB3A AC or DC 12 V?~~ — AC outlet (owner 2026-10-13) | — |
 | Q5 | Station firmware versions and the encryption flag of each (the `scan` output) | M1/M2 |
 | Q6 | ~~Names/roles for the stations~~ — defaults approved by the owner 2026-10-13 (phase 2 PLAN Q5): EB3A `router`, AC180 `mobile`, Elite 200 V2 `living-room` | — |
-| Q7 | Poll interval: 60 s default OK? | M3 |
-| Q8 | UI only on the LAN, or also via VPN (e.g. Tailscale)? | M4 auth |
+| Q7 | ~~Poll interval~~ — 60 s (owner 2026-10-13) | — |
+| Q8 | ~~LAN or VPN~~ — LAN only (owner 2026-10-13) | — |
 
 ---
 

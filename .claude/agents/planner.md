@@ -31,7 +31,10 @@ Produce a `PLAN.md` (use `tasks/_template/PLAN.md`) where:
   `## Questions for the owner` (`- Q1 — … · blocks: 4, 7 · answer: pending`) and
   mark each dependent step `(needs Q1)`. They are asked in ONE batch at task
   open; a plan that leaves them to be discovered mid-step stalls one step at a
-  time.
+  time. First apply RULES.md "Standing owner delegation": write the answer of
+  every question it covers as `answer: delegated <date> — …`. A physical check
+  (official-app comparison, unplug, switching a station on) is never a blocking
+  step: plan it as a `HUMAN-CHECKLIST.md` row.
 - **Independent steps are tagged `[parallel: A]`** (right after the number) when
   they write disjoint files and none consumes another's output. Shared index or
   README rows are a separate step after the group. Never tag a host-, secret- or
