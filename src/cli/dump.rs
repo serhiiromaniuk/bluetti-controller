@@ -24,13 +24,26 @@ pub async fn run(ctx: &Context<'_>, target: &str, from: u16, to: u16) -> anyhow:
         let policy = ReadPolicy::from_ble(ctx.ble);
         let ranges = chunks(from, to, MAX_CHUNK);
         let mut unread = 0;
+        // A reply to a timed-out chunk may still land after the next write.
+        let mut after_timeout = false;
         for (i, &(start, count)) in ranges.iter().enumerate() {
             if i > 0 {
                 tokio::time::sleep(PAUSE).await;
             }
             let last = start + (count - 1);
-            match read_block(gatt, start, count, &policy).await {
+            let result = read_block(gatt, start, count, &policy).await;
+            let suspect = std::mem::replace(
+                &mut after_timeout,
+                matches!(
+                    result,
+                    Err(ReadError::Transport(TransportError::Timeout(_)))
+                ),
+            );
+            match result {
                 Ok(values) => {
+                    if suspect {
+                        println!("{start:>5}-{last}: read after a timeout, may be its late reply");
+                    }
                     for (register, value) in (start..=last).zip(values) {
                         println!("{}", row(register, value, ctx.anonymise));
                     }

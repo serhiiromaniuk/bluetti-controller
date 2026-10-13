@@ -123,7 +123,10 @@ async fn read_once(
 }
 
 /// Drops notifications already queued, so a late reply (or fragment) to an
-/// earlier timed-out request cannot pass as, or prefix, this one's reply.
+/// earlier timed-out request that arrived before this write cannot pass as,
+/// or prefix, this one's reply. One that arrives after this write still can:
+/// a Modbus reply names no start address, so callers treat the read after a
+/// timeout as suspect (`dump` flags it).
 async fn drain(gatt: &mut impl Gatt) {
     while gatt.next_notification(Duration::ZERO).await.is_ok() {}
 }

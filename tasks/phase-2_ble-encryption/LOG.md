@@ -633,3 +633,45 @@ test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 15 ✓ 2026-10-13 — replay fixtures for EB3A + Elite 200 V2; `tests/replay.rs`; A26 settled
+
+**Changed:**
+- `tests/frames/{eb3a,elite200v2}.json`: plaintext `read` sessions (10 frames each), masked by `anonymise`.
+- `tests/replay.rs`: `station::detect` + `station::poll` over `ReplayGatt` per station, as `read` runs them; asserts identity, every decoded value, no problems, fixture fully consumed.
+- A26: `transport/read.rs` `drain` doc narrowed; `cli/dump.rs` flags the chunk read right after a timed-out one.
+
+**Check:**
+- Pre-flight §10.4: rfkill unblocked, adapter powered, `control.enabled = false`.
+- Hardware: `read router --anonymise --record captures/eb3a.json` → exit 0 (soc 90, ac_output_on 1, rest 0; ARM 2197.02 / DSP 2196.01). `read living-room --anonymise --record captures/elite200v2.json` → exit 0 (39.31 V, 9.9 A, soc 69, AC out 408 W; BMS 1068.11).
+- Hand-read: EB3A 43=0x5a, 48=1; Elite 100=0x0f5b, 101=0x63, 102=0x45, 142=0x198; 6175–6176=0xa13b/1. Serial regs 17–20 / 116–119 zero.
+- Green on arrival (tests over existing code); teeth: one mutated fixture request byte + one wrong expected value → both tests FAILED; restored.
+- Grep of real MAC (4 separator forms), SN (digits, first/last 8, hex both word orders, non-zero words), keys.toml values over `tests/frames/` → 0 matches (count only).
+
+**reviewer:** INTENT satisfied (15, A26); 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM: a timeout recovered on retry inside `read_block` never sets `dump`'s flag; doc overclaims → deferred to A27.
+
+**Decision:** none. **Carry-forward:** none. **Next:** step 16 — acceptance run.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T10:24:16Z
+
+```text
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 2 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
