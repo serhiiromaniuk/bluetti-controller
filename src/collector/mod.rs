@@ -2,7 +2,9 @@
 //! turn, one link at a time, on ticks at `start + k × interval`, and sends each
 //! result to the store writer as a [`Record`]. Every poll runs under the §5.4
 //! deadline and ends with a disconnect by address, also on error, deadline or
-//! shutdown (golden rule #5). A `watch` channel pauses or stops it.
+//! shutdown (golden rule #5). A `watch` channel pauses or stops it. The first
+//! successful poll of each UTC hour also sends every profile block as a
+//! register snapshot (§6).
 
 use std::future::Future;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -11,9 +13,11 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
 use crate::config::StationConfig;
+use crate::protocol::device;
 use crate::store::{Failure, Record, Sample, Stage};
-use crate::transport::read::ReadPolicy;
-use crate::transport::{self, Gatt, station};
+use crate::transport::read::{ReadPolicy, read_profile};
+use crate::transport::station::Poll;
+use crate::transport::{self, Gatt};
 
 pub mod bluez;
 
@@ -80,6 +84,7 @@ impl<C: Connect + Sync> Collector<C> {
         let start = Instant::now();
         let mut tick = 0_u32;
         let mut failures = vec![0_u32; self.stations.len()];
+        let mut hours = vec![None; self.stations.len()];
         let mut clock = Clock::new();
         loop {
             let at = start + self.interval.saturating_mul(tick);
@@ -87,7 +92,8 @@ impl<C: Connect + Sync> Collector<C> {
                 () = tokio::time::sleep_until(at) => {}
                 () = shutdown(&mut control) => return,
             }
-            for (target, failed) in self.stations.iter().zip(&mut failures) {
+            for ((target, failed), hour) in self.stations.iter().zip(&mut failures).zip(&mut hours)
+            {
                 match *control.borrow() {
                     Control::Shutdown => return,
                     Control::Pause { until } if Instant::now() < until => continue,
@@ -110,12 +116,24 @@ impl<C: Connect + Sync> Collector<C> {
                     })
                 });
                 let name = &target.config.name;
+                let mut snapshot = Vec::new();
                 let record = match result {
-                    Ok(sample) => {
+                    Ok((sample, blocks)) => {
                         if *failed >= UNREACHABLE_AFTER {
                             tracing::info!(station = name, "reachable again");
                         }
                         *failed = 0;
+                        if new_hour(hour, ts) {
+                            snapshot = blocks
+                                .into_iter()
+                                .map(|(start_reg, values)| Record::Snapshot {
+                                    station: target.id,
+                                    ts,
+                                    start_reg,
+                                    values,
+                                })
+                                .collect();
+                        }
                         Record::Sample {
                             station: target.id,
                             sample,
@@ -138,9 +156,11 @@ impl<C: Connect + Sync> Collector<C> {
                         }
                     }
                 };
-                if self.records.send(record).await.is_err() {
-                    tracing::error!("store writer gone, collector stops");
-                    return;
+                for record in std::iter::once(record).chain(snapshot) {
+                    if self.records.send(record).await.is_err() {
+                        tracing::error!("store writer gone, collector stops");
+                        return;
+                    }
                 }
             }
             tick = next_tick(tick, start.elapsed(), self.interval);
@@ -148,13 +168,14 @@ impl<C: Connect + Sync> Collector<C> {
     }
 
     /// One poll: open, read the profile, always disconnect, decode (§5.4).
+    /// A sample comes with every profile block as read, `(start, values)`.
     async fn poll(
         &self,
         target: &Target,
         ts: i64,
         retry: bool,
         stage: &mut Stage,
-    ) -> Result<Sample, Failure> {
+    ) -> Result<(Sample, Vec<(u16, Vec<u16>)>), Failure> {
         let fail = |stage, error| Failure { ts, stage, error };
         let (mut gatt, encrypted) = self
             .connect
@@ -164,14 +185,30 @@ impl<C: Connect + Sync> Collector<C> {
         *stage = Stage::Read;
         let profile = target.config.model.profile();
         let (read, closed) = transport::with_disconnect(&mut gatt, async |gatt| {
-            station::poll(gatt, profile, &self.policy).await
+            read_profile(gatt, profile, &self.policy).await
         })
         .await;
         if let Err(err) = closed {
             tracing::warn!(station = target.config.name, error = %err, "disconnect failed");
         }
-        let poll = read.map_err(|err| fail(Stage::Read, err.to_string()))?;
-        Sample::from_poll(ts, encrypted, &poll)
+        let registers = read.map_err(|err| fail(Stage::Read, err.to_string()))?;
+        let poll = Poll {
+            values: device::decode(profile, &registers),
+            problems: device::problems(profile, &registers),
+        };
+        let sample = Sample::from_poll(ts, encrypted, &poll)?;
+        // read_profile succeeded, so every register of every block is present.
+        let blocks = profile
+            .blocks
+            .iter()
+            .map(|&(start, count)| {
+                let values = (start..start + count)
+                    .filter_map(|register| registers.get(register))
+                    .collect();
+                (start, values)
+            })
+            .collect();
+        Ok((sample, blocks))
     }
 }
 
@@ -182,6 +219,15 @@ fn next_tick(tick: u32, elapsed: Duration, interval: Duration) -> u32 {
     u32::try_from(due)
         .unwrap_or(u32::MAX)
         .max(tick.saturating_add(1))
+}
+
+/// True when `ts` falls in a later UTC hour than the last snapshot, which
+/// `last` then records: one snapshot set per station-hour (§6).
+fn new_hour(last: &mut Option<i64>, ts: i64) -> bool {
+    let hour = ts.div_euclid(3600);
+    let due = *last != Some(hour);
+    *last = Some(hour);
+    due
 }
 
 /// Resolves on [`Control::Shutdown`] or when the sender is gone.

@@ -445,3 +445,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 11 ✓ 2026-10-13 — hourly `register_snapshot` from the collector
+
+**Changed:** `src/collector/{mod,tests}.rs`.
+- `poll` reads with `read_profile`, builds the `Poll` via `device::decode`/`problems`, and returns the sample with every profile block as read `(start, values)`; `station::poll` stays for the CLI.
+- Per-station `new_hour(last, ts)` (UTC hour = `ts.div_euclid(3600)`): the first successful poll of an hour sends one `Record::Snapshot` per block, right after its `Sample`. Failures (any stage, decode included) send none and leave the hour open.
+- Hour state is in memory: a restart may add one set in the same hour (different ts, so no PK clash).
+- Size per day (24 sets; ~2 B/register + ~15 B/row overhead): EB3A 61 regs, 2 rows → 24 × 152 B ≈ 3.6 KB; AC180 43 regs, 3 rows → ≈ 3.1 KB; Elite 46 regs, 5 rows → ≈ 4.0 KB. Under 0.05% of 10 MB per station-day; 90-day retention ≈ 0.36 MB per station.
+
+**Check:** `cargo test --lib collector::` 15/15. Failure-first: compile error `cannot find function new_hour`; then the hour test failed (60 polls of 62) — the 64-slot test channel filled with snapshots, raised to 256.
+- Tests: 62 polls over 3660 s → one set per UTC hour seen (≥ 2) at that hour's first poll, EB3A blocks `(10, 40)` and `(70, 21)`; connect/read/decode failures over 3 rounds → 9 failures, 0 snapshots; `new_hour` on 3599/3600/3660/7199/7200/7200 → T T F F T F.
+- Mutants, each caught: always due (2 fail), never send (1 fail).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM
+- MEDIUM M1 `collector/tests.rs` 436 lines, past the ~400 soft limit → amendment A11.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 12 — replay end-to-end test in `tests/collector.rs`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T14:17:47Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ff3da3329bfc40c0)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
