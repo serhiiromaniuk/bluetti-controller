@@ -65,6 +65,11 @@ impl Gatt for ReplayGatt {
         })
     }
 
+    /// A fixture records no write kind, so both kinds replay alike.
+    async fn write_with_response(&mut self, data: &[u8]) -> Result<(), TransportError> {
+        self.write(data).await
+    }
+
     async fn next_notification(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
         self.check_connected()?;
         match self.frames.front() {

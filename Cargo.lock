@@ -152,6 +152,7 @@ dependencies = [
  "bluer",
  "cbc",
  "clap",
+ "getrandom",
  "md-5",
  "p256",
  "serde",

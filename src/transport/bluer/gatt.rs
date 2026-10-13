@@ -32,6 +32,9 @@ pub struct BluerGatt {
     write: Characteristic,
     /// `None` once disconnected.
     notify: Option<CharacteristicReader>,
+    /// The BlueZ link is still up: set until a D-Bus `Disconnect` succeeds,
+    /// so a failed one is retried by the next [`Gatt::disconnect`].
+    disconnect_owed: bool,
     request_timeout: Duration,
 }
 
@@ -96,17 +99,11 @@ pub async fn connect(ble: &BleConfig, advert: &Advert) -> anyhow::Result<BluerGa
 
 impl Gatt for BluerGatt {
     async fn write(&mut self, data: &[u8]) -> Result<(), TransportError> {
-        if self.notify.is_none() {
-            return Err(TransportError::NotConnected);
-        }
-        // shortcut: write without response only; handshake message 2 needs a
-        // Write Request (A13), added with `CryptoGatt` in step 10.
-        let request = CharacteristicWriteRequest {
-            op_type: WriteOp::Command,
-            ..Default::default()
-        };
-        let call = self.write.write_ext(data, &request);
-        bounded(self.request_timeout, "write ff02", call).await
+        self.write_op(data, WriteOp::Command).await
+    }
+
+    async fn write_with_response(&mut self, data: &[u8]) -> Result<(), TransportError> {
+        self.write_op(data, WriteOp::Request).await
     }
 
     async fn next_notification(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
@@ -123,10 +120,26 @@ impl Gatt for BluerGatt {
 
     async fn disconnect(&mut self) -> Result<(), TransportError> {
         // Dropping the reader ends the subscription.
-        if self.notify.take().is_none() {
-            return Ok(());
+        self.notify = None;
+        if self.disconnect_owed {
+            bounded(self.request_timeout, "disconnect", self.device.disconnect()).await?;
+            self.disconnect_owed = false;
         }
-        bounded(self.request_timeout, "disconnect", self.device.disconnect()).await
+        Ok(())
+    }
+}
+
+impl BluerGatt {
+    async fn write_op(&mut self, data: &[u8], op_type: WriteOp) -> Result<(), TransportError> {
+        if self.notify.is_none() {
+            return Err(TransportError::NotConnected);
+        }
+        let request = CharacteristicWriteRequest {
+            op_type,
+            ..Default::default()
+        };
+        let call = self.write.write_ext(data, &request);
+        bounded(self.request_timeout, "write ff02", call).await
     }
 }
 
@@ -193,6 +206,7 @@ async fn open_channel(
         device,
         write,
         notify: Some(reader),
+        disconnect_owed: true,
         request_timeout,
     })
 }

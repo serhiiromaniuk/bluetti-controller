@@ -388,3 +388,50 @@ test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10 ✓ 2026-10-13 — `CryptoGatt` over any `Gatt`, A13 + A18
+
+**Changed:**
+- `src/transport/crypto.rs` (new): `CryptoGatt::establish(inner, keys, timeout)` runs the step-7 `Handshake`; each station message reassembled by `envelope_len(expecting())` under `timeout`, the whole exchange under 4 × `timeout`; any failure disconnects `inner` first. Then `write` = session envelope under a fresh seed; `next_notification` = one reassembled session envelope, decrypted. Bytes past a frame stay pending; a frame cut off by a timeout is dropped.
+- RNG: `getrandom::fill` (getrandom 0.4.3, already locked via uuid; the source `OsRng` wraps) for the ephemeral scalar and per-frame seeds; `protocol/` untouched.
+- `TransportError`: `Handshake`, `Crypto`, `Rng` variants (no key/payload bytes).
+- A13: `Gatt::write_with_response` (ATT Write Request). `BluerGatt` → `WriteOp::Request`; `RecordingGatt` forwards + records; `ReplayGatt` = `write` (fixtures hold no write kind); handshake message 2 uses it.
+- A18: `BluerGatt.disconnect_owed`, cleared only after a D-Bus `Disconnect` succeeds; a failed one is retried by the next `disconnect`.
+- A17 moved to step 11 (it rewrites connect + `detect`); still open.
+- `shortcut:` no message-5 resend (§4.4 rustytti); add if hardware loses message 6.
+- `sim.rs`: `LOCAL_AES_KEY`, `HOST_SCALAR` `pub(crate)` for the transport double.
+
+**Check:**
+- `cargo test --lib transport::crypto` 5 passed: registers over `CryptoGatt<SimStation>`; 20-register reply split across 3 notifications; messages 3+4 in one notification; silent station → `Timeout(5s)` after exactly 5 s (paused clock), disconnected; wrong station key → `BadStationSignature`, disconnected.
+- `SimStation` drops message 2 sent as a Write Command (§4.4), so the success tests pin A13.
+- Mutations: message 2 via `write` → 4 FAILED; `drain(..len)` → `mem::take` → `two_messages_in_one_notification_are_split` FAILED; restored → pass.
+- `grep -rn bluer src/` outside `src/transport/bluer/`: only `src/transport/mod.rs` doc + `mod` + re-exports.
+- `make check` green; `src/protocol/` 99.81%.
+- Noted: A7 (fixed by step 5) still reads `disposition: open`; settle at the close.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+  - MEDIUM: message-5 resend skipped (`crypto.rs:113`) → deferred to PLAN `## Amendments` A19, home step 11.
+
+**Decision:** none. **Carry-forward:** none. **Next:** step 11 — encrypted connect + `detect` part 2 (+ A17, A19).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T09:18:03Z
+
+```text
+test cli::detect::tests::unknown_target_passes_through_as_an_address ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardware.rs (target/llvm-cov-target/debug/deps/hardware-e834033cf2500684)
+
+running 1 test
+test connects_subscribes_and_disconnects ... ignored, needs a station in BLE range and BLUETTI_TEST_MAC
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.81% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -65,6 +65,12 @@ impl<G: Gatt + Send> Gatt for RecordingGatt<G> {
         Ok(())
     }
 
+    async fn write_with_response(&mut self, data: &[u8]) -> Result<(), TransportError> {
+        self.inner.write_with_response(data).await?;
+        self.push(Dir::Write, data);
+        Ok(())
+    }
+
     async fn next_notification(&mut self, timeout: Duration) -> Result<Vec<u8>, TransportError> {
         let data = self.inner.next_notification(timeout).await?;
         self.push(Dir::Notify, &data);

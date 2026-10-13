@@ -7,8 +7,12 @@
 use std::future::Future;
 use std::time::Duration;
 
+use crate::protocol::crypto::CryptoError;
+use crate::protocol::crypto::handshake::HandshakeError;
+
 pub mod anonymise;
 pub mod bluer;
+pub mod crypto;
 pub mod fixture;
 pub mod read;
 pub mod record;
@@ -16,6 +20,7 @@ pub mod replay;
 
 pub use self::bluer::gatt::{BluerGatt, connect, find};
 pub use self::bluer::scan::scan;
+pub use self::crypto::CryptoGatt;
 
 /// One BLE advertisement of a station, in our own types.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -41,12 +46,28 @@ pub enum TransportError {
     /// A BlueZ call failed or hung; the text holds no MAC address.
     #[error("BLE: {0}")]
     Ble(String),
+    #[error("handshake: {0}")]
+    Handshake(HandshakeError),
+    /// A session envelope that does not open: a wrong key or a corrupt frame.
+    #[error("session frame: {0}")]
+    Crypto(CryptoError),
+    #[error("OS RNG: {0}")]
+    Rng(String),
 }
 
 /// The Modbus channel of one connected station (`ROADMAP.md` §4.1).
 pub trait Gatt {
-    /// Writes one request to characteristic `ff02` (write without response).
+    /// Writes one request to characteristic `ff02` as a Write Command
+    /// (without response).
     fn write(&mut self, data: &[u8]) -> impl Future<Output = Result<(), TransportError>> + Send;
+
+    /// Writes to `ff02` as an ATT Write Request, which the station
+    /// acknowledges. Handshake message 2 needs it: a station drops that
+    /// message as a Write Command (`ROADMAP.md` §4.4).
+    fn write_with_response(
+        &mut self,
+        data: &[u8],
+    ) -> impl Future<Output = Result<(), TransportError>> + Send;
 
     /// Waits up to `timeout` for the next notification from characteristic `ff01`.
     fn next_notification(

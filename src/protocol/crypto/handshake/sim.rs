@@ -1,5 +1,5 @@
-//! Test-only station side of the handshake, with test-generated keys. Step 10's
-//! `SimStation` transport double wraps it.
+//! Test-only station side of the handshake, with test-generated keys. The
+//! `SimStation` transport double in `transport::crypto` wraps it.
 
 use p256::ecdsa::signature::{Signer, Verifier};
 use p256::ecdsa::{Signature, SigningKey};
@@ -8,8 +8,8 @@ use p256::{PublicKey, SecretKey};
 use super::super::{BLOCK, TempKey, encode_kex, open_temp, parse_kex, seal_temp};
 use super::{POINT, Session, StaticKeys, raw_point};
 
-const LOCAL_AES_KEY: [u8; BLOCK] = [0x33; BLOCK];
-const HOST_SCALAR: [u8; 32] = [0x11; 32];
+pub(crate) const LOCAL_AES_KEY: [u8; BLOCK] = [0x33; BLOCK];
+pub(crate) const HOST_SCALAR: [u8; 32] = [0x11; 32];
 const STATION_SCALAR: [u8; 32] = [0x22; 32];
 const STATION_EPHEMERAL: [u8; 32] = [0x55; 32];
 

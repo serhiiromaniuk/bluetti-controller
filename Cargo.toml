@@ -15,6 +15,7 @@ anyhow = "1.0.104"
 bluer = { version = "0.17.4", features = ["bluetoothd"] }
 cbc = "0.2.1"
 clap = { version = "4.6.7", features = ["derive"] }
+getrandom = "0.4.3"
 md-5 = "0.11.0"
 p256 = { version = "0.14.0", default-features = false, features = ["ecdh", "ecdsa"] }
 serde = { version = "1.0.229", features = ["derive"] }
