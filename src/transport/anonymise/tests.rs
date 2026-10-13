@@ -227,13 +227,22 @@ fn late_reply_after_an_unanswered_serial_request_is_refused() {
         anonymise_fixture(&original),
         Err(FixtureError::Unmaskable { index: 2 })
     ));
-    // An unanswered request outside the serial registers taints nothing.
-    let reply = response(&block(70, 21, 0));
-    let fine = fixture(
+    // An unanswered non-serial request taints too: its late reply would pair
+    // with the serial request, whose own reply then lands after the next write.
+    let shifted = fixture(
         "EB3A2235000012345",
-        &[write(50, 10), write(70, 21), notify(&reply)],
+        &[
+            write(50, 40),
+            write(100, 40),
+            notify(&response(&block(50, 40, 0))),
+            write(140, 40),
+            notify(&response(&block(100, 40, 116))),
+        ],
     );
-    assert_eq!(anonymise_fixture(&fine).unwrap().frames, fine.frames);
+    assert!(matches!(
+        anonymise_fixture(&shifted),
+        Err(FixtureError::Unmaskable { index: 2 })
+    ));
 }
 
 #[test]

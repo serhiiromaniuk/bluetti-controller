@@ -85,3 +85,65 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 1 ✓ 2026-10-13 — handshake designed in ROADMAP §4.4 from 3 MIT sources
+
+**Changed:** `ROADMAP.md` §4.4 rewritten (sequence table, static keys by role, `keys.toml` schema, committable-artefact rule, test split, recommendation), §4.9 crypto row, sources S35–S39 (worktree branch, commit a7d96b5).
+
+**Check:** sources pinned + licences MIT: nhurman `bluetti_mqtt` b746f17c1f6c, Patrick762 `bluetti-bt-lib` 0e11a80484a1, `rustytti` d2c651d54dcf (GitLab); GPL repo never opened. Added-line hex grep `[0-9a-fA-F]{32,}` → 0. Crates: p256 0.14.0, aes 0.9.3, cbc 0.2.1, md-5 0.11.0.
+- Findings: station opens kex (type 01, 4-byte seed); temp layer AES-128 (md5(reverse(seed)) XOR local key); session layer AES-256 from raw ECDH x; zero padding; no MAC/SN in any message; BLUETTE/BLUETTF same handshake in all sources; station-key ephemerality unknown → step 13.
+
+**Decision:** keys.toml = `local_aes_key` (32 hex), `host_signing_key` (64 hex), `station_verifying_key` (130 hex, SEC1 `04…`).
+**Next:** see group close below.
+
+## Step 2 ✓ 2026-10-13 — A2 + A3: config Debug masks address/token, metrics range-checked
+
+**Changed:** `src/config.rs` (329 lines) — hand-written `Debug` for `StationConfig` (`<masked>`) and `WebConfig` (`<set>`/`None`); `validate` rejects factor outside (0,1] and non-finite/≤0 `grid_voltage_min` (commit ed4a881).
+
+**Check:** failing first: `debug_masks_address_and_token ... FAILED` (`assertion failed: !format!("{config:?}").contains("DD:EE:01")`), `rejects_bad_metrics ... FAILED`; then `cargo test --lib config::` ok 11 passed. A2, A3 → fixed.
+
+## Step 3 ✓ 2026-10-13 — A5 + A6: backoff pinned, anonymiser hardened
+
+**Changed:** `Cargo.toml` dev-dep tokio `test-util`; `read/tests.rs` `backoff_doubles_between_retries` (start_paused, elapsed == 3 s); `anonymise.rs` masks both serial layouts for every model, refuses replies after an unanswered request (commit 085223e + review fix below).
+
+**Check:** failing first: A5 `no method named start_paused` before test-util; A6 `fixture_masks_both_serial_layouts_for_every_model ... FAILED` (`serial at 116 leaked`). Mutation: deleting `backoff.saturating_mul(2)` → `left: 2s right: 3s`. Step text's two-filter command does not parse; ran `cargo test --lib -- transport::read transport::anonymise` → ok 23 passed. A5, A6 → fixed. Cargo.lock unchanged.
+
+## Step 4 ✓ 2026-10-13 — Metric::range bounds + pure problems()
+
+**Changed:** `src/protocol/device.rs` (309 lines) `Metric::range()` per metric with reasons (SOC 0–100, power 0–5000 W, AC V 0–300, Hz 0–70, DC V 0–150, flags 0–1, pack 0–60 V, current ±100 A); `Problem {Missing, OutOfRange}`, `problems(profile, registers)`; `decode` unchanged (commit 221140b).
+
+**Check:** stub returning `vec![]` failed 3 new tests (`left: [] right: [OutOfRange { metric: BatterySoc, value: 101.0 }, …]`); then ok 14 passed; protocol coverage 100%.
+
+## Group A close 2026-10-13 — merged, batched review
+
+- Worktree branches p2-step1..4; `loop/merge-gate.sh` → `MERGE GATE OK` on the merged tree; cherry-picked linear onto main; worktrees removed.
+- **reviewer (batch 5f40a76..HEAD):** INTENT 1–4 satisfied; 0 CRITICAL / 1 HIGH / 1 MEDIUM.
+  - HIGH H1 `anonymise.rs:137`: an unanswered NON-serial request + same-count serial request shifts pairing, serial reply masked against wrong range → fixed: any unanswered request sets `stale`; test replaced with the shifted case (failed first at tests.rs:242, then ok 13 passed). Second pass on the fix: no findings.
+  - MEDIUM M1 `device.rs:143` PackCurrent sign vs u16 decode → deferred to A14.
+- Writer findings → A12 (session AES-256, zero padding; step 6), A13 (Write Request for msg 2; steps 9–10).
+- Env note: cargo lives in `~/.cargo/bin`, not on the loop shell's PATH.
+
+**Carry-forward:** none. **Next:** step 5 — A7 + key scan in `loop/step-done.sh`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T08:42:23Z
+
+```text
+
+test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-6a10f69a4d815929)
+
+running 2 tests
+test cli::scan::tests::unknown_station_still_prints ... ok
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

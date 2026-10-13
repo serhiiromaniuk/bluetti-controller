@@ -119,8 +119,8 @@ fn read_range(write: &[u8]) -> Option<(u16, u16)> {
 /// masked whole, then cut back into the recorded fragment sizes. Both serial
 /// layouts are masked for every model, since the encrypted EB3A's layout is
 /// unverified. A reply that may hold serial registers but is not one valid
-/// frame is refused, and so is every reply after a serial-covering request
-/// that got none: a late reply would be masked against the wrong request.
+/// frame is refused, and so is every reply after any request that got none:
+/// a late reply would be masked against the wrong request.
 pub fn anonymise_fixture(fixture: &Fixture) -> Result<Fixture, FixtureError> {
     let mut out = fixture.clone();
     out.advert.name = mask_name(&fixture.advert.name);
@@ -132,9 +132,9 @@ pub fn anonymise_fixture(fixture: &Fixture) -> Result<Fixture, FixtureError> {
     let mut i = 0;
     while i < out.frames.len() {
         if out.frames[i].dir == Dir::Write {
-            if !answered && request.is_some_and(|(s, c)| covers_serial(s, c, None)) {
-                stale = true;
-            }
+            // Any unanswered request taints: its late reply would pair with a
+            // later request, shifting every reply after it onto the wrong range.
+            stale |= !answered;
             request = read_range(&decode_hex(&out.frames[i].hex)?);
             answered = false;
             i += 1;
