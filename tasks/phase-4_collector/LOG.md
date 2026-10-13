@@ -977,3 +977,42 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18 ⏸ 2026-10-13 — 12 h window still open; interim check flags the router
+
+**State (no station touched; `data/run/` untouched):**
+- now 1791906031 < ETA 1791947729 (start 1791904529 + 43200 = 2026-10-14 03:15:29 UTC). Unit `bluetti-acceptance-24h` active; `/healthz` ok, `last_poll_age_s` 7.
+- Interim, read-only: `scripts/acceptance_v04.py data/acceptance-24h.db 1791904529 1791906000 60` (24 scheduled polls):
+  - router (EB3A) 19/24 = 79.17 % FAIL — 6 `discover` failures ("station not found within 15s") at +361, +601, +661, +961, +1021, +1441 s, spread over the window, not a startup burst.
+  - living-room (Elite200V2) 24/24, 1 `discover` failure retried; mobile (AC180) 25/25, none.
+  - size FAIL is window-length noise: 783 KB is mostly a 738 KB WAL over 0.017 days; WAL is capped by autocheckpoint (~4 MB), so the 12 h figure is the one that counts.
+- The JBL Charge 4 is still connected on the same adapter (`bluetoothctl devices Connected`) — A18's suspected cause. Router at ~21 % misses would give ~150 of 720 vs 36 allowed.
+
+**Decision:** keep the run (the step forbids an in-step wait or an early verdict on 24 polls; changing the adapter mid-run would void the window). Owner may stop it early: disconnect the JBL, or move it off the dev laptop's adapter, and re-run 15 → 18 by amendment. If the run ends FAIL, A18's path applies: measure `scan_for` time-to-heard per station before the re-run.
+
+**reviewer:** batched (LOG-only).
+
+**Next:** step 18 at the ETA.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:41:20Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
