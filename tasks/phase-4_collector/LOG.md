@@ -312,3 +312,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 8 ✓ 2026-10-13 — store writer task with restart-safe grid and house events
+
+**Changed:** `src/store/writer.rs` + `writer/tests.rs`; `src/store/mod.rs` exports `Record`, `Station`, `Writer`.
+- `Writer::restore(conn, stations, Params)` rebuilds each `Grid` from its last `debounce` samples with a grid field, and keeps open `grid_event` rows (station + `house`) as the state (spec §6 Restart). A station named `house` is refused (scope collision).
+- `Writer::spawn(rx)` → `spawn_blocking` + `blocking_recv`; each record is committed before the next, so channel close needs no flush. Failed records → `tracing::error!`, skipped.
+- `handle`: Sample → insert + `observe`; Failure → insert; Snapshot → insert only. Unknown station id → error, nothing stored. Then every grid `tick(ts)` before the house vote (A3).
+- Station events level-based: `Absent` + none open → open at `since`; `Present` + open → close at `max(since, start)`; `Unknown` → nothing. House events through `metrics::house::House`.
+
+**Check:** `cargo test --lib store::writer` 6/6; failure-first by mutant: `House::new(.., None)` (no house restore) → `house_outage_survives_a_restart_as_one_event` failed with a second `("house", 120, Some(300))` row; restored code passes.
+- Restart: 2 sensors off from 120, writer dropped at 180, new writer, `a` on from 300 → one house row 120→300, `a` 120→300, `b` open.
+- Flapping (debounce 2) → 0 rows; 6-round gap of failures → Unknown, 0 rows; outage held through Unknown (non-sensor `router` on), ends backdated at 660.
+
+**reviewer:** INTENT shortfall (by mutation) · 0 CRITICAL / 2 HIGH / 1 MEDIUM
+- HIGH H1 `writer/tests.rs:149` — no test failed with the `tick(ts)` deleted (A3 untested) → fixed: the gap test asserts both grids `Unknown` since 60, then `Present` since 480; new `an_unreachable_sensor_stops_voting_after_the_tick` (debounce 1 and 2): sensor `a` silent, `b` OFF → house stays `Power` until `a` turns `Unknown` at 300, then opens at 120.
+- HIGH H2 `writer/tests.rs:99` — the restart test was debounce-aligned, so dropping the replay passed → fixed: new `restore_replays_the_last_samples_in_order` (ON 0, ON 60, OFF 120 | restart | OFF 180 → `a` + house open at 120).
+- Re-checked by mutants: no tick → 2 tests fail; no replay → 1 fails; no `reverse()` → 1 fails; real code 8/8. The fix is test-only, so there is no second review pass.
+- MEDIUM M1 `writer.rs:179`: the house event can be lost on a failed `open_outage` → deferred to amendment A6.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 9 — rollup + retention.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T13:39:26Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ff3da3329bfc40c0)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

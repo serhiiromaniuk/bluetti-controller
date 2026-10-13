@@ -5,9 +5,11 @@ mod schema;
 #[cfg(test)]
 mod temp_db;
 mod write;
+mod writer;
 
 pub use schema::{open_reader, open_writer};
 pub use write::{
     Failure, Health, Sample, Stage, close_outage, insert_failure, insert_sample, insert_snapshot,
     open_outage, station_health, sync_stations,
 };
+pub use writer::{Record, Station, Writer};

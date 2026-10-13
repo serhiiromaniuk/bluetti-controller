@@ -59,7 +59,7 @@
   - `rollup(samples, bucket)` gives the `rollup_5m` row values (averages, minimum SOC, energy in/out, n), with the segment attribution of step 1 e.
   - TDD with hand-computed values: constant 100 W for 10 min = 16.667 Wh; a ramp; a gap; a segment that crosses a bucket boundary.
   - check: `cargo test metrics::energy` · review: risky
-- [ ] 8. Store writer task (spec §5.3, spec §7.1, spec §7.2) in `src/store/writer.rs`.
+- [x] 8. Store writer task (spec §5.3, spec §7.1, spec §7.2) in `src/store/writer.rs`.
   - It owns the only write connection, on its own blocking thread (`spawn_blocking` + `blocking_recv`), and takes `Record::{Sample, Failure, Snapshot}` over `mpsc`.
   - It runs `metrics::grid` and `house` on every record and opens or closes `grid_event` rows.
   - On start it restores state per step 1 f. On channel close it flushes and returns.
@@ -169,3 +169,4 @@
 - A3 · 2026-10-13 · MEDIUM `src/metrics/grid.rs:105` — with `debounce = 1`, a sample after a gap returns only the new state's change; the `Unknown` change from the internal `tick(ts)` is lost and `state()` never shows it. The house vote (step 5) and the writer (step 8) must call `tick(ts)` before `observe(ts, …)` (documented on `observe`) or `observe` returns both changes; step 8 tests it · disposition: open
 - A4 · 2026-10-13 · MEDIUM `src/metrics/energy.rs:95` — Δsoc is added only for segments where both samples carry SOC, so one SOC-less sample mid-run (89, None, 87) drops the whole change: `stored_delta_wh` = 0 and the losses estimate is off by capacity × 2 / 100. Carry the last seen SOC forward within a gap-free run, with a test (before step 9 uses `rollup`/`totals`) · disposition: open
 - A5 · 2026-10-13 · MEDIUM `src/metrics/runtime.rs:133` — after the H1 fix a slope needs three observed SOC levels: a window starting mid-fall (89 at the edge → 88 → 87) or one 2-point jump (90, 88) is now `Unknown`, so the first outage forecast comes one SOC step later (~19 min on the EB3A at 8.5 W). Safe, but no test pins it: add one asserting `Unknown` for the 89/88/87-from-window-edge case · disposition: open
+- A6 · 2026-10-13 · MEDIUM `src/store/writer.rs:179` — the house event is edge-based and its in-memory state moves before the DB write: if `open_outage` fails, `House` already holds the outage, `house_open` stays `None`, the outage is never stored and its close errors; if `close_outage` fails, `house_open` was already taken and the row stays open until a restart. Reset `House` on an open error and put the id back on a close error, with a test · disposition: open
