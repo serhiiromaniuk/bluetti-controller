@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 (merged with 3) in progress: `tasks/phase-2_ble-encryption/` (needs plan) |
+| **Gate status** | 🟢 Phase 1 closed, tagged `v0.1-foundation`. Phase 2 (merged with 3) in progress: `tasks/phase-2_ble-encryption/` (planned, 17 steps) |
 | **Blocked?** | no — owner answered everything up front 2026-10-13; physical checks go to `HUMAN-CHECKLIST.md` |
 
 ## Carry-forward — obligations that outlive the task that found them
