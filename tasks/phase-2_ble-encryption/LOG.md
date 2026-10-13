@@ -830,3 +830,47 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18 ✓ 2026-10-13 — AC180 `BLUETTF`, V2 layout, BMS 1052.03; `read` exit 0
+
+**Changed:** none in `src/` — `read` reported no problem, so no `dump` and no `AC180` profile fix (step text's conditional branch not taken).
+
+**Check (hardware, read-only 0x03, one station, pre-flight spec §10.4):**
+- Pre-flight: `bluetoothctl show` Powered yes; `rfkill` not blocked; `control.enabled = false` (config.toml:36); app not connected (handshake completed). App firmware not noted — owner-side, H3.
+- `make build` → release binary OK.
+- `scan --anonymise` → `AC180… -61 dBm AC180 encrypted=yes` (EB3A, Elite also seen).
+- `detect mobile --anonymise` → `protocol=V2 flag=BLUETTF`, `connected, session established`, `device type=AC180 layout=V2 firmware: bms=1052.03`, `disconnected`.
+- `read mobile --anonymise` → EXIT=0 (second run, exit captured; first run identical values):
+  - pack_voltage 33.09 V · pack_current 0.90–1.00 A · battery_soc 93 %
+  - dc_out 0 W · ac_out 0 W · dc_in 0 W · ac_in 0 W
+  - dc_input_voltage 0.10 V · ac_input_frequency 0 Hz · ac_input_voltage 2.10 V
+  - ac_output_on 1 · dc_output_on 0 · every field `verified=false` (Q4)
+- Notes for H3 (not gate items): ~1 A pack draw at 0 W out fits an idle inverter with AC on; 2.1 V AC in with 0 Hz is residual noise, no grid input.
+- A29: `mobile` is encrypted, so step 19 runs as written (wire fixture + real-key replay).
+
+**reviewer:** batched (LOG-only, no code; reviewed with the next batch before the push)
+
+**Decision:** none. **Carry-forward:** none. **Next:** step 19 (AC180 fixtures).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:16:52Z
+
+```text
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 2 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
