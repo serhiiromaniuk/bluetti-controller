@@ -48,14 +48,7 @@ pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
         return Ok(advert);
     }
     tracing::debug!("station not in the BlueZ cache, scanning");
-    scan_for(&ble.adapter, parsed, timeout)
-        .await?
-        .ok_or_else(|| {
-            anyhow!(
-                "station not found within {timeout:?}: out of range, or the official app \
-                 is connected (ROADMAP.md §4.6)"
-            )
-        })
+    scan_for(&ble.adapter, parsed, timeout).await
 }
 
 /// Disconnects `address` whatever handle a cancelled poll left behind, and

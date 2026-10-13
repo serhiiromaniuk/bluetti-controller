@@ -894,3 +894,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 17d ✓ 2026-10-13 — A9 + A10 + A11 + A16 (collector, transport)
+
+**Changed (no station touched; run `active`, `data/run/` untouched):**
+- `src/collector/mod.rs` A9: `Clock::now(station)` also floors at that station's last ts + 1, so a wall clock stepped back never repeats a `(station_id, ts)` key; global ts stay nondecreasing (A8). Anchor floor kept: it moves ts under paused tests; the startup-ahead trade-off is in the `Clock` doc.
+- `src/collector/bluez.rs` A10: pure `open_stage(&anyhow::Error)` → `Handshake` on a typed `HandshakeFailed` source (also under `.context`), else `Connect`.
+- `src/collector/tests/snapshot.rs` (new) A11: `snapshots()` + the three snapshot tests; `tests.rs` 436 → 382 lines.
+- `src/transport/bluer/scan.rs` A16: `listen_for` keeps the masked last `advert_of` error, `debug!`s it, and appends it to the not-found error, now built in `scan_for` (`gatt.rs` `find` just returns it). No unit test: needs BlueZ, and no station access during the run.
+
+**Check:**
+- Failure first (Clock bump removed): `a_clock_stepped_back_still_gives_each_station_a_new_ts` FAILED `[0, 0, 0, 0, 0]` vs `[0, 0, 1, 1, 2]`; `record_timestamps_never_go_back` FAILED. Mutation (`open_stage` always `Connect`): `a_typed_handshake_error_names_the_handshake_stage` FAILED. Both restored.
+- After: `cargo test --lib collector` 17/17 (snapshot tests run under `collector::tests::snapshot::`); `make check` green.
+
+**Amendments:** A9 fixed, A10 fixed, A11 fixed, A16 fixed.
+
+**reviewer:** risky, before commit: INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM.
+
+**Next:** step 17e — A12 + A13 + A14 (serve, web) + A20 (script); its check ticks step 17.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:37:44Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

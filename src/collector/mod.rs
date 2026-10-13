@@ -85,21 +85,21 @@ impl<C: Connect + Sync> Collector<C> {
         let mut tick = 0_u32;
         let mut failures = vec![0_u32; self.stations.len()];
         let mut hours = vec![None; self.stations.len()];
-        let mut clock = Clock::new();
+        let mut clock = Clock::new(self.stations.len());
         loop {
             let at = start + self.interval.saturating_mul(tick);
             tokio::select! {
                 () = tokio::time::sleep_until(at) => {}
                 () = shutdown(&mut control) => return,
             }
-            for ((target, failed), hour) in self.stations.iter().zip(&mut failures).zip(&mut hours)
-            {
+            let stations = self.stations.iter().zip(&mut failures).zip(&mut hours);
+            for (i, ((target, failed), hour)) in stations.enumerate() {
                 match *control.borrow() {
                     Control::Shutdown => return,
                     Control::Pause { until } if Instant::now() < until => continue,
                     _ => {}
                 }
-                let ts = clock.now();
+                let ts = clock.now(i);
                 let retry = *failed < UNREACHABLE_AFTER;
                 let mut stage = Stage::Discover;
                 let outcome = tokio::select! {
@@ -238,28 +238,40 @@ async fn shutdown(control: &mut watch::Receiver<Control>) {
 /// Record timestamps, nondecreasing so the writer's jobs see them in order
 /// (amendment A8): the wall clock, never below the previous value, nor below
 /// the start plus monotonic time elapsed (which also moves in paused tests).
+/// Each station's ts also rises by at least 1 s per record, so a wall clock
+/// stepped back never repeats a `(station_id, ts)` key (A9).
+/// Trade-off (A9): a wall clock that was ahead at startup and is then set
+/// back keeps the records ahead by that offset until a restart; the floor is
+/// what moves ts under paused tests, and a few seconds' skew is harmless.
 struct Clock {
     anchor: i64,
     start: Instant,
     last: i64,
+    /// The last ts per station.
+    stations: Vec<i64>,
 }
 
 impl Clock {
-    fn new() -> Clock {
+    fn new(stations: usize) -> Clock {
         let anchor = unix_now();
         Clock {
             anchor,
             start: Instant::now(),
             last: anchor,
+            stations: vec![i64::MIN; stations],
         }
     }
 
-    fn now(&mut self) -> i64 {
+    /// The ts of a record for `station` (its index in the collector).
+    fn now(&mut self, station: usize) -> i64 {
         let elapsed = i64::try_from(self.start.elapsed().as_secs()).unwrap_or(i64::MAX);
+        let previous = &mut self.stations[station];
         self.last = self
             .last
             .max(unix_now())
-            .max(self.anchor.saturating_add(elapsed));
+            .max(self.anchor.saturating_add(elapsed))
+            .max(previous.saturating_add(1));
+        *previous = self.last;
         self.last
     }
 }

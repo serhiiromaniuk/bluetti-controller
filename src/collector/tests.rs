@@ -203,22 +203,6 @@ fn summary(records: &[Record]) -> Vec<(i64, i64, &'static str)> {
         .collect()
 }
 
-/// (station id, ts, start register, values) per snapshot record.
-fn snapshots(records: &[Record]) -> Vec<(i64, i64, u16, Vec<u16>)> {
-    records
-        .iter()
-        .filter_map(|record| match record {
-            Record::Snapshot {
-                station,
-                ts,
-                start_reg,
-                values,
-            } => Some((*station, *ts, *start_reg, values.clone())),
-            _ => None,
-        })
-        .collect()
-}
-
 #[tokio::test(start_paused = true)]
 async fn stations_are_polled_in_turn_and_every_poll_disconnects() {
     let (collector, state, mut rx) = collector(&[("a", Behave::Fill(0)), ("b", Behave::Fill(0))]);
@@ -367,57 +351,6 @@ async fn pause_skips_polls_until_it_ends() {
     assert_eq!(opens, [120]);
 }
 
-#[tokio::test(start_paused = true)]
-async fn the_first_successful_poll_of_each_utc_hour_sends_a_snapshot_set() {
-    let (collector, _state, mut rx) = collector(&[("a", Behave::Fill(0))]);
-    let (_tx, control) = watch::channel(Control::Run);
-    // 62 polls over 3660 s: at least two UTC hours, at least one with two polls.
-    run_for(collector, control, 3700).await;
-    let records = drain(&mut rx);
-    let polls = summary(&records);
-    assert_eq!(polls.len(), 62);
-    let mut firsts: Vec<i64> = Vec::new();
-    for &(_, ts, _) in &polls {
-        if firsts
-            .last()
-            .is_none_or(|first| first.div_euclid(3600) != ts.div_euclid(3600))
-        {
-            firsts.push(ts);
-        }
-    }
-    assert!(firsts.len() >= 2, "{firsts:?}");
-    // One set per hour, at its first poll: every EB3A block, as read.
-    let expected: Vec<_> = firsts
-        .iter()
-        .flat_map(|&ts| [(1, ts, 10, vec![0; 40]), (1, ts, 70, vec![0; 21])])
-        .collect();
-    assert_eq!(snapshots(&records), expected);
-}
-
-#[tokio::test(start_paused = true)]
-async fn a_failed_poll_sends_no_snapshot() {
-    let (collector, _state, mut rx) = collector(&[
-        ("a", Behave::Fail(Stage::Connect)),
-        ("b", Behave::Silent),
-        ("c", Behave::Fill(0xFFFF)),
-    ]);
-    let (_tx, control) = watch::channel(Control::Run);
-    run_for(collector, control, 130).await;
-    let records = drain(&mut rx);
-    assert_eq!(summary(&records).len(), 9);
-    assert!(snapshots(&records).is_empty());
-}
-
-#[test]
-fn a_new_hour_is_due_once() {
-    let mut last = None;
-    let due: Vec<_> = [3599, 3600, 3660, 7199, 7200, 7200]
-        .into_iter()
-        .map(|ts| new_hour(&mut last, ts))
-        .collect();
-    assert_eq!(due, [true, true, false, false, true, false]);
-}
-
 #[test]
 fn next_tick_is_the_first_one_not_yet_past() {
     let at = |secs| Duration::from_secs(secs);
@@ -430,7 +363,20 @@ fn next_tick_is_the_first_one_not_yet_past() {
 
 #[test]
 fn record_timestamps_never_go_back() {
-    let mut clock = Clock::new();
+    let mut clock = Clock::new(1);
     clock.last = i64::MAX - 1;
-    assert_eq!(clock.now(), i64::MAX - 1);
+    assert_eq!(clock.now(0), i64::MAX - 1);
+    assert_eq!(clock.now(0), i64::MAX);
 }
+
+#[test]
+fn a_clock_stepped_back_still_gives_each_station_a_new_ts() {
+    let mut clock = Clock::new(2);
+    // The wall clock stepped back an hour after the last record.
+    clock.last += 3600;
+    let first = clock.last;
+    let ts: Vec<_> = [0, 1, 0, 1, 0].map(|s| clock.now(s) - first).into();
+    assert_eq!(ts, [0, 0, 1, 1, 2]);
+}
+
+mod snapshot;

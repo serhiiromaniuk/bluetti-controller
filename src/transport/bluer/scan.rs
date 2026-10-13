@@ -3,7 +3,7 @@
 use std::time::Duration;
 
 use ::bluer::Address;
-use anyhow::{Context, bail};
+use anyhow::{Context, anyhow, bail};
 
 use crate::protocol::device::COMPANY_ID;
 use crate::transport::Advert;
@@ -26,14 +26,14 @@ pub async fn scan(adapter: &str, timeout: Duration) -> anyhow::Result<Vec<Advert
 }
 
 /// Runs an LE discovery on `adapter` until the station at `address` is heard
-/// with manufacturer data under [`COMPANY_ID`], at most `timeout`; `None` when
-/// it is not. BlueZ drops a station it no longer hears from its cache ~30 s
+/// with manufacturer data under [`COMPANY_ID`], at most `timeout`; a "not
+/// found" error naming the last BlueZ error when it is not. BlueZ drops a station it no longer hears from its cache ~30 s
 /// after a disconnect, so a 60 s poll usually finds it here, not in the cache.
 pub(super) async fn scan_for(
     adapter: &str,
     address: Address,
     timeout: Duration,
-) -> anyhow::Result<Option<Advert>> {
+) -> anyhow::Result<Advert> {
     tokio::time::timeout(timeout + DBUS_MARGIN, listen_for(adapter, address, timeout))
         .await
         .with_context(|| format!("scan on {adapter} did not finish within {timeout:?}"))?
@@ -83,20 +83,31 @@ async fn listen_for(
     adapter_name: &str,
     address: Address,
     timeout: Duration,
-) -> anyhow::Result<Option<Advert>> {
+) -> anyhow::Result<Advert> {
     let adapter = le_adapter(adapter_name).await?;
     let _events = adapter.discover_devices().await?;
     let device = adapter.device(address)?;
     let until = tokio::time::Instant::now() + timeout;
+    let mut last_error = None;
     loop {
-        // Unknown to BlueZ reads as an error; an RSSI means heard in this discovery.
-        if let Ok(Some(advert)) = advert_of(&device).await
-            && advert.rssi.is_some()
-        {
-            return Ok(Some(advert));
+        match advert_of(&device).await {
+            // An RSSI means heard in this discovery.
+            Ok(Some(advert)) if advert.rssi.is_some() => return Ok(advert),
+            Ok(_) => {}
+            // Unknown to BlueZ reads as an error too, so it is kept, not
+            // failed on: a real D-Bus failure then shows in the not-found error.
+            Err(err) => {
+                let text = mask_macs(&err.to_string());
+                tracing::debug!(error = %text, "station properties not readable");
+                last_error = Some(text);
+            }
         }
         if tokio::time::Instant::now() >= until {
-            return Ok(None);
+            let last = last_error.map_or_else(String::new, |e| format!("; last BlueZ error: {e}"));
+            return Err(anyhow!(
+                "station not found within {timeout:?}: out of range, or the official app \
+                 is connected (ROADMAP.md §4.6){last}"
+            ));
         }
         tokio::time::sleep(HEARD_POLL).await;
     }

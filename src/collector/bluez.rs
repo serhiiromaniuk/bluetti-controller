@@ -17,6 +17,16 @@ pub struct BluezConnect {
     pub keys: Option<StaticKeys>,
 }
 
+/// The stage a failed `transport::open` stopped at: the handshake when the
+/// error has the typed [`HandshakeFailed`] source, else the connect (§5.4).
+fn open_stage(err: &anyhow::Error) -> Stage {
+    if err.downcast_ref::<HandshakeFailed>().is_some() {
+        Stage::Handshake
+    } else {
+        Stage::Connect
+    }
+}
+
 impl Connect for BluezConnect {
     type Gatt = Link;
 
@@ -54,9 +64,7 @@ impl Connect for BluezConnect {
                 Ok((link, encrypted))
             }
             Err(err) => {
-                if err.downcast_ref::<HandshakeFailed>().is_some() {
-                    *stage = Stage::Handshake;
-                }
+                *stage = open_stage(&err);
                 Err(text(err))
             }
         }
@@ -70,5 +78,24 @@ impl Connect for BluezConnect {
                 "disconnect by address failed"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use anyhow::{Context, anyhow};
+
+    use super::*;
+    use crate::transport::TransportError;
+
+    #[test]
+    fn a_typed_handshake_error_names_the_handshake_stage() {
+        let handshake = anyhow::Error::from(HandshakeFailed(TransportError::NotConnected));
+        assert_eq!(open_stage(&handshake), Stage::Handshake);
+        let wrapped = Err::<(), _>(HandshakeFailed(TransportError::NotConnected))
+            .context("open")
+            .unwrap_err();
+        assert_eq!(open_stage(&wrapped), Stage::Handshake);
+        assert_eq!(open_stage(&anyhow!("connect timed out")), Stage::Connect);
     }
 }
