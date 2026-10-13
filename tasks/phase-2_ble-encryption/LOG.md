@@ -716,3 +716,38 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Plan amendment ✓ 2026-10-13 — AC180 + CF-4 added as steps 18–22
+
+**Changed:**
+- `PLAN.md` `## Amendments`: dated note + checkbox steps 18–22 (AC180 identity/read, fixtures, acceptance run, CF-4 dump, AC180 docs close-out), per the owner decision of 14:05 (774df8f) and CF-4 (468178c). Frozen steps 1–17 untouched; step 17 runs first, then 18–22.
+
+**Check:**
+- `where.sh --json` → step 17 of 22, title unchanged; `make amendments` counts only `- A<n>` items, so the new checkboxes are not findings.
+
+**reviewer:** batched — one pass over `@{u}..HEAD` (468178c, 774df8f, 274a955 + this commit) before the push.
+
+**Decision:** none new (owner's). **Carry-forward:** CF-4 now has a home: step 21. **Next:** step 17.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:08:04Z
+
+```text
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 2 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
