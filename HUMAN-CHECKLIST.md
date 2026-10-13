@@ -9,7 +9,7 @@ row becomes a fix task.
 |---|-------|----------|--------|
 | H1 | EB3A: `read router` vs the official app within seconds — battery % equal, power ±5 W (note the app value, force-quit the app, then run `read`) | owner, 2026-10-13 | pending |
 | H2 | Elite 200 V2: the same comparison for `read living-room` | owner, 2026-10-13 | pending |
-| H3 | AC180: switch it on, run `scan`, `detect`, then a 20-poll acceptance run and the app comparison | owner, 2026-10-13 | pending |
+| H3 | AC180: `read mobile` vs the official app (the loop runs scan, detect and the acceptance run itself since 2026-10-13 14:05) | owner, 2026-10-13 | pending |
 | H4 | Outage test: unplug the AC input of a grid-sensor station once during a collector run; recorded within 2 min. Skip if a real grid outage was already recorded | owner, 2026-10-13 | pending |
 
 ## Owner observations (for the loop's plausibility checks)
