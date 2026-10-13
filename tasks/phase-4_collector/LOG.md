@@ -647,3 +647,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 14b ✓ 2026-10-13 — smoke 2 passes the count check; CF-5 re-confirmed
+
+**Smoke 2** (`bluetti-smoke`, start 1791903375 + 960 s, release build of d83f562, `data/smoke.toml`; smoke 1's DB moved to `data/old/`):
+- §10.4 pre-flight: adapter powered, rfkill unblocked, `control.enabled = false`; app force-quit not verifiable by the loop.
+- `make build` failed first: `cargo` not on this shell's `PATH` (`~/.cargo/bin`). A unit started on the already-fresh binary was stopped after ~10 s and its DB deleted; rebuilt (`Finished … 0.09s`, nothing to do) and started clean.
+- `systemd-inhibit --what=sleep:idle` accepted again (`systemd-inhibit --list`: `v0.4 smoke`, `block`).
+- `/healthz` 200 at start (`null`), +120 s (`50`), +955 s (`46`). Stop: journal `Stopped`, not failed; transient unit gone.
+- Samples / failures: router 14 / 2, living-room 15 / 1, mobile 16 / 0. **Check (≥ 14 each) passes.**
+- All 3 failures are `discover` ("station not found within 15s") on a cache miss: router +480 and +720 s, living-room +545 s. No `read` deadline misses (smoke 1's cause is fixed).
+- `bluetoothctl info`: all 3 stations "not available" (dropped from the BlueZ cache, so not connected). The only connected device is the owner's JBL speaker.
+- `register_snapshot` 20 rows (start + the 15:00 UTC hour), `grid_event` 0.
+- CF-5 re-confirmed (already discharged in STATE): EB3A `ac_in_v` 213–222 V (grid on); Elite 217.1–226.0 V, AC180 213.8–222.3 V; `ac_input_frequency` 49.9–50.0 Hz on both (15 / 16 samples).
+
+**Risk for step 15:** router 2 misses in 16 = 87.5 %, below the v0.4 gate's 95 % if that rate holds over the 12 h run (A17: ~90 misses of 720 vs ≤ 36 allowed). Sample is small; cause unproven (BR/EDR speaker coexistence on the same adapter, or advert interval) → amendment A18. A15 → fixed.
+
+**Next:** step 15 — start the 12 h run (A17).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 1 HIGH / 1 MEDIUM.
+- HIGH duplicate id A17 (owner's 12 h decision, 9415894, landed mid-run) → fixed: scan finding renumbered A18.
+- MEDIUM 24 h wording → fixed now (one-line text edit): 12 h, 720 polls, ≤ 36 misses.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:14:53Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
