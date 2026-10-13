@@ -4,6 +4,7 @@
 //! file, an unknown key or an invalid value.
 
 use std::collections::HashSet;
+use std::fmt;
 use std::net::SocketAddr;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::path::{Path, PathBuf};
@@ -44,12 +45,27 @@ pub struct StorageConfig {
     pub raw_retention_days: NonZeroU32,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+/// `Debug` hides the token (golden rule #3).
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct WebConfig {
     pub listen: SocketAddr,
     /// Bearer token for POST endpoints; `None` disables them.
     pub token: Option<String>,
+}
+
+impl fmt::Debug for WebConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let token = if self.token.is_some() {
+            "<set>"
+        } else {
+            "None"
+        };
+        f.debug_struct("WebConfig")
+            .field("listen", &self.listen)
+            .field("token", &format_args!("{token}"))
+            .finish()
+    }
 }
 
 /// BLE adapter and timing (golden rule #5: every GATT operation is bounded).
@@ -96,7 +112,8 @@ pub struct ControlConfig {
     pub enabled: bool,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+/// `Debug` masks the address (golden rule #3).
+#[derive(Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct StationConfig {
     pub name: String,
@@ -105,6 +122,17 @@ pub struct StationConfig {
     /// BLE MAC, `XX:XX:XX:XX:XX:XX`. Never logged unmasked.
     pub address: String,
     pub grid_sensor: bool,
+}
+
+impl fmt::Debug for StationConfig {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("StationConfig")
+            .field("name", &self.name)
+            .field("model", &self.model)
+            .field("address", &format_args!("<masked>"))
+            .field("grid_sensor", &self.grid_sensor)
+            .finish()
+    }
 }
 
 /// `src/protocol/` stays serde-free, so the model names are mapped here.
@@ -148,6 +176,14 @@ impl Config {
                     station.name
                 );
             }
+        }
+        let m = &self.metrics;
+        if !(m.usable_capacity_factor > 0.0 && m.usable_capacity_factor <= 1.0) {
+            bail!("metrics.usable_capacity_factor must be in (0, 1]");
+        }
+        // `> 0.0` already rejects NaN; `is_finite` rejects +inf.
+        if !(m.grid_voltage_min.is_finite() && m.grid_voltage_min > 0.0) {
+            bail!("metrics.grid_voltage_min must be a finite value > 0");
         }
         Ok(())
     }
@@ -236,6 +272,53 @@ mod tests {
     fn rejects_unknown_key() {
         let text = EXAMPLE.replace("grid_sensor = false", "grid_sensor = false\ncolour = 1");
         assert!(error_of(&text).contains("unknown field `colour`"));
+    }
+
+    #[test]
+    fn debug_masks_address_and_token() {
+        let mut config = parse(EXAMPLE).unwrap();
+        assert!(!format!("{config:?}").contains("DD:EE:01"));
+        config.web.token = Some("s3cret-token".into());
+        let debug = format!("{config:?}");
+        assert!(!debug.contains("s3cret-token"), "{debug}");
+        assert!(debug.contains("token: <set>"), "{debug}");
+        assert!(format!("{:?}", parse(EXAMPLE).unwrap().web).contains("token: None"));
+    }
+
+    #[test]
+    fn rejects_bad_metrics() {
+        for (from, to) in [
+            (
+                "usable_capacity_factor = 0.85",
+                "usable_capacity_factor = 0.0",
+            ),
+            (
+                "usable_capacity_factor = 0.85",
+                "usable_capacity_factor = -0.5",
+            ),
+            (
+                "usable_capacity_factor = 0.85",
+                "usable_capacity_factor = 1.01",
+            ),
+            (
+                "usable_capacity_factor = 0.85",
+                "usable_capacity_factor = nan",
+            ),
+            ("grid_voltage_min = 180.0", "grid_voltage_min = 0.0"),
+            ("grid_voltage_min = 180.0", "grid_voltage_min = -1.0"),
+            ("grid_voltage_min = 180.0", "grid_voltage_min = inf"),
+            ("grid_voltage_min = 180.0", "grid_voltage_min = nan"),
+        ] {
+            assert!(
+                error_of(&EXAMPLE.replace(from, to)).contains("metrics."),
+                "{to}"
+            );
+        }
+        let text = EXAMPLE.replace(
+            "usable_capacity_factor = 0.85",
+            "usable_capacity_factor = 1.0",
+        );
+        assert!(parse(&text).is_ok());
     }
 
     #[test]
