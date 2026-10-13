@@ -5,9 +5,10 @@ Bluetooth LE. One Rust binary on a low-power homelab PC: polls the stations,
 keeps the history in SQLite, logs power outages, forecasts runtime, accounts
 energy, and serves a small web page on the LAN. Works with the internet down.
 
-**Status:** Phase 2 — BLE transport + encryption. The read-only CLI (`scan`,
-`detect`, `read`, `dump`) reads the EB3A and Elite 200 V2 over encrypted local
-BLE; collector, storage and web UI come in phases 4–5.
+**Status:** Phase 4 — collector, storage, metrics. The read-only CLI (`scan`,
+`detect`, `read`, `dump`) reads the EB3A, AC180 and Elite 200 V2 over encrypted
+local BLE; `serve` polls them on a schedule into SQLite and derives the outage
+log, runtime forecast and energy totals. The web UI comes in phase 5.
 
 ## Read first
 
@@ -21,9 +22,24 @@ BLE; collector, storage and web UI come in phases 4–5.
 ```bash
 make tools   # once per clone: pinned cargo-llvm-cov into .tools/
 make check   # fmt-check + clippy + tests (needs rustfmt, clippy, make tools)
-make test    # tests under cargo llvm-cov; fails if src/protocol/ < 80% lines
+make test    # tests under cargo llvm-cov; fails if src/protocol/ or src/metrics/ < 80% lines
 make help    # all targets
 ```
+
+## Run
+
+Copy `config.example.toml` to `config.toml` (gitignored) and fill in your
+stations and keys file, then:
+
+```bash
+make run                         # = bluetti-controller --config config.toml serve
+make run CONFIG=data/other.toml  # another local config
+```
+
+`serve` polls every `[[station]]` read-only once per `poll_interval_secs`,
+writes the SQLite database at `storage.path`, and answers `GET /healthz` on
+`web.listen` (`{"status":"ok","last_poll_age_s":…}`). SIGINT/SIGTERM stops it
+cleanly: the current poll disconnects, the writer flushes.
 
 ## Credits
 

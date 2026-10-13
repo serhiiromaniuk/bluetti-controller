@@ -10,10 +10,12 @@ poll_interval_secs = 60
 timezone = "Europe/Kyiv"
 
 [storage]
+# `serve` creates and migrates this SQLite file; its directory must exist.
 path = "/var/lib/bluetti-controller/data.db"
 raw_retention_days = 30
 
 [web]
+# `serve` answers GET /healthz here (M3); the pages arrive in M4.
 listen = "0.0.0.0:8080"
 # token = "change-me"            # required for POST endpoints when set
 

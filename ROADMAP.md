@@ -589,14 +589,14 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
 |---|---|---|
 | `protocol::modbus` | frames, CRC, response parsing | M0 ✓ |
 | `protocol::device` | model detection, encryption flag, register maps, decoding | M0 ✓ |
-| `protocol::crypto` | BLUETTE handshake + AES-CBC wrapping, pure state machine | M2 |
-| `transport` | `Gatt` trait; `BluerGatt` (BlueZ) and `ReplayGatt` (fixtures); connect/notify/write with timeouts; reassembly | M1 |
-| `config` | load + validate TOML, fail fast | M1 |
-| `cli` | `scan`, `detect`, `read`, `dump`, `serve` subcommands | M1 / M3 |
-| `collector` | the poll loop: per station connect → (handshake) → read blocks → disconnect | M3 |
-| `store` | SQLite: migrations, single writer, read-only pool, retention, rollups | M3 |
-| `metrics` | grid state, outage events, runtime forecast, energy integration | M3 |
-| `web` | axum routes, askama templates, SSE, embedded assets | M4 |
+| `protocol::crypto` | BLUETTE handshake + AES-CBC wrapping, pure state machine | M2 ✓ |
+| `transport` | `Gatt` trait; `BluerGatt` (BlueZ) and `ReplayGatt` (fixtures); connect/notify/write with timeouts; reassembly | M1 ✓ |
+| `config` | load + validate TOML, fail fast | M1 ✓ |
+| `cli` | `scan`, `detect`, `read`, `dump`, `serve` subcommands | M1 ✓ / M3 ✓ |
+| `collector` | the poll loop: per station connect → (handshake) → read blocks → disconnect | M3 ✓ |
+| `store` | SQLite: migrations, single writer, read-only pool, retention, rollups | M3 ✓ |
+| `metrics` | grid state, outage events, runtime forecast, energy integration | M3 ✓ |
+| `web` | axum routes, askama templates, SSE, embedded assets | M3 (`/healthz` stub) ✓ / M4 |
 
 ### 5.3 Concurrency and lifecycle
 
@@ -1106,15 +1106,15 @@ v0.3 poll criteria; app comparisons H1–H3.
 
 ### M3 — Collector, storage, metrics → `v0.4-collector` (Phase 4)
 
-- [ ] `store`: migrations (§6), single writer task, read-only connection,
+- [x] `store`: migrations (§6), single writer task, read-only connection,
       retention + rollup job.
-- [ ] `collector`: sequential poll loop, pause/shutdown via `watch`,
+- [x] `collector`: sequential poll loop, pause/shutdown via `watch`,
       `poll_failure` rows, unreachable state.
-- [ ] `metrics`: grid presence + debounce (§7.1), house outage log (§7.2),
+- [x] `metrics`: grid presence + debounce (§7.1), house outage log (§7.2),
       runtime forecast (§7.3), energy integration (§7.4), extras (§7.5).
-- [ ] Hourly `register_snapshot` for configured ranges.
-- [ ] `serve` subcommand (collector + store, web stub with `/healthz`).
-- [ ] Unit tests for every metric (flapping input, gaps, unknown state).
+- [x] Hourly `register_snapshot` for configured ranges.
+- [x] `serve` subcommand (collector + store, web stub with `/healthz`).
+- [x] Unit tests for every metric (flapping input, gaps, unknown state).
 - [ ] **Human:** 12 h run; unplug a sensor station's AC input once.
 
 **Acceptance:** ≥ 95% polls per station over 12 h; outage recorded ≤ 2 min after

@@ -772,3 +772,43 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 17a ✓ 2026-10-13 — docs close-out, done-when greps (A21 split)
+
+**Changed (no station touched; run `active`, `data/run/` untouched):**
+- ROADMAP.md §12 M3: six code items ticked (evidence: LOG steps 2–13); the Human 12 h item stays for step 18. §5.2 milestone column: M1/M2/M3 modules ✓, `web` = M3 `/healthz` stub ✓ / M4.
+- README.md: status → phase 4, new `## Run` (`make run`, `CONFIG=`, what `serve` does), `make test` line names both coverage dirs.
+- `config.example.toml`: comments on `storage.path` (serve creates + migrates; directory must exist — no `create_dir` in `src/`) and `web.listen` (`/healthz`, pages in M4).
+
+**Done-when greps:**
+- `grep -rnE 'bluer::|use bluer' src/ | grep -v ^src/transport/bluer/` → only `src/transport/mod.rs:23-24` (`pub use self::bluer::…` re-exports).
+- `grep -rnE 'std::env::var|env::var' src/` → no hit (config is file-only).
+- `grep -c '^| H4 ' HUMAN-CHECKLIST.md` → 1.
+
+**Amendments:** A3 fixed (step 8), A17 fixed (12 h window applied), A18 re-targeted → step 18, A19 re-targeted → CF-6 (new, `loop/STATE.md`). A21 splits step 17: 17b–17e fix A4–A14, A16, A20 during the run; 17e ticks step 17. `make amendments` → 14 open (A21 + those 13).
+
+**reviewer:** batched (low-risk docs).
+**Next:** step 17b — A4 + A5 (metrics).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:25:09Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
