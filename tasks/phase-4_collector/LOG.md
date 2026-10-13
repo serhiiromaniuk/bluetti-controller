@@ -935,3 +935,45 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 17e ✓ 2026-10-13 — A12 + A13 + A14 (serve, web) + A20 (script); step 17 done
+
+**Changed (no station touched; run `active`, `data/run/` untouched):**
+- `src/cli/serve.rs` A14: `collector_done` set when the `polling` arm wins; the shutdown path skips the second `polling.await` (a finished `async fn` panics when polled again). A12: `written = writer.await` is kept, the server is stopped and awaited, then the writer `JoinError` propagates.
+- `src/web/mod.rs` A13: `/healthz` takes `max((SELECT max(ts) FROM sample WHERE station_id = s.id)) FROM station s`. EXPLAIN QUERY PLAN: `SEARCH sample USING PRIMARY KEY (station_id=?)`; the amendment's `GROUP BY station_id` form still does `SCAN sample`, so not used.
+- `scripts/acceptance_v04.py` A20: size line prints `db <n> B + wal <n> B = <n> B`; comment that per-table bytes are logical pages.
+
+**Check:**
+- A13 timing, in-memory DB, 3 × 43200 rows, 100 runs: old 4.73 ms, new 0.004 ms per query; both return 2591940. `healthz_reports_the_newest_sample_age` pins the result (null, then age 30–35 s).
+- A20 on `data/smoke.db`: `db 45056 B + wal 506792 B = 551848 B` (matches the A20 numbers).
+- A12/A14: no unit test — `serve` glue over `BluezConnect`; reachable only by a writer panic.
+- `make check` green; `make amendments` → 21 findings, all disposed.
+
+**Amendments:** A12, A13, A14, A20 fixed; A21 fixed (17a–17e done).
+
+**reviewer:** risky, before commit: INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM; EXPLAIN QUERY PLAN re-run by the reviewer.
+
+**Next:** step 18 — blocked until the 12 h ETA (start 1791904529 + 43200 = 1791947729).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:40:11Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

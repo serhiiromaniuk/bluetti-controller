@@ -83,11 +83,15 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     tokio::pin!(polling);
 
     let mut failed = None;
+    let mut collector_done = false;
     let mut server_done = false;
     tokio::select! {
         _ = sigint.recv() => tracing::info!("SIGINT, shutting down"),
         _ = sigterm.recv() => tracing::info!("SIGTERM, shutting down"),
-        () = &mut polling => failed = Some("collector stopped"),
+        () = &mut polling => {
+            failed = Some("collector stopped");
+            collector_done = true;
+        }
         result = &mut server => {
             failed = Some("web server stopped");
             server_done = true;
@@ -95,14 +99,19 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         }
     }
     // The collector ends its current poll with the disconnect and drops the
-    // record sender, so the writer drains the queue and returns.
+    // record sender, so the writer drains the queue and returns. A finished
+    // future is never polled again (it would panic).
     let _ = control.send(Control::Shutdown);
-    polling.await;
-    writer.await.context("store writer task")?;
+    if !collector_done {
+        polling.await;
+    }
+    // Kept until the server is stopped too, so a writer panic leaves no task.
+    let written = writer.await;
     if !server_done {
         let _ = stop_server.send(());
         log_server(server.await);
     }
+    written.context("store writer task")?;
     match failed {
         Some(what) => bail!("{what} unexpectedly"),
         None => {

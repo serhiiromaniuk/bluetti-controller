@@ -52,7 +52,12 @@ async fn healthz(State(db): State<Db>) -> (StatusCode, Json<Health>) {
         let conn = db
             .lock()
             .map_err(|_| anyhow::anyhow!("reader lock poisoned"))?;
-        let ts: Option<i64> = conn.query_row("SELECT max(ts) FROM sample", [], |row| row.get(0))?;
+        // Per station, so each max is one `(station_id, ts)` PK seek, not a scan.
+        let ts: Option<i64> = conn.query_row(
+            "SELECT max((SELECT max(ts) FROM sample WHERE station_id = s.id)) FROM station s",
+            [],
+            |row| row.get(0),
+        )?;
         anyhow::Ok(ts)
     })
     .await;

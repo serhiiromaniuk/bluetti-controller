@@ -78,14 +78,16 @@ def main(argv):
               f"success {pct:.2f}% (min {a.min_pct}%) {verdict} · failures: {stages}")
 
     print("\n== database size ==")
-    size = sum(os.path.getsize(f) for f in (a.db, a.db + "-wal") if os.path.exists(f))
+    db_b, wal_b = (os.path.getsize(f) if os.path.exists(f) else 0 for f in (a.db, a.db + "-wal"))
+    size = db_b + wal_b
     days = (a.to_ts - a.from_ts) / 86400
     per = size / 1e6 / max(len(stations), 1) / days
     verdict = "PASS" if per < a.max_mb else "FAIL"
     fail |= verdict == "FAIL"
-    print(f"db + wal {size} B, {len(stations)} stations, {days:.4f} days: "
+    print(f"db {db_b} B + wal {wal_b} B = {size} B, {len(stations)} stations, {days:.4f} days: "
           f"{per:.3f} MB per station-day (max {a.max_mb}) {verdict}")
     method, rows = table_bytes(con)
+    # Logical pages only: a WAL-driven overage shows in the line above, not here.
     print(f"bytes per table ({method}):")
     for name, b in rows:
         print(f"  {name}: {b}")
