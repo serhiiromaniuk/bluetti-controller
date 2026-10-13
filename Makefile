@@ -107,6 +107,9 @@ amendments:                     ## warn which deferred reviewer findings (the PL
 
 # ── Project-specific targets ──────────────────────────────────────────────
 # Added with their milestones (ROADMAP.md §12): build (M1), run (M3).
+.PHONY: build
+build:                          ## release binary: target/release/bluetti-controller
+	$(CARGO) build --release --locked
 
 .PHONY: help
 help:                           ## list targets

@@ -8,10 +8,13 @@ use std::future::Future;
 use std::time::Duration;
 
 pub mod anonymise;
+pub mod bluer;
 pub mod fixture;
 pub mod read;
 pub mod record;
 pub mod replay;
+
+pub use self::bluer::scan::scan;
 
 /// One BLE advertisement of a station, in our own types.
 #[derive(Debug, Clone, PartialEq, Eq)]

@@ -472,3 +472,66 @@ test result: ok. 61 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fin
 ```
 
 <!-- gate:end -->
+
+## Step 8 ✓ 2026-10-13 — `scan` works; the EB3A advertises ENCRYPTED (`BLUETTF`)
+
+**Changed:**
+- `src/transport/bluer/{mod,scan}.rs`: the only `bluer` code. `scan(adapter,
+  timeout)`: LE-only discovery (BlueZ has no manufacturer-data filter, so
+  company id 0x4C42 is checked client-side), keeps devices heard this run
+  (RSSI present), sorts by RSSI; whole call under `timeout + 5 s`.
+- `src/transport/mod.rs`: `pub mod bluer;` + re-export `transport::scan`, so
+  `main.rs`/`cli/` never name a `bluer` path.
+- `src/main.rs` (clap, tracing to stderr, `--config`, global `--anonymise`),
+  `src/cli/{mod,scan}.rs` (+ `scan/tests.rs`): one line per station — address,
+  name, RSSI, model, `encrypted=yes|no|unknown`; masked via `mask_macs`/`mask_name`;
+  `Makefile`: `make build` (release, locked).
+
+**Check:** `cli::scan` tests green on arrival; mutation `if !anonymise` fails
+`anonymised_line_masks_mac_and_serial`, restored → 2/2 ok. `make check` green.
+- Boundary: `grep -rn 'bluer::\|use bluer' src/` → only `src/transport/bluer/scan.rs`
+  + the `self::bluer` re-export in `src/transport/mod.rs`; `grep -rnw bluer src/`
+  outside `src/transport/` → none.
+- Hardware (`target/release/bluetti-controller scan --anonymise --timeout 15`):
+  ```
+  AA:BB:CC:00:00:00  EB3A0000000000000  -50 dBm  EB3A  encrypted=yes
+  AA:BB:CC:00:00:00  Elite 200 V20000000000000  -74 dBm  Elite200V2  encrypted=yes
+  ```
+  Cross-check `bluetoothctl info`: key 0x4C42 value is ASCII `BLUETTF` on both.
+
+**Finding — escape hatch tripped (PLAN "If the EB3A advertises BLUETTE/BLUETTF"):**
+the EB3A is encrypted; steps 9–13 cannot pass on it without the phase-3
+handshake. Owner decides the scope change (handshake into phase 2, or re-target M1).
+
+**reviewer (before commit):** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- Literal `grep -rn bluer src/` cannot list only `src/transport/bluer/`: the
+  mandated path needs `pub mod bluer;` in `transport/mod.rs`. Accepted as
+  meeting intent (no crate path outside the adapter); step 9 repeats this.
+- MEDIUM: a property-read error on any unrelated device aborts the whole scan
+  (`scan.rs:47-63`) → deferred to A8.
+
+**Carry-forward:** none
+**Next:** BLOCKED — owner decides how to read the encrypted EB3A (escape hatch).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T07:50:30Z
+
+```text
+
+test result: ok. 61 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-f1d778b563e65a98)
+
+running 2 tests
+test cli::scan::tests::unknown_station_still_prints ... ok
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
