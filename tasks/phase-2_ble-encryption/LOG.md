@@ -675,3 +675,44 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 16 ✓ 2026-10-13 — acceptance run: EB3A 20/20, Elite 200 V2 20/20
+
+**Changed:**
+- No source change. `make build` (release, `--locked`); the run script and its output live in gitignored `captures/` (`acceptance.sh`, `acceptance-<station>.log`, one `.out` per poll).
+
+**Check:**
+- Pre-flight §10.4: rfkill unblocked, adapter powered, `control.enabled = false`.
+- Each poll: `timeout -s INT -k 5 55 target/release/bluetti-controller --config config.toml --anonymise read <station>`, then sleep to the end of the 60 s slot. One process at a time, router then living-room, so no two connections overlap (golden rule #5). SIGINT on timeout lets the CLI disconnect (A20); no timeout fired.
+- `router` (EB3A, ARM 2197.02 / DSP 2196.01): 13:25:37–13:44:36 +03:00, **20/20 ok**, exit 0 each, 20–21 s per poll. soc 89→88 %, ac_output_on 1, powers 0 W. `ac_output_power` 0 W is known wrong: the outlet fed the router (~9 W) — CF-4 (owner, 468178c), open; exit 0 does not clear it.
+- `living-room` (Elite 200 V2, BMS 1068.11): 13:44:40–14:03:56 +03:00, **20/20 ok**, exit 0 each, 19–20 s (poll 1: 4 s). Polls 1–5: ~444 W AC out at 11.1–11.3 A; poll 6: 190 W / 7.2 A; polls 7–20: 0 W / 0.2 A (load switched off on site). soc 60→58 %, AC input 0 V throughout.
+- ok = exit 0, so every profile field decoded and passed `problems` (range plausibility; CF-4 is outside what a range check sees). Every `.out` ends in `disconnected`.
+- Gate (RULES.md v0.3, loop part): ≥ 19/20 per station → met for both. App comparison stays H1/H2 in `HUMAN-CHECKLIST.md`.
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM: entry claimed EB3A decoding plausible without naming CF-4 → fixed in this entry (own uncommitted text).
+
+**Decision:** none. **Carry-forward:** CF-4 still open (discharge before close). Owner 774df8f puts the AC180 (`mobile`) in scope: needs a PLAN amendment (scan/detect/read + 20-poll run) before the close. **Next:** that amendment, then step 17.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:06:00Z
+
+```text
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 2 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
