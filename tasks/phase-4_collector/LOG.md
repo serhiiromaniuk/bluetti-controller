@@ -567,3 +567,34 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 13 addendum 2026-10-13 — late reviewer finding recorded
+
+**Changed:** `PLAN.md` amendment A14 only (no code).
+- The step-13 reviewer delivered a second report after the commit: MEDIUM M1 is new and confirmed against source. `serve.rs` awaits `polling` after the select arm may already have completed it, so it panics on the writer-gone path. This becomes A14. Its M2 is the same finding as A13.
+- reviewer · missed: the first report did not include the re-await of a completed pinned future (§8b candidate for the close).
+
+**reviewer:** batched (doc-only) · **Next:** step 14.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T14:27:06Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
