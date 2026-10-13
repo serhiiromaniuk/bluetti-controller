@@ -12,7 +12,7 @@
 - Q5 — What if the AC180 is not plugged into the grid when CF-5 is checked (it is the mobile station)? · blocks: 14, 18 · answer: delegated 2026-10-13 — CF-5 is discharged on the Elite alone, and the AC180 half goes to a new `HUMAN-CHECKLIST.md` row: "plug `mobile` into the grid, then the loop or the owner runs `read mobile --anonymise`; reg 1314 ≈ 230 V, 1300 ≈ 50 Hz". Plugging a station in is a physical check (RULES.md deferred physical checks).
 
 ## Steps
-- [ ] 1. Design record for M3 (spec §5.3, spec §5.4, spec §5.5, spec §6, spec §7) (needs Q3, Q4). This is doc-only and settles in ROADMAP.md what §6/§7 leave open (RULES.md decision process):
+- [x] 1. Design record for M3 (spec §5.3, spec §5.4, spec §5.5, spec §6, spec §7) (needs Q3, Q4). This is doc-only and settles in ROADMAP.md what §6/§7 leave open (RULES.md decision process):
   - (a) Migrations are embedded `migrations/NNN_*.sql` files, versioned by `PRAGMA user_version`, with no migration crate.
   - (b) A poll's core fields go to `sample` and every other decoded field to `sample_extra`. A poll with any `problems` becomes `poll_failure` stage `decode` (Q4). Stages are `discover|connect|handshake|read|decode`.
   - (c) `unreachable` is derived: the station's newest 3 poll results are all failures. It needs no schema change.
@@ -164,3 +164,4 @@
 - Gate failures — `src/protocol/` or `src/metrics/` coverage < 80 %, or a station < 95 % polls, or the DB ≥ 10 MB per station-day: `<<LOOP:GATE_FAILED>>`. Fix the work, never the threshold; a wrong metric goes only through the falsified-metric path (AGENTS.md §6).
 
 ## Amendments
+- A1 · 2026-10-13 · MEDIUM `ROADMAP.md` §5.4 per-round budget — the 20 s per-poll deadline is shorter than one timed-out connect attempt plus cleanup and backoff (15 + 5 + 2 s), so `connect_attempts = 3` never retries a timed-out connect; step 10 must derive the per-attempt connect timeout from the deadline (e.g. `min(connect_timeout, deadline / attempts)`) or state that the deadline replaces timeout retries, and record which in ROADMAP §5.4 · disposition: open

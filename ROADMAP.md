@@ -624,6 +624,33 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
 7. Decode → `Sample` (core metrics + extras) → store. On failure → `poll_failure`
    row with the stage that failed.
 
+**M3 decisions (phase 4, 2026-10-13):**
+- *Stages.* `discover` (the `find` step) · `connect` · `handshake` (told apart
+  from `connect` by the error's typed source) · `read` · `decode`. A poll whose
+  decode reports any `problems` (missing or implausible field) is a `decode`
+  failure with the problems as its error, and stores **no** sample — the v0.3
+  gate counted a poll OK only when every field was present and plausible.
+  Recommendation: keep it strict; a half-valid sample would feed §7 bad input.
+- *Per-round budget.* A round of n stations must fit one interval. Measured
+  healthy poll: 4.0–5.0 s (EB3A, Elite, 2026-10-13). `find` takes the BlueZ
+  cache, else scans and fails before `connect` when the station is not seen.
+  A failed connect attempt costs 15 s + ≤ 5 s cleanup disconnect, with backoff
+  2 s then 4 s between attempts. So a station that does not answer costs:
+  in the cache, 3 × (15 + 5) + 2 + 4 = 66 s; not cached and not advertising,
+  scan 15 s + 5 s D-Bus margin = 20 s (then `discover` fails); not cached but
+  advertising, 20 + 66 = 86 s. 66–86 s > 60 s, so one silent station would cost
+  the others their tick. Recommendation: every poll runs under a deadline of
+  `poll_interval_secs / n_stations` (60 / 3 = 20 s, 4× a healthy poll). A
+  fired deadline can cancel `connect` mid-attempt or after the link is up but
+  before a GATT handle exists, so after **every** poll — success, error or
+  deadline — the collector also disconnects the device by address through a
+  `transport` call (bounded by `request_timeout_secs`, outside the deadline):
+  no link outlives its poll (golden rule #5). A station already `unreachable`
+  (§5.5) gets 1 connect attempt (≤ 15 + 5 s plus the cache lookup) and no
+  fresh scan.
+  Worst round: 3 × 20 s = 60 s = one interval; a round that still overruns
+  skips the missed ticks (ticks at `start + k × interval`), never bursts.
+
 ### 5.5 Error handling
 
 - Transport errors are retried inside the poll; a failed poll is recorded, never
@@ -632,6 +659,9 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
 - CRC/length errors are logged with the frame hex (MAC/SN masked) for debugging.
 - A handshake failure is surfaced in the UI as "encryption failed — firmware
   change?" (§13 R2).
+- *M3:* `unreachable` is derived, not stored: the station's newest 3 poll
+  results (samples and failures by `ts`) are all failures. A sample clears it.
+  Recommendation: no schema change; one indexed query per station.
 
 ---
 
@@ -718,6 +748,32 @@ of MB.
 `rollup_5m`, delete them; delete `register_snapshot` older than 90 days;
 `poll_failure` older than 90 days. Events are kept forever.
 
+**M3 decisions (phase 4, 2026-10-13)** — these refine the text above:
+- *Migrations.* Embedded `migrations/NNN_*.sql` files (`include_str!`), applied
+  in order inside one transaction each, versioned by `PRAGMA user_version`.
+  Recommendation: no migration crate; the schema is small and single-writer.
+- *Sample split.* The six core fields go to `sample`; every other decoded field
+  goes to `sample_extra` under its `Metric::key()` (§7.5). A failed decode is
+  a `poll_failure` only (§5.4). Recommendation: keep `sample` narrow and fixed;
+  new fields need no migration.
+- *Rollup and retention.* Each completed 5-minute bucket is rolled up within the
+  next bucket, not after 30 days; the open current bucket never is. Progress =
+  `max(rollup_5m.ts)` per station, and the `(station_id, ts)` primary key makes a
+  repeat run a no-op, so a restart never double-counts. The nightly retention
+  job deletes raw `sample`/`sample_extra` rows older than `raw_retention_days`
+  only once their bucket is rolled up; `register_snapshot` and `poll_failure`
+  after 90 days; `grid_event` never. `wal_checkpoint(TRUNCATE)` + `optimize`
+  weekly. Recommendation: early rollups keep the M4 charts cheap and make
+  rollup progress the only persisted cursor.
+- *Restart.* Grid state is rebuilt from the open `grid_event` rows plus each
+  station's last `debounce_samples` samples. An open event stays open through
+  `unknown` and ends only when grid is seen again, backdated as in §7.1.
+  Recommendation: no extra state table; the event rows are the state.
+- *Snapshots.* The first successful poll of each UTC hour stores every profile
+  block as one `register_snapshot` row per block (big-endian u16 data).
+  Recommendation: hourly is enough to decode new fields later at ~24 rows per
+  block per day.
+
 ---
 
 ## 7. Derived metrics
@@ -739,6 +795,11 @@ of MB.
 - If all sensors are unreachable, the house state is `unknown`.
 - Precision = poll interval; stored with each event.
 - Daily/weekly totals: number of outages, total hours without power, longest.
+- *M3:* the house outage log, its totals, the runtime forecast (§7.3) and the
+  daily energy totals (§7.4) are pure functions over a window given as unix
+  seconds `[from, to)`; an open event is clipped to `to`. They hold no state to
+  persist. Local-day bounds from `general.timezone` arrive with the M4 energy
+  table. Recommendation: no timezone crate in M3; nothing in M3 renders a day.
 
 ### 7.3 Runtime forecast
 
@@ -770,6 +831,10 @@ runtime_h   = remaining_wh / max(load_w, 1)
 - **Self-consumption / losses** ≈ `energy_in − energy_out − Δstored` — what UPS
   mode costs per day.
 - Cross-check with the V2 lifetime energy counters (regs 150–159) once verified.
+- *M3:* a segment between two consecutive samples counts toward the 5-minute
+  bucket (and the day) of its **later** sample. A gap > 3 intervals adds no
+  energy and counts as missing coverage. Recommendation: one rule for rollups
+  and daily totals, so the two always agree.
 
 ### 7.5 Extra telemetry
 
@@ -803,7 +868,7 @@ runtime_h   = remaining_wh / max(load_w, 1)
 | GET | `/api/energy?days=7` | daily energy per station |
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |
 | POST | `/api/polling/pause?minutes=N` | pause polling (token if configured) |
-| GET | `/healthz` | liveness + last successful poll age |
+| GET | `/healthz` | liveness + last successful poll age: JSON `{status, last_poll_age_s}`, 200 while the process runs (`last_poll_age_s` null before the first poll); recommended over 503-on-stale so a slow BLE round never restarts the process |
 
 ### 8.3 Constraints
 
