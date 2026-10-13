@@ -15,7 +15,7 @@ row becomes a fix task.
 ## Owner observations (for the loop's plausibility checks)
 
 - 2026-10-13 ~12:00–13:00: grid outage. AC input 0 V on both stations is
-  correct. The Elite 200 V2 ~445 W output is the owner's PS5 and TV. The EB3A
+  correct. The Elite 200 V2 ~445 W output is the owner's PS5 load. The EB3A
   powers only the router on its AC outlet (~9 W expected), yet `read router`
   showed every power at 0 W: check the EB3A AC output power register
   (unverified map, or a low-load floor), before H1.
