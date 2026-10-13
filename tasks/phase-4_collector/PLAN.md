@@ -40,20 +40,20 @@
   - TDD with hand-computed timestamps: flapping on/off/on never flips; debounce 2 backdates; a gap gives `Unknown`, then recovers.
   - `Makefile` `COV_FILTER` checks `src/protocol/` and `src/metrics/` each ≥ `COV_MIN`, printing one line per directory, and errors when a directory has no files.
   - check: `cargo test metrics::grid`; `make check` prints both coverage lines ≥ 80%; a scratch `make test COV_MIN=101` fails naming a directory (LOG) · review: risky (Makefile gate)
-- [ ] 5. [parallel: A] House outage log (spec §7.2) (needs Q3) in `src/metrics/house.rs`. Only sensor stations vote.
+- [x] 5. [parallel: A] House outage log (spec §7.2) (needs Q3) in `src/metrics/house.rs`. Only sensor stations vote.
   - Unknown when every sensor is unknown or unreachable.
   - An outage starts when every reachable sensor has no grid, and ends when any sensor has grid. The precision is the poll interval.
   - `totals(events, from, to)` returns the count, the total seconds without power and the longest outage. An open event is clipped to `to`.
   - TDD with hand-computed values: one sensor unreachable while the other has no grid → outage; both unreachable → unknown with no new event; flapping sensor input.
   - check: `cargo test metrics::house` · review: risky
-- [ ] 6. [parallel: A] Runtime forecast (spec §7.3, spec §4.3) in `src/metrics/runtime.rs`.
+- [x] 6. [parallel: A] Runtime forecast (spec §7.3, spec §4.3) in `src/metrics/runtime.rs`.
   - The load is an EWMA of `ac_out_w + dc_out_w` over irregular samples, with `α = 1 − e^(−Δt/600)`.
   - `remaining_wh = capacity × soc / 100 × usable_factor`, and `runtime_h = remaining_wh / max(load, 1)`.
   - Low-load floor: when the station discharges (SOC falling, or no grid) and its outputs read 0 W, the load comes from the SOC slope over ≥ 2 SOC steps. Otherwise the result is `Unknown`, never the 1 W floor.
   - On battery the result is "until ts"; on grid it is "if the power goes now".
   - TDD with hand-computed values, including 268.8 Wh at 89 → 87 % over 38 min ≈ 8.5 W.
   - check: `cargo test metrics::runtime` · review: risky
-- [ ] 7. [parallel: A] Energy accounting (spec §7.4) (needs Q3) in `src/metrics/energy.rs`.
+- [x] 7. [parallel: A] Energy accounting (spec §7.4) (needs Q3) in `src/metrics/energy.rs`.
   - Trapezoid integration of the AC + DC input and output power. A gap > 3 intervals is skipped and reported as missing coverage.
   - `Δstored_wh = capacity × Δsoc / 100`, and losses = in − out − Δstored, labelled an estimate.
   - `rollup(samples, bucket)` gives the `rollup_5m` row values (averages, minimum SOC, energy in/out, n), with the segment attribution of step 1 e.
@@ -167,3 +167,5 @@
 - A1 · 2026-10-13 · MEDIUM `ROADMAP.md` §5.4 per-round budget — the 20 s per-poll deadline is shorter than one timed-out connect attempt plus cleanup and backoff (15 + 5 + 2 s), so `connect_attempts = 3` never retries a timed-out connect; step 10 must derive the per-attempt connect timeout from the deadline (e.g. `min(connect_timeout, deadline / attempts)`) or state that the deadline replaces timeout retries, and record which in ROADMAP §5.4 · disposition: open
 - A2 · 2026-10-13 · MEDIUM `src/store/write.rs:232` — `station_health` cuts at `max(sample.ts)`, but retention (step 1 d) purges raw samples after 30 days while `poll_failure` stays 90 days: a station silent > 30 days falls back to cutoff -1 and `since` predates its real unreachable start; step 9 must fall back to `max(rollup_5m.ts) + 299` (rollups kept forever) or retention must keep each station's newest sample · disposition: open
 - A3 · 2026-10-13 · MEDIUM `src/metrics/grid.rs:105` — with `debounce = 1`, a sample after a gap returns only the new state's change; the `Unknown` change from the internal `tick(ts)` is lost and `state()` never shows it. The house vote (step 5) and the writer (step 8) must call `tick(ts)` before `observe(ts, …)` (documented on `observe`) or `observe` returns both changes; step 8 tests it · disposition: open
+- A4 · 2026-10-13 · MEDIUM `src/metrics/energy.rs:95` — Δsoc is added only for segments where both samples carry SOC, so one SOC-less sample mid-run (89, None, 87) drops the whole change: `stored_delta_wh` = 0 and the losses estimate is off by capacity × 2 / 100. Carry the last seen SOC forward within a gap-free run, with a test (before step 9 uses `rollup`/`totals`) · disposition: open
+- A5 · 2026-10-13 · MEDIUM `src/metrics/runtime.rs:133` — after the H1 fix a slope needs three observed SOC levels: a window starting mid-fall (89 at the edge → 88 → 87) or one 2-point jump (90, 88) is now `Unknown`, so the first outage forecast comes one SOC step later (~19 min on the EB3A at 8.5 W). Safe, but no test pins it: add one asserting `Unknown` for the 89/88/87-from-window-edge case · disposition: open

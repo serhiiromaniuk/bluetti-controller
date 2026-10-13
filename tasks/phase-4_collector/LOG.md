@@ -250,3 +250,65 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 5 ✓ 2026-10-13 — house outage log (group A, worktree branch)
+
+**Changed:** `src/metrics/house.rs` + `house/tests.rs` (commit 652b791).
+- `vote(&[GridState])`: any `Present` → `Power`, else any `Absent` → `Outage`, else `Unknown`; an unreachable sensor is passed as `Unknown` (no vote).
+- `House::new(precision_s, open)` (open = restored open `grid_event` start); `update(&[(GridState, since)])` → opened (`end: None`) or closed `Event`; start = latest `since` of non-`Present` sensors, end = earliest `since` of `Present` sensors, never before start; an open outage stays open through `Unknown` (§6 Restart); unknown with no open outage → no event.
+- `totals(events, from, to)` → `{count, seconds_without_power, longest_s}` over events overlapping `[from, to)`, clipped; open event ends at `to` (Q3).
+- A3: `update` takes each sensor's `Grid::state()`, never `observe`'s return; contract documented on `update` (tick or observe every sensor each round first).
+
+**Check:** failing first on stubs, 0/7 — `house/tests.rs:73 left: None, right: Some(Event { start: 120, end: None, precision_s: 60 })`; then 7/7 pass (one sensor unreachable + other no grid → outage 120–360; both unreachable → unknown, no event; restart resume; flapping via real `Grid` debounce 2 → no event; totals clipping).
+
+**Next:** steps 6, 7 (same group).
+
+## Step 6 ✓ 2026-10-13 — runtime forecast with low-load floor (group A)
+
+**Changed:** `src/metrics/runtime.rs` + `runtime/tests.rs` (commit e8fe9f2). `forecast(samples, capacity_wh, usable_factor, GridState) -> Forecast {Unknown, OnBattery{load_w, remaining_wh, runtime_h, until_ts}, OnGrid{…}}`; samples `&[(i64, &BTreeMap<Metric, f64>)]`, oldest first.
+- EWMA `α = 1 − e^(−Δt/600)`; `until_ts` counted from the newest SOC sample (no `now` param); grid `Unknown` → `Unknown`.
+- Outputs read 0 W = newest `ac_out + dc_out ≤ 0`; then load = SOC slope over the trailing non-rising SOC run with drop ≥ 2 points (span to the first sample at the newest level), else `Unknown`. The 1 W floor applies only to a nonzero newest load.
+
+**Check:** failing first 5/8 — `runtime/tests.rs:107 expected OnBattery, got Unknown`; then 8/8 pass, incl. 268.8 Wh 89 → 87 % over 2280 s = 8.488421 W, 23.4175 h; EWMA 100/200/50 W uneven Δt = 118.6666 W; charging 90 → 85 → 87 → `Unknown`.
+
+**Next:** step 7 (same group).
+
+## Step 7 ✓ 2026-10-13 — energy totals and rollup values (group A)
+
+**Changed:** `src/metrics/energy.rs` + `energy/tests.rs` (commit d4886f4). `BUCKET_S = 300`; `totals(samples, interval_s, capacity_wh, from, to) -> Totals{energy_in_wh, energy_out_wh, stored_delta_wh, losses_estimate_wh, missing_s}`; `rollup(samples, interval_s, bucket) -> Option<Rollup>` (§6 `rollup_5m` columns); both on one `integrate` helper.
+- Segment counts when its later sample is in the window (step 1 e); caller passes the sample just before it. Gap `dt > 3 × interval` adds no energy/SOC, full `dt` → `missing_s`. Δsoc = Σ over counted segments. Missing power = 0 W; `soc_*` over samples with SOC.
+
+**Check:** failing first on `todo!()` stubs (`energy.rs:39 not yet implemented`); then 10/10 pass: 100 W × 10 min = 16.667 Wh; ramp 0→120 W = 2 Wh; 240 s gap missing, 180 s counted; bucket-crossing segment → later bucket; losses 100 − 50 − 20 = 30.
+
+**Group gate:** `loop/merge-gate.sh` on the 3 branches → green together: protocol 99.82 %, metrics 98.93 %. Branches cherry-picked onto main. Shell needed `PATH=$HOME/.cargo/bin`; `.claude/worktrees/` added to `.git/info/exclude` (local only).
+
+**Group review (reviewer, one batched pass over 652b791..d4886f4):** INTENT satisfied ×3; no creep, no cross-file contradiction, metrics pure; 0 CRITICAL / 1 HIGH / 1 MEDIUM.
+- HIGH H1 `runtime.rs:127` — Δt started at the first sample of the run's top plateau, so an idle on-grid plateau before the fall diluted the slope (10 h flat + 89 → 87 in 38 min → ~0.5 W, runtime ~17× long). Verified in source → fixed: Δt now runs between observed downward transitions (top plateau skipped). New test `idle_on_grid_plateau_does_not_dilute_the_soc_slope` failed on the old code, passes now; the 8.5 W and 60 W tests gained the preceding higher sample (the old windows began at an edge plateau); 9/9 pass. Fix re-reviewed (second pass, fix only).
+- MEDIUM M1 `energy.rs:95` SOC-less sample drops Δsoc → deferred to amendment A4.
+- Fix re-review: 0 CRITICAL / 0 HIGH / 1 MEDIUM (three SOC levels now needed; untested edge) → deferred to amendment A5.
+- A3 honoured by step 5's `update` contract (reviewer confirmed `house.rs:77-80`).
+
+**Next:** step 8 — store writer task.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T12:44:57Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ff3da3329bfc40c0)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

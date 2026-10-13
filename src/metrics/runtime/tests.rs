@@ -89,7 +89,9 @@ fn tiny_nonzero_load_uses_the_one_watt_floor() {
 fn zero_watt_outputs_take_the_load_from_the_soc_slope() {
     // EB3A outage: 268.8 Wh × (89 − 87) / 100 = 5.376 Wh over 38 min = 0.63333 h → 8.48842 W
     // remaining = 268.8 × 87 / 100 × 0.85 = 198.7776 Wh → 23.4175 h; until = 2280 + 84303 = 86583
+    // Δt starts at the observed fall 90 → 89 (t=0), not at the 90 plateau.
     let rows = vec![
+        (-600, sample(Some(90.0), 0.0, 0.0)),
         (0, sample(Some(89.0), 0.0, 0.0)),
         (600, sample(Some(89.0), 0.0, 0.0)),
         (1140, sample(Some(88.0), 0.0, 0.0)),
@@ -114,9 +116,10 @@ fn zero_watt_outputs_take_the_load_from_the_soc_slope() {
 
 #[test]
 fn soc_slope_ends_at_the_first_sample_of_the_current_level() {
-    // 90 at t=0, 88 first at t=1200, still 88 at t=1800: slope over 1200 s, not 1800 s.
+    // Fall to 90 at t=0, 88 first at t=1200, still 88 at t=1800: slope over 1200 s, not 1800 s.
     // 1000 × 2 / 100 / (1200 / 3600) = 60 W
     let rows = vec![
+        (-600, sample(Some(91.0), 0.0, 0.0)),
         (0, sample(Some(90.0), 0.0, 0.0)),
         (1200, sample(Some(88.0), 0.0, 0.0)),
         (1800, sample(Some(88.0), 0.0, 0.0)),
@@ -126,6 +129,25 @@ fn soc_slope_ends_at_the_first_sample_of_the_current_level() {
         panic!("expected OnGrid, got {got:?}");
     };
     approx(load_w, 60.0);
+}
+
+#[test]
+fn idle_on_grid_plateau_does_not_dilute_the_soc_slope() {
+    // 10 h flat at 90 on grid, then the outage: 89 at 36060, 87 first at 38340.
+    // Δt = 2280 s (not 38340 s): 268.8 × 2 / 100 / 0.63333 h = 8.48842 W
+    let rows = vec![
+        (0, sample(Some(90.0), 0.0, 0.0)),
+        (36000, sample(Some(90.0), 0.0, 0.0)),
+        (36060, sample(Some(89.0), 0.0, 0.0)),
+        (36660, sample(Some(89.0), 0.0, 0.0)),
+        (37200, sample(Some(88.0), 0.0, 0.0)),
+        (38340, sample(Some(87.0), 0.0, 0.0)),
+    ];
+    let got = forecast(&view(&rows), 268.8, 0.85, GridState::Absent);
+    let Forecast::OnBattery { load_w, .. } = got else {
+        panic!("expected OnBattery, got {got:?}");
+    };
+    approx(load_w, 8.488421);
 }
 
 #[test]

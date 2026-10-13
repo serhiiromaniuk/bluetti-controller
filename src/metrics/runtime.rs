@@ -114,12 +114,14 @@ fn soc_points(samples: &[(i64, &BTreeMap<Metric, f64>)]) -> Vec<(i64, f64)> {
 /// - **SOC falling** = the run of SOC samples ending at the newest one in
 ///   which SOC never rises (a rise anywhere ends the run, so a fall that
 ///   charging has since reversed does not count).
-/// - **≥ 2 SOC steps** = the run's first SOC minus the newest SOC is ≥ 2
+/// - Δt is measured between observed downward transitions: from the first
+///   sample below the run's top level to the first sample at the newest
+///   level. The top plateau is skipped, because its start was a rise or the
+///   window edge, never a fall (an idle on-grid plateau must not dilute Δt).
+/// - **≥ 2 SOC steps** = the SOC at Δt's start minus the newest SOC is ≥ 2
 ///   percentage points.
-/// - Δt runs from the run's first sample to the first sample at the newest
-///   SOC level (transition to transition; time spent since is not counted).
 ///
-/// `None` when the run has fewer than 2 steps or Δt ≤ 0.
+/// `None` when that drop is under 2 steps or Δt ≤ 0.
 fn soc_slope_w(samples: &[(i64, &BTreeMap<Metric, f64>)], capacity_wh: f64) -> Option<f64> {
     let points = soc_points(samples);
     let &(_, latest) = points.last()?;
@@ -127,9 +129,11 @@ fn soc_slope_w(samples: &[(i64, &BTreeMap<Metric, f64>)], capacity_wh: f64) -> O
     while start > 0 && points[start - 1].1 >= points[start].1 {
         start -= 1;
     }
-    let (t0, top) = points[start];
-    let (t1, _) = *points[start..].iter().find(|(_, soc)| *soc == latest)?;
-    let drop = top - latest;
+    let top = points[start].1;
+    let from = start + points[start..].iter().position(|&(_, soc)| soc < top)?;
+    let (t0, high) = points[from];
+    let (t1, _) = *points[from..].iter().find(|(_, soc)| *soc == latest)?;
+    let drop = high - latest;
     let dt_h = (t1 - t0) as f64 / 3600.0;
     (drop >= 2.0 && dt_h > 0.0).then(|| capacity_wh * drop / 100.0 / dt_h)
 }
