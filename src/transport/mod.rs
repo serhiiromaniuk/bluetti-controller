@@ -20,7 +20,7 @@ pub mod record;
 pub mod replay;
 pub mod station;
 
-pub use self::bluer::gatt::{BluerGatt, connect, find, find_cached, release};
+pub use self::bluer::gatt::{BluerGatt, connect, find, release};
 pub use self::bluer::scan::scan;
 pub use self::crypto::CryptoGatt;
 pub use self::link::{HandshakeFailed, Link, open};

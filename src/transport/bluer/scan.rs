@@ -2,6 +2,7 @@
 
 use std::time::Duration;
 
+use ::bluer::Address;
 use anyhow::{Context, bail};
 
 use crate::protocol::device::COMPANY_ID;
@@ -12,11 +13,28 @@ use crate::transport::anonymise::mask_macs;
 /// ends (golden rule #5).
 const DBUS_MARGIN: Duration = Duration::from_secs(5);
 
+/// How often [`scan_for`] checks whether its station has been heard.
+const HEARD_POLL: Duration = Duration::from_millis(250);
+
 /// Runs an LE discovery on `adapter` (e.g. `hci0`) for `timeout` and returns
 /// every device currently in range that advertises manufacturer data under
 /// [`COMPANY_ID`], strongest signal first.
 pub async fn scan(adapter: &str, timeout: Duration) -> anyhow::Result<Vec<Advert>> {
     tokio::time::timeout(timeout + DBUS_MARGIN, discover(adapter, timeout))
+        .await
+        .with_context(|| format!("scan on {adapter} did not finish within {timeout:?}"))?
+}
+
+/// Runs an LE discovery on `adapter` until the station at `address` is heard
+/// with manufacturer data under [`COMPANY_ID`], at most `timeout`; `None` when
+/// it is not. BlueZ drops a station it no longer hears from its cache ~30 s
+/// after a disconnect, so a 60 s poll usually finds it here, not in the cache.
+pub(super) async fn scan_for(
+    adapter: &str,
+    address: Address,
+    timeout: Duration,
+) -> anyhow::Result<Option<Advert>> {
+    tokio::time::timeout(timeout + DBUS_MARGIN, listen_for(adapter, address, timeout))
         .await
         .with_context(|| format!("scan on {adapter} did not finish within {timeout:?}"))?
 }
@@ -39,7 +57,8 @@ pub(super) async fn advert_of(device: &::bluer::Device) -> ::bluer::Result<Optio
     }))
 }
 
-async fn discover(adapter_name: &str, timeout: Duration) -> anyhow::Result<Vec<Advert>> {
+/// `adapter_name`, powered, with an LE-only discovery filter.
+async fn le_adapter(adapter_name: &str) -> anyhow::Result<::bluer::Adapter> {
     let session = ::bluer::Session::new()
         .await
         .context("cannot reach bluetoothd over D-Bus")?;
@@ -50,13 +69,41 @@ async fn discover(adapter_name: &str, timeout: Duration) -> anyhow::Result<Vec<A
         bail!("Bluetooth adapter {adapter_name} is powered off");
     }
     // BlueZ cannot filter on manufacturer data, so the filter is LE-only and
-    // the company id is checked below.
+    // the company id is checked by `advert_of`.
     adapter
         .set_discovery_filter(::bluer::DiscoveryFilter {
             transport: ::bluer::DiscoveryTransport::Le,
             ..Default::default()
         })
         .await?;
+    Ok(adapter)
+}
+
+async fn listen_for(
+    adapter_name: &str,
+    address: Address,
+    timeout: Duration,
+) -> anyhow::Result<Option<Advert>> {
+    let adapter = le_adapter(adapter_name).await?;
+    let _events = adapter.discover_devices().await?;
+    let device = adapter.device(address)?;
+    let until = tokio::time::Instant::now() + timeout;
+    loop {
+        // Unknown to BlueZ reads as an error; an RSSI means heard in this discovery.
+        if let Ok(Some(advert)) = advert_of(&device).await
+            && advert.rssi.is_some()
+        {
+            return Ok(Some(advert));
+        }
+        if tokio::time::Instant::now() >= until {
+            return Ok(None);
+        }
+        tokio::time::sleep(HEARD_POLL).await;
+    }
+}
+
+async fn discover(adapter_name: &str, timeout: Duration) -> anyhow::Result<Vec<Advert>> {
+    let adapter = le_adapter(adapter_name).await?;
     // Discovery runs while `_events` lives; properties are read before it
     // stops, because BlueZ drops the RSSI of devices no longer seen.
     let _events = adapter.discover_devices().await?;

@@ -646,8 +646,15 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
   deadline — the collector also disconnects the device by address through a
   `transport` call (bounded by `request_timeout_secs`, outside the deadline):
   no link outlives its poll (golden rule #5). A station already `unreachable`
-  (§5.5) gets 1 connect attempt (≤ 15 + 5 s plus the cache lookup) and no
-  fresh scan.
+  (§5.5) gets 1 connect attempt (≤ 15 + 5 s plus the find).
+  *Smoke finding (phase-4 step 14, 2026-10-13):* BlueZ drops a station it no
+  longer hears from its cache ~30 s after the disconnect (`TemporaryTimeout`),
+  so at a 60 s interval the EB3A was never cached, every poll ran the full
+  15 s scan and took ~20 s: 3 of 16 polls hit the deadline. Recommendation:
+  the scan in `find` ends as soon as the station is heard (≤ 15 s, ~1–2 s
+  when advertising), so an uncached poll costs ~6–7 s; an `unreachable`
+  station scans too, else one dropped from the cache never recovers. The
+  deadline still bounds both.
   Worst round: 3 × 20 s = 60 s = one interval; a round that still overruns
   skips the missed ticks (ticks at `start + k × interval`), never bursts.
   The deadline, not `connect_attempts`, bounds a connect that times out: one

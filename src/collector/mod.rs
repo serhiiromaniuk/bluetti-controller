@@ -47,7 +47,7 @@ pub trait Connect {
     /// channel and whether it is encrypted. `stage` starts at
     /// [`Stage::Discover`]; the call moves it as it gets further, so a failure
     /// or a fired deadline names where the poll stopped. `retry: false` is a
-    /// station already unreachable: no fresh scan, one connect attempt (§5.4).
+    /// station already unreachable: one connect attempt (§5.4).
     fn open(
         &self,
         station: &StationConfig,

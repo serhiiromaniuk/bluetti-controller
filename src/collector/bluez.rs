@@ -27,12 +27,9 @@ impl Connect for BluezConnect {
         stage: &mut Stage,
     ) -> Result<(Link, bool), String> {
         let text = |err: anyhow::Error| mask_macs(&format!("{err:#}"));
-        let found = if retry {
-            transport::find(&self.ble, &station.address).await
-        } else {
-            transport::find_cached(&self.ble, &station.address).await
-        };
-        let advert = found.map_err(text)?;
+        let advert = transport::find(&self.ble, &station.address)
+            .await
+            .map_err(text)?;
         let advertised = advert.name.as_deref().and_then(Model::from_ble_name);
         if let Some(model) = advertised
             && model != station.model

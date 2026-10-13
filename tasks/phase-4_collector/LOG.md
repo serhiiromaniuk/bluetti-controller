@@ -598,3 +598,52 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 14a ✓ 2026-10-13 — smoke 1 failed on the EB3A (13/16); uncached `find` fixed (A15)
+
+**Smoke 1** (`bluetti-smoke`, 1791901716 + 16 min, release build, `data/smoke.toml`):
+- §10.4 pre-flight: adapter powered, rfkill unblocked, `control.enabled = false`; app force-quit not verifiable by the loop (phones are the owner's).
+- `systemd-run --user … systemd-inhibit --what=sleep:idle` accepted (listed by `systemd-inhibit --list`): no polkit prompt, so no Q2 H-row; step 15 uses this form.
+- `/healthz` 200 at start (`null`), +2 min (`51`), +16 min (`48`). Stop: SIGTERM → `stopped`, unit `Stopped` (not failed), 6.3 MB peak.
+- Samples / failures: living-room 16 / 0, mobile 16 / 0, router 13 / 3 (`read`, "no result within the 20s poll deadline", at +120, +180, +900 s). Router **fails** the ≥ 14 check.
+- `bluetoothctl info`: `Connected: no` on all 3. `register_snapshot` 10 rows, `grid_event` 0.
+- CF-5 (EB3A `ac_in_v` 218–220 V, grid on): Elite `ac_in_v` 221.5–224.6 V, AC180 218.3–221.4 V; `ac_input_frequency` 49.9–50.0 Hz on both (16 samples each). Scales right; CF-5 AC180 half recorded in `loop/STATE.md`; H5 stays the owner's.
+
+**Cause:** every router poll took ~20 s (next station's `ts` = router `ts` + 20 in all 13 rounds). Debug `read router` 60 s apart: "station not in the BlueZ cache, scanning", then the full 15 s `discover` sleep; 20.0 s per read. BlueZ drops the unpaired EB3A ~30 s after the disconnect (`TemporaryTimeout`).
+
+**Changed (14a, amendment A15):**
+- `src/transport/bluer/scan.rs`: `scan_for(adapter, address, timeout)` — discovery until the station is heard (manufacturer data + RSSI, checked every 250 ms), ≤ timeout + D-Bus margin; `le_adapter` shared with `discover`.
+- `src/transport/bluer/gatt.rs`: `find` uses `scan_for` on a cache miss; `find_cached` removed (`transport/mod.rs`).
+- `src/collector/{bluez,mod}.rs`: always `find`; `unreachable` keeps 1 connect attempt but scans, else a station dropped from the cache never recovers.
+- `ROADMAP.md` §5.4: the finding and the recommendation.
+
+**Check:** uncached `read router` (60 s apart, "scanning" logged): 20.5 / 20.0 / 20.0 s before → 6.0 / 5.0 s after; cached 5.0–6.0 s both ways. `make check` green. No unit test: bluer code has no fake (adapter boundary); 14b's re-smoke is the proof.
+
+**reviewer:** INTENT partial by design (14b re-smokes), no creep · 0 CRITICAL / 0 HIGH / 1 MEDIUM; batch also covers 10e523d (A14, doc-only).
+- MEDIUM `scan_for` swallows `advert_of` errors → amendment A16.
+
+**Decision:** ROADMAP §5.4 — `find` scans until heard; `unreachable` stations scan too · **Carry-forward:** CF-5 AC180 half observed (STATE)
+**Next:** step 14b — re-run the smoke as written (A15).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T14:55:33Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

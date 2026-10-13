@@ -12,7 +12,7 @@ use ::bluer::gatt::{CharacteristicReader, WriteOp};
 use ::bluer::{Address, Device, Session, Uuid};
 use anyhow::{Context, anyhow};
 
-use super::scan::{advert_of, scan};
+use super::scan::{advert_of, scan_for};
 use crate::config::BleConfig;
 use crate::transport::anonymise::mask_macs;
 use crate::transport::{Advert, Gatt, TransportError};
@@ -39,7 +39,8 @@ pub struct BluerGatt {
 }
 
 /// Finds the station at `address` (`XX:XX:XX:XX:XX:XX`): BlueZ's device cache
-/// first, then a scan of `connect_timeout_secs`.
+/// first, then a scan that ends once the station is heard, at most
+/// `connect_timeout_secs`.
 pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
     let parsed = parse_address(address)?;
     let timeout = Duration::from_secs(ble.connect_timeout_secs.get());
@@ -47,25 +48,14 @@ pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
         return Ok(advert);
     }
     tracing::debug!("station not in the BlueZ cache, scanning");
-    scan(&ble.adapter, timeout)
+    scan_for(&ble.adapter, parsed, timeout)
         .await?
-        .into_iter()
-        .find(|advert| advert.address == parsed.to_string())
         .ok_or_else(|| {
             anyhow!(
                 "station not found within {timeout:?}: out of range, or the official app \
                  is connected (ROADMAP.md §4.6)"
             )
         })
-}
-
-/// [`find`] without the scan: BlueZ's device cache only, for a station
-/// already unreachable (§5.4 per-round budget).
-pub async fn find_cached(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
-    let timeout = Duration::from_secs(ble.connect_timeout_secs.get());
-    cached(&ble.adapter, parse_address(address)?, timeout)
-        .await?
-        .ok_or_else(|| anyhow!("station not in the BlueZ cache"))
 }
 
 /// Disconnects `address` whatever handle a cancelled poll left behind, and
