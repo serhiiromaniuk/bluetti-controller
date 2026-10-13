@@ -2,6 +2,7 @@ use std::num::NonZeroU32;
 use std::time::Duration;
 
 use super::*;
+use crate::protocol::device::Model;
 use crate::protocol::modbus::read_request;
 use crate::transport::fixture::{FixtureAdvert, FrameRecord};
 use crate::transport::read::{ReadPolicy, read_block};
@@ -211,4 +212,43 @@ fn notification_without_a_read_request_is_refused() {
         anonymise_fixture(&orphan),
         Err(FixtureError::Unmaskable { index: 0 })
     ));
+}
+
+#[test]
+fn late_reply_after_an_unanswered_serial_request_is_refused() {
+    // The first request times out; its reply arrives after a second request of
+    // the same count, which would mask it at the wrong registers.
+    let late = response(&block(10, 40, 17));
+    let original = fixture(
+        "EB3A2235000012345",
+        &[write(10, 40), write(50, 40), notify(&late)],
+    );
+    assert!(matches!(
+        anonymise_fixture(&original),
+        Err(FixtureError::Unmaskable { index: 2 })
+    ));
+    // An unanswered request outside the serial registers taints nothing.
+    let reply = response(&block(70, 21, 0));
+    let fine = fixture(
+        "EB3A2235000012345",
+        &[write(50, 10), write(70, 21), notify(&reply)],
+    );
+    assert_eq!(anonymise_fixture(&fine).unwrap().frames, fine.frames);
+}
+
+#[test]
+fn fixture_masks_both_serial_layouts_for_every_model() {
+    // The encrypted EB3A's layout is unverified, so no model trusts its own.
+    for name in ["EB3A2235000012345", "E200V22501000012345", "Pixel"] {
+        for (start, serial_at) in [(10, 17), (100, 116)] {
+            let frame = response(&block(start, 20, serial_at));
+            let original = fixture(name, &[write(start, 20), notify(&frame)]);
+            let masked = anonymise_fixture(&original).unwrap();
+            let bytes = decode_hex(&masked.frames[1].hex).unwrap();
+            assert!(
+                !contains(&bytes, &serial_bytes()),
+                "{name}: serial at {serial_at} leaked"
+            );
+        }
+    }
 }

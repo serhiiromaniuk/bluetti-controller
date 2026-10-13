@@ -180,3 +180,20 @@ async fn profile_read_fails_on_a_failed_block() {
         ReadError::Transport(TransportError::UnexpectedWrite { .. })
     ));
 }
+
+#[tokio::test(start_paused = true)]
+async fn backoff_doubles_between_retries() {
+    let mut gatt = replay(&[write(43, 1), write(43, 1), write(43, 1)]);
+    let policy = ReadPolicy {
+        backoff: Duration::from_secs(1),
+        ..policy(3)
+    };
+    let started = Instant::now();
+    let err = read_block(&mut gatt, 43, 1, &policy).await.unwrap_err();
+    assert!(matches!(
+        err,
+        ReadError::Transport(TransportError::Timeout(_))
+    ));
+    // The replay times out at once, so all elapsed time is backoff: 1 s + 2 s.
+    assert_eq!(started.elapsed(), Duration::from_secs(3));
+}

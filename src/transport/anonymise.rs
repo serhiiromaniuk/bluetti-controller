@@ -4,7 +4,7 @@
 //! Pure: no I/O.
 
 use super::fixture::{Dir, Fixture, FixtureError, PLACEHOLDER_ADDRESS, decode_hex, encode_hex};
-use crate::protocol::device::{Model, Protocol, split_ble_name};
+use crate::protocol::device::{Protocol, split_ble_name};
 use crate::protocol::modbus::{FrameError, crc16, parse_read_response};
 
 /// `AA:BB:CC:DD:EE:FF`.
@@ -116,22 +116,34 @@ fn read_range(write: &[u8]) -> Option<(u16, u16)> {
 /// Masks a recorded session for commit under `tests/frames/`: the advert name,
 /// the manufacturer data past the encryption flag, and the serial registers in
 /// every reply. Each reply is the run of notifications after a write; it is
-/// masked whole, then cut back into the recorded fragment sizes. A reply that
-/// may hold serial registers but is not one valid frame is refused.
+/// masked whole, then cut back into the recorded fragment sizes. Both serial
+/// layouts are masked for every model, since the encrypted EB3A's layout is
+/// unverified. A reply that may hold serial registers but is not one valid
+/// frame is refused, and so is every reply after a serial-covering request
+/// that got none: a late reply would be masked against the wrong request.
 pub fn anonymise_fixture(fixture: &Fixture) -> Result<Fixture, FixtureError> {
-    let protocol = Model::from_ble_name(&fixture.advert.name).map(|m| m.profile().protocol);
     let mut out = fixture.clone();
     out.advert.name = mask_name(&fixture.advert.name);
     out.advert.manufacturer_data.truncate(2 * FLAG_LEN);
 
     let mut request = None;
+    let mut answered = true;
+    let mut stale = false;
     let mut i = 0;
     while i < out.frames.len() {
         if out.frames[i].dir == Dir::Write {
+            if !answered && request.is_some_and(|(s, c)| covers_serial(s, c, None)) {
+                stale = true;
+            }
             request = read_range(&decode_hex(&out.frames[i].hex)?);
+            answered = false;
             i += 1;
             continue;
         }
+        if stale {
+            return Err(FixtureError::Unmaskable { index: i });
+        }
+        answered = true;
         let end = i + out.frames[i..]
             .iter()
             .take_while(|f| f.dir == Dir::Notify)
@@ -148,10 +160,10 @@ pub fn anonymise_fixture(fixture: &Fixture) -> Result<Fixture, FixtureError> {
             parse_read_response(&reply, count),
             Ok(_) | Err(FrameError::Exception(_))
         );
-        if !complete && covers_serial(start, count, protocol) {
+        if !complete && covers_serial(start, count, None) {
             return Err(FixtureError::Unmaskable { index: i });
         }
-        let masked = mask_response(&reply, start, count, protocol);
+        let masked = mask_response(&reply, start, count, None);
         let mut rest = masked.as_slice();
         for (frame, fragment) in group.iter_mut().zip(&fragments) {
             let (head, tail) = rest.split_at(fragment.len());
