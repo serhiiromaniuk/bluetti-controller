@@ -229,11 +229,24 @@ builtin_scan() { # forbidden paths and key-shaped strings in the staged diff; ne
     bad=1
   fi
   # A real MAC is a personal identifier (golden rule #3); only the AA:BB:CC placeholder may be committed.
-  local mac_re='([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}'
-  hits="$(git diff --cached -U0 --diff-filter=ACMR | grep -vE '^\+\+\+ ' | grep -E '^\+' | grep -oE "$mac_re" | grep -cviE '^AA:BB:CC:' || true)"
+  # One separator per MAC (`:`, `-` or `_`), held by the backreference.
+  local mac_re='[0-9A-Fa-f]{2}([:_-])([0-9A-Fa-f]{2}\1){4}[0-9A-Fa-f]{2}'
+  hits="$(git diff --cached -U0 --diff-filter=ACMR | grep -vE '^\+\+\+ ' | grep -E '^\+' | grep -oE "$mac_re" | grep -cviE '^AA([:_-])BB\1CC\1' || true)"
   if [[ "$hits" -gt 0 ]]; then
     echo "!! $hits added MAC address(es) outside the AA:BB:CC placeholder — values not shown" >&2
     bad=1
+  fi
+  # The local static keys (ROADMAP.md §4.4) must never be committed: refuse any added line holding one
+  # of keys.toml's hex values. Read from the main worktree, so a linked worktree is covered too.
+  local keys
+  keys="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/keys.toml"
+  if [[ -f "$keys" ]]; then
+    hits="$(git diff --cached -U0 --diff-filter=ACMR | grep -vE '^\+\+\+ ' | grep -E '^\+' \
+      | grep -ciF -f <(grep -oE '"[0-9A-Fa-f]{32,}"' "$keys" | tr -d '"') || true)"
+    if [[ "$hits" -gt 0 ]]; then
+      echo "!! $hits added line(s) contain a keys.toml value — values not shown" >&2
+      bad=1
+    fi
   fi
   return "$bad"
 }

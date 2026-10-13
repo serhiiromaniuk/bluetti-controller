@@ -147,3 +147,41 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 5 ✓ 2026-10-13 — scan refuses `-`/`_` MACs and keys.toml values; local keys.toml written
+
+**Changed:**
+- `loop/step-done.sh` `builtin_scan`: MAC regex `[0-9A-Fa-f]{2}([:_-])([0-9A-Fa-f]{2}\1){4}[0-9A-Fa-f]{2}` (one separator per MAC); exemption `^AA([:_-])BB\1CC\1`, case-insensitive (A7).
+- Same function: when `<main worktree>/keys.toml` exists (via `git rev-parse --git-common-dir`), count added lines holding any of its ≥32-hex values (`grep -ciF`, case-insensitive); refuse on >0; values never printed.
+- `keys.toml` (gitignored, mode 0600, not committed): §4.4 schema from nhurman/bluetti_mqtt `b746f17c1f6c` `encryption.py` (LICENSE: MIT). Lengths 32/64/130 hex; `station_verifying_key` = last 65 B of the 91-B DER, whose 26-B prefix equals the public P-256 SPKI header (checked, True). Fetched copy deleted.
+
+**Check:**
+- `bash -n loop/step-done.sh` → ok; `git check-ignore -q keys.toml` → ignored.
+- Scratch repo (plain bash, GNU grep 3.12, copy of keys.toml): `12-34-…` refused (1 MAC), `12_34_…` refused (1), `12:34:…` refused (1), `AA-BB-CC-DD-EE-01` pass, `aa_bb_cc_dd_ee_02` pass, mixed separators pass (not a MAC), uppercased real 64-hex value refused (1 line), clean line pass. Scratch dir removed.
+- Pitfall: the interactive tool shell's `grep` is a ugrep wrapper without `\1` support — first scratch run errored and passed everything; the script runs under plain bash and gets GNU grep.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 2 MEDIUM. M1 (empty pattern list passes silently) → deferred to A15; M2 (byte-array / split-line key forms pass) → deferred to A16. Both homed at step 6, before any crypto port commits.
+
+**Carry-forward:** none. **Next:** step 6 — crypto envelope (fix A15 + A16 first in that increment).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T08:45:42Z
+
+```text
+
+test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-6a10f69a4d815929)
+
+running 2 tests
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+test cli::scan::tests::unknown_station_still_prints ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
