@@ -733,3 +733,42 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 16 ✓ 2026-10-13 — acceptance measurement script
+
+**Changed:** `scripts/acceptance_v04.py` — new; stdlib `sqlite3`, `file:…?mode=ro`, run with `python3 -I`. Per-station polls vs `(to − from) // interval` (capped at 100 % when an unaligned window holds one extra tick), failures by stage, DB+WAL size per station-day, bytes per table (`dbstat`, else rows × avg row length), `grid_event` rows overlapping the window, exit 1 on any FAIL.
+
+**Check (smoke 2, `[1791903375, 1791904335)`, 60 s, 16 scheduled):**
+- Reproduces step 14: router 14 samples / `discover` 2, living-room 15 / `discover` 1, mobile 16 / none. Exit 1 (router 87.50 %, living-room 93.75 % FAIL at 95 %).
+- `--min-pct 101` → mobile 100 % FAIL too, exit 1.
+- Size line: 551848 B / 3 / 0.0111 days = 16.6 MB per station-day FAIL — expected on 16 min: the WAL (506 KB, not checkpointed) is fixed overhead that a 12 h window divides 45× smaller. `dbstat` available (SQLite 3.46.1): `sample_extra` 12288 B largest; 183 rows cross-checked by count.
+- Live run, read-only, +359 s: router 6, living-room 5 (+1 `discover`), mobile 6 — PASS lines; no station touched, unit untouched.
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM WAL bytes not named in size breakdown → amendment A20.
+- Reviewer's own check: `--min-pct 85 --max-mb 20` exit 0, `--min-pct 101 --max-mb 20` exit 1 (the flag flips the result).
+
+**Next:** step 17 — docs close-out (station-free).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T15:23:08Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 98.94% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
