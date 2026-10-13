@@ -363,8 +363,9 @@ arrives as a notification) [S35][S37]:
   station's static signing key, the counterpart of the *station verifying key*.
   All three sources run a full handshake on every connection and never cache
   the point; whether the station's point changes between sessions is not stated
-  anywhere. Step 13 settles it by comparing a hash of the point across two
-  sessions (only same/different is logged). The design never depends on it:
+  anywhere. Phase-2 step 13 compared a hash of the point across two sessions
+  per station: **different** on both the EB3A and the Elite 200 V2, so the
+  station point is ephemeral (2026-10-13). The design never depends on it:
   verify the signature and run ECDH on every connection.
 - Open risks: a high-S station signature is accepted by nhurman (OpenSSL DER
   verify); p256 verify behaviour on high-S is untested here, though rustytti

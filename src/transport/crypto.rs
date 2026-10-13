@@ -37,13 +37,24 @@ impl<G: Gatt + Send> CryptoGatt<G> {
     /// whole exchange within 4 × `timeout`. On any failure `inner` is
     /// disconnected before the error returns (golden rule #5).
     pub async fn establish(
-        mut inner: G,
+        inner: G,
         keys: &StaticKeys,
         timeout: Duration,
     ) -> Result<Self, TransportError> {
+        Self::establish_with(inner, keys, timeout, ephemeral()?).await
+    }
+
+    /// [`establish`](Self::establish) with a given ephemeral secret, so a wire
+    /// recording can keep it (`--record-wire`).
+    pub async fn establish_with(
+        mut inner: G,
+        keys: &StaticKeys,
+        timeout: Duration,
+        ephemeral: [u8; 32],
+    ) -> Result<Self, TransportError> {
         let bound = timeout.saturating_mul(STATION_MESSAGES);
         let mut pending = Vec::new();
-        let exchange = handshake(&mut inner, &mut pending, keys, timeout);
+        let exchange = handshake(&mut inner, &mut pending, keys, timeout, &ephemeral);
         let result = match tokio::time::timeout(bound, exchange).await {
             Ok(result) => result,
             Err(_) => Err(TransportError::Timeout(bound)),
@@ -94,6 +105,10 @@ impl<G: Gatt + Send> Gatt for CryptoGatt<G> {
 }
 
 impl<G> CryptoGatt<G> {
+    pub fn inner(&self) -> &G {
+        &self.inner
+    }
+
     /// A session envelope under a fresh random seed.
     fn seal(&self, modbus: &[u8]) -> Result<Vec<u8>, TransportError> {
         let mut seed = [0; 4];
@@ -110,11 +125,10 @@ async fn handshake<G: Gatt>(
     pending: &mut Vec<u8>,
     keys: &StaticKeys,
     timeout: Duration,
+    ephemeral: &[u8; 32],
 ) -> Result<Session, TransportError> {
-    let mut ephemeral = [0; 32];
-    random(&mut ephemeral)?;
     // A scalar outside 1..n (odds ~2^-32) fails this connection only.
-    let mut exchange = Handshake::new(keys, &ephemeral).map_err(TransportError::Handshake)?;
+    let mut exchange = Handshake::new(keys, ephemeral).map_err(TransportError::Handshake)?;
     // Message 5, the one unacknowledged reply, until message 6 arrives.
     let mut unacked: Option<Vec<u8>> = None;
     loop {
@@ -180,6 +194,13 @@ async fn next_frame<G: Gatt>(
             Err(err) => return Err(err),
         }
     }
+}
+
+/// A fresh ephemeral P-256 secret from the OS RNG, one per connection.
+pub fn ephemeral() -> Result<[u8; 32], TransportError> {
+    let mut secret = [0; 32];
+    random(&mut secret)?;
+    Ok(secret)
 }
 
 fn random(buf: &mut [u8]) -> Result<(), TransportError> {

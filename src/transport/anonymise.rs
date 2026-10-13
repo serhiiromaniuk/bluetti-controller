@@ -3,6 +3,10 @@
 //! serial-number registers in recorded read responses (`ROADMAP.md` §4.3).
 //! Pure: no I/O.
 
+mod wire;
+
+pub use wire::anonymise_wire;
+
 use super::fixture::{Dir, Fixture, FixtureError, PLACEHOLDER_ADDRESS, decode_hex, encode_hex};
 use crate::protocol::device::{Protocol, split_ble_name};
 use crate::protocol::identity::is_serial;
@@ -111,9 +115,7 @@ fn read_range(write: &[u8]) -> Option<(u16, u16)> {
 /// frame is refused, and so is every reply after any request that got none:
 /// a late reply would be masked against the wrong request.
 pub fn anonymise_fixture(fixture: &Fixture) -> Result<Fixture, FixtureError> {
-    let mut out = fixture.clone();
-    out.advert.name = mask_name(&fixture.advert.name);
-    out.advert.manufacturer_data.truncate(2 * FLAG_LEN);
+    let mut out = mask_header(fixture);
 
     let mut request = None;
     let mut answered = true;
@@ -162,6 +164,16 @@ pub fn anonymise_fixture(fixture: &Fixture) -> Result<Fixture, FixtureError> {
         i = end;
     }
     Ok(out)
+}
+
+/// A copy with the advert masked (name serial, data past the flag) and the
+/// ephemeral secret dropped.
+fn mask_header(fixture: &Fixture) -> Fixture {
+    let mut out = fixture.clone();
+    out.advert.name = mask_name(&fixture.advert.name);
+    out.advert.manufacturer_data.truncate(2 * FLAG_LEN);
+    out.ephemeral = None;
+    out
 }
 
 #[cfg(test)]

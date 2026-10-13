@@ -12,6 +12,7 @@ fn fixture(frames: &[(Dir, &str)]) -> Fixture {
             name: "EB3A0000000000000".into(),
             manufacturer_data: "424c5545545449".into(),
         },
+        ephemeral: None,
         frames: frames
             .iter()
             .enumerate()

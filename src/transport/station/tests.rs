@@ -54,6 +54,7 @@ fn replay(name: &str, exchanges: &[(u16, u16, String)]) -> (ReplayGatt, Advert) 
             name: name.into(),
             manufacturer_data: encode_hex(b"BLUETTF"),
         },
+        ephemeral: None,
         frames,
     };
     (

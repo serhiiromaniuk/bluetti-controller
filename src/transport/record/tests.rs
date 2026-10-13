@@ -18,6 +18,7 @@ fn session() -> Fixture {
             name: "EB3A0000000000000".into(),
             manufacturer_data: "424c5545545449".into(),
         },
+        ephemeral: None,
         frames: frames
             .into_iter()
             .enumerate()
@@ -77,7 +78,7 @@ async fn tees_every_frame() {
 async fn saved_fixture_replays() {
     let gatt = record_session().await;
     let path = std::env::temp_dir().join(format!("record-test-{}.json", std::process::id()));
-    gatt.save(&path).unwrap();
+    gatt.fixture().save(&path).unwrap();
     let loaded = Fixture::load(&path);
     std::fs::remove_file(&path).unwrap();
     let loaded = loaded.unwrap();

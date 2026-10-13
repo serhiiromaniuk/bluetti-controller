@@ -22,6 +22,11 @@ struct Args {
     /// JSON; only under `captures/`, which is gitignored (raw: holds the serial).
     #[arg(long, global = true, value_name = "PATH")]
     record: Option<PathBuf>,
+    /// Save the wire layer (below the encryption) as fixture JSON, with the
+    /// session's ephemeral secret; only under `captures/`. `anonymise --wire`
+    /// masks it for commit.
+    #[arg(long, global = true, value_name = "PATH")]
+    record_wire: Option<PathBuf>,
     #[command(subcommand)]
     command: cli::Command,
 }
@@ -48,6 +53,7 @@ async fn main() -> anyhow::Result<()> {
         keys: keys.as_ref(),
         anonymise: args.anonymise,
         record: args.record.as_deref(),
+        record_wire: args.record_wire.as_deref(),
     };
     cli::run(args.command, &ctx).await
 }

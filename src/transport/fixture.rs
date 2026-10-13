@@ -15,6 +15,11 @@ pub const PLACEHOLDER_ADDRESS: &str = "AA:BB:CC:00:00:00";
 #[serde(deny_unknown_fields)]
 pub struct Fixture {
     pub advert: FixtureAdvert,
+    /// Wire captures only (`--record-wire`): our ephemeral P-256 secret (hex),
+    /// so the real-key test can replay the session. Never in `tests/frames/`:
+    /// the anonymisers drop it (`ROADMAP.md` §4.4 "Committable artefacts").
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ephemeral: Option<String>,
     pub frames: Vec<FrameRecord>,
 }
 
@@ -87,6 +92,12 @@ impl Fixture {
 
     pub fn from_json(text: &str) -> Result<Fixture, FixtureError> {
         Ok(serde_json::from_str(text)?)
+    }
+
+    /// Writes the fixture as pretty JSON.
+    pub fn save(&self, path: &Path) -> std::io::Result<()> {
+        let json = serde_json::to_string_pretty(self)?;
+        std::fs::write(path, json + "\n")
     }
 
     /// The recorded advert, under [`PLACEHOLDER_ADDRESS`].

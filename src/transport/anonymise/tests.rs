@@ -55,6 +55,7 @@ fn fixture(name: &str, frames: &[(Dir, Vec<u8>)]) -> Fixture {
             name: name.into(),
             manufacturer_data: "424c554554544901020304".into(),
         },
+        ephemeral: None,
         frames: frames
             .iter()
             .enumerate()

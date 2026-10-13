@@ -1,12 +1,12 @@
 //! [`RecordingGatt`]: wraps any [`Gatt`] and tees every frame that crossed the
-//! link into a [`Fixture`] (`ROADMAP.md` §11), for `--record`.
+//! link into a [`Fixture`] (`ROADMAP.md` §11): above `CryptoGatt` for
+//! `--record` (plaintext), below it for `--record-wire` (the wire layer).
 //!
 //! The recording is raw: the advert name carries the serial number. Save it
 //! under the gitignored `captures/` and run it through
 //! [`anonymise_fixture`](super::anonymise::anonymise_fixture) before it goes
 //! to `tests/frames/` (RULES.md golden rule #3).
 
-use std::path::Path;
 use std::time::{Duration, Instant};
 
 use super::fixture::{Dir, Fixture, FixtureAdvert, FrameRecord, encode_hex};
@@ -29,6 +29,7 @@ impl<G: Gatt + Send> RecordingGatt<G> {
                     name: advert.name.clone().unwrap_or_default(),
                     manufacturer_data: encode_hex(&advert.manufacturer_data),
                 },
+                ephemeral: None,
                 frames: Vec::new(),
             },
             opened: Instant::now(),
@@ -39,11 +40,14 @@ impl<G: Gatt + Send> RecordingGatt<G> {
         &self.fixture
     }
 
-    /// Writes the recording as fixture JSON. The caller saves after the
-    /// session ends, on its error path too, so a failed read is kept.
-    pub fn save(&self, path: &Path) -> std::io::Result<()> {
-        let json = serde_json::to_string_pretty(&self.fixture)?;
-        std::fs::write(path, json + "\n")
+    pub fn inner(&self) -> &G {
+        &self.inner
+    }
+
+    /// Keeps the session's ephemeral secret with a wire recording, for the
+    /// real-key replay test; the anonymisers drop it.
+    pub fn set_ephemeral(&mut self, secret: &[u8; 32]) {
+        self.fixture.ephemeral = Some(encode_hex(secret));
     }
 
     /// Only frames that crossed the link are kept, so a replay of the

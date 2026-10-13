@@ -1,10 +1,12 @@
 //! One station session for the connecting commands: find the station, open
 //! the link (key exchange when encrypted), run the command, always
-//! disconnect, and save the `--record` capture (`ROADMAP.md` §4.6, §11).
+//! disconnect, and save the `--record`/`--record-wire` captures (`ROADMAP.md`
+//! §4.6, §11).
 
 use std::path::{Component, Path};
 
 use anyhow::{anyhow, bail};
+use bluetti_controller::transport::fixture::Fixture;
 use bluetti_controller::transport::record::RecordingGatt;
 use bluetti_controller::transport::{self, Advert, Gatt, Link};
 use tokio::signal::unix::{SignalKind, signal};
@@ -27,7 +29,7 @@ pub(super) async fn run<T>(
     target: &str,
     body: impl AsyncFnOnce(&mut Session, &Advert) -> anyhow::Result<T>,
 ) -> anyhow::Result<T> {
-    if let Some(path) = ctx.record {
+    for path in [ctx.record, ctx.record_wire].into_iter().flatten() {
         prepare_capture(path)?;
     }
     let mut sigint = signal(SignalKind::interrupt())?;
@@ -50,24 +52,31 @@ pub(super) async fn run<T>(
     // Disconnect and save before acting on the result, so no path skips them.
     let closed = session.disconnect().await;
     if let Some(path) = ctx.record {
-        match session.save(path) {
-            Ok(()) => println!(
-                "recorded {} frames to {}",
-                session.fixture().frames.len(),
-                path.display()
-            ),
-            Err(err) => tracing::error!(error = %err, "saving the capture failed"),
-        }
+        save(session.fixture(), path);
+    }
+    if let Some(path) = ctx.record_wire {
+        save(session.inner().wire(), path);
     }
     closed?;
     println!("disconnected");
     result
 }
 
+fn save(capture: &Fixture, path: &Path) {
+    match capture.save(path) {
+        Ok(()) => println!(
+            "recorded {} frames to {}",
+            capture.frames.len(),
+            path.display()
+        ),
+        Err(err) => tracing::error!(error = %err, "saving the capture failed"),
+    }
+}
+
 /// Refuses a capture path outside `captures/` and creates its directory.
 fn prepare_capture(path: &Path) -> anyhow::Result<()> {
     if !is_capture_path(path) {
-        bail!("--record writes only under {CAPTURES}/ (gitignored): got {path:?}");
+        bail!("captures go only under {CAPTURES}/ (gitignored): got {path:?}");
     }
     if let Some(dir) = path.parent() {
         std::fs::create_dir_all(dir)?;

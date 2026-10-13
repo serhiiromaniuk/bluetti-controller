@@ -268,3 +268,38 @@ async fn message_6_straddling_the_resend_mark_is_kept_whole() {
     assert_eq!(gatt.inner.msg5_writes, 1);
     assert_eq!(read_block(&mut gatt, 36, 1, &policy()).await.unwrap(), [36]);
 }
+
+#[tokio::test(start_paused = true)]
+async fn wire_below_the_session_records_the_handshake_and_anonymises() {
+    use crate::transport::Advert;
+    use crate::transport::anonymise::anonymise_wire;
+    use crate::transport::fixture::{Dir, decode_hex};
+    use crate::transport::record::RecordingGatt;
+
+    let advert = Advert {
+        address: "AA:BB:CC:00:00:00".into(),
+        name: Some("EB3A2345678901234".into()),
+        rssi: None,
+        manufacturer_data: b"BLUETTF".to_vec(),
+    };
+    let ephemeral = [0x44; 32];
+    let mut wire = RecordingGatt::new(SimStation::new(), &advert);
+    wire.set_ephemeral(&ephemeral);
+    let mut gatt = CryptoGatt::establish_with(wire, &sim::keys(), TIMEOUT, ephemeral)
+        .await
+        .unwrap();
+    read_block(&mut gatt, 36, 2, &policy()).await.unwrap();
+    let capture = gatt.inner().fixture();
+    // Messages 1-6, then one session request and its reply.
+    let dirs: Vec<Dir> = capture.frames.iter().map(|f| f.dir).collect();
+    use Dir::{Notify as N, Write as W};
+    assert_eq!(dirs, [N, W, N, N, W, N, W, N]);
+    assert_eq!(
+        decode_hex(&capture.frames[0].hex).unwrap()[..4],
+        [0x2A, 0x2A, 0x01, 0x04]
+    );
+    assert!(capture.ephemeral.is_some());
+    let masked = anonymise_wire(capture).unwrap();
+    assert_eq!(masked.frames.len(), capture.frames.len());
+    assert_eq!(masked.ephemeral, None);
+}

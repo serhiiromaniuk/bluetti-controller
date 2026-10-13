@@ -538,3 +538,49 @@ test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 13 ✓ 2026-10-13 — key-free handshake vectors from both stations; station point is ephemeral
+
+**Changed:**
+- `transport/fixture.rs`: `Fixture.ephemeral: Option<String>` (wire captures only, skipped when `None`); `Fixture::save` (moved from `RecordingGatt`).
+- `transport/link.rs`: `Link` wraps `Wire = RecordingGatt<BluerGatt>` (wire teed in memory); ephemeral drawn before connect and kept in the tee; `Link::wire()`.
+- `transport/crypto.rs`: `establish_with(…, ephemeral)`, pub `ephemeral()`, `inner()`; `record.rs`: `inner()`, `set_ephemeral()`.
+- `transport/anonymise/wire.rs` (new): `anonymise_wire` — messages 1–3 verbatim, envelope headers kept (plain_len; + seed for session), ciphertext zeroed at same length, trailing partial zeroed, ephemeral dropped; refuses captures not opening with the kex. `anonymise_fixture` drops `ephemeral` too.
+- CLI: global `--record-wire` (captures/ only, like `--record`); `anonymise <in> <out> [--wire]` (no station).
+- `tests/handshake_vectors.rs`: key-free structure test over `tests/frames/handshake-{eb3a,elite200v2}.json` (kex 01/02/03, msg 2 recomputed from the seed, temp plain_len 134/7, session plain_len 8 / `read_response_len`, padding, zero ciphertext, distinct seeds); `#[ignore]` real-key replay of `captures/hs-*.json`.
+- ROADMAP §4.4 "Station public key": result recorded (different → ephemeral).
+
+**Check:**
+- Unit: 4 `anonymise::wire` tests + `wire_below_the_session_records_the_handshake_and_anonymises` (CryptoGatt over a teed SimStation).
+- Mutation: session header 6→2 in `wire.rs` → `keeps_messages_1_to_3_and_envelope_headers_only` FAILED; raw capture swapped into the fixture → structure test panicked at "ciphertext kept". Both restored, green.
+- Pre-flight §10.4: rfkill unblocked, `control.enabled = false`.
+- Hardware (`--anonymise`): `dump router --from 36 --to 49 --record-wire captures/hs-eb3a-{1,2}.json` → 1 chunk, 0 unread, 43 = 93 (soc); EB3A capture 1 shows message 5 sent twice (resend path, A19, live). `dump living-room --from 100 --to 110 --record-wire captures/hs-elite200v2-{1,2}.json` → 0 unread.
+- Ignored test `cargo test --test handshake_vectors -- --include-ignored`: 4 captures replayed byte for byte, 2 session frames each decrypted to valid Modbus; station point across 2 sessions: **different** (EB3A, Elite).
+- Grep of real MAC (both forms), SN (3 cuts), keys.toml values, ephemeral, raw manufacturer data over `tests/frames/` → 0 matches (count only).
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM (it could not run cargo; gate and grep evidence are mine, above).
+
+**Decision:** station P-256 point is per-session (ROADMAP §4.4). **Carry-forward:** none. **Next:** step 14 — Elite 200 V2 map + §14 Q5 (+ A1, A23).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T09:53:22Z
+
+```text
+test recorded_handshakes_have_the_documented_structure ... ok
+
+test result: ok. 1 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/hardware.rs (target/llvm-cov-target/debug/deps/hardware-e834033cf2500684)
+
+running 1 test
+test connects_subscribes_and_disconnects ... ignored, needs a station in BLE range and BLUETTI_TEST_MAC
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

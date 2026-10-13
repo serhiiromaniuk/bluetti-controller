@@ -1,19 +1,36 @@
 //! [`open`]: one ready Modbus channel to a station over BlueZ, encrypted or
-//! not as its advert says (`ROADMAP.md` §4.4, §12 M2).
+//! not as its advert says (`ROADMAP.md` §4.4, §12 M2). The wire layer below
+//! the encryption is always teed into memory; `--record-wire` saves it.
 
 use std::time::Duration;
 
 use anyhow::{anyhow, bail};
 
-use super::{Advert, BluerGatt, CryptoGatt, Gatt, TransportError, connect};
+use super::fixture::Fixture;
+use super::record::RecordingGatt;
+use super::{Advert, BluerGatt, CryptoGatt, Gatt, TransportError, connect, crypto};
 use crate::config::BleConfig;
 use crate::protocol::crypto::handshake::StaticKeys;
 use crate::protocol::device::is_encrypted;
 
+/// The BlueZ channel with its frames teed, as they crossed the air.
+pub type Wire = RecordingGatt<BluerGatt>;
+
 /// A connected station: plaintext, or behind an established session.
 pub enum Link {
-    Plain(BluerGatt),
-    Encrypted(CryptoGatt<BluerGatt>),
+    Plain(Wire),
+    Encrypted(CryptoGatt<Wire>),
+}
+
+impl Link {
+    /// Every frame that crossed the air so far; on an encrypted link it also
+    /// holds the session's ephemeral secret (gitignored `captures/` only).
+    pub fn wire(&self) -> &Fixture {
+        match self {
+            Link::Plain(wire) => wire.fixture(),
+            Link::Encrypted(gatt) => gatt.inner().fixture(),
+        }
+    }
 }
 
 /// Connects to `advert`'s station and, when its flag says encrypted, runs the
@@ -34,14 +51,17 @@ pub async fn open(
             )
         })?),
     };
-    let gatt = connect(ble, advert).await?;
-    let Some(keys) = keys else {
-        return Ok(Link::Plain(gatt));
+    // Drawn before connecting, so an RNG failure leaves no link up.
+    let ephemeral = keys.map(|_| crypto::ephemeral()).transpose()?;
+    let mut wire = RecordingGatt::new(connect(ble, advert).await?, advert);
+    let (Some(keys), Some(ephemeral)) = (keys, ephemeral) else {
+        return Ok(Link::Plain(wire));
     };
+    wire.set_ephemeral(&ephemeral);
     let timeout = Duration::from_secs(ble.request_timeout_secs.get());
-    // `establish` disconnects on failure.
+    // `establish_with` disconnects on failure.
     Ok(Link::Encrypted(
-        CryptoGatt::establish(gatt, keys, timeout).await?,
+        CryptoGatt::establish_with(wire, keys, timeout, ephemeral).await?,
     ))
 }
 
