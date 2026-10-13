@@ -241,11 +241,24 @@ builtin_scan() { # forbidden paths and key-shaped strings in the staged diff; ne
   local keys
   keys="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/keys.toml"
   if [[ -f "$keys" ]]; then
-    hits="$(git diff --cached -U0 --diff-filter=ACMR | grep -vE '^\+\+\+ ' | grep -E '^\+' \
-      | grep -ciF -f <(grep -oE '"[0-9A-Fa-f]{32,}"' "$keys" | tr -d '"') || true)"
-    if [[ "$hits" -gt 0 ]]; then
-      echo "!! $hits added line(s) contain a keys.toml value — values not shown" >&2
+    # Patterns: hex chars 1-32 and 3-34 of each value (single/double quotes, optional 0x), lowercased;
+    # the second covers a point written without its leading 04.
+    local pats joined
+    pats="$(grep -oE "[\"'](0[xX])?[0-9A-Fa-f]{32,}[\"']" "$keys" 2>/dev/null | tr -d "\"'" \
+      | sed -E 's/^0[xX]//' | tr 'A-F' 'a-f' | awk '{ print substr($0, 1, 32); print substr($0, 3, 32) }' || true)"
+    if [[ -z "$pats" ]]; then
+      echo "!! keys.toml present but no hex values parsed — refusing; fix keys.toml or this scan" >&2
       bad=1
+    else
+      # Join every added line, drop 0x / \x prefixes and all non-hex characters, so a byte array
+      # (`[0x12, 0x34]`, `b"\x12\x34"`) or a key split across lines is caught too.
+      joined="$(git diff --cached -U0 --diff-filter=ACMR | grep -vE '^\+\+\+ ' | grep -E '^\+' | cut -c2- \
+        | tr 'A-FX' 'a-fx' | sed -E 's/0x|\\x//g' | tr -cd '0-9a-f' || true)"
+      hits="$(printf '%s\n' "$joined" | grep -oF -f <(printf '%s\n' "$pats") | wc -l || true)"
+      if [[ "$hits" -gt 0 ]]; then
+        echo "!! $hits keys.toml value fragment(s) in the added lines — values not shown" >&2
+        bad=1
+      fi
     fi
   fi
   return "$bad"

@@ -185,3 +185,38 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## A15 + A16 ✓ 2026-10-13 — key scan refuses unparsed keys.toml and split/byte-array key forms
+
+**Changed:**
+- `loop/step-done.sh` `builtin_scan`: keys.toml values parsed single- or double-quoted, optional `0x`; an empty parse (no hex, unreadable file) refuses with "keys.toml present but no hex values parsed" (A15).
+- Patterns are hex chars 1–32 and 3–34 of each value, lowercased; matched against all added lines joined, with `0x`/`\x` and every non-hex char removed, so byte arrays and keys split over lines are caught (A16). Counts only, never values.
+
+**Check:**
+- `bash -n` ok. Scratch repo, dummy keys, plain bash + GNU grep: clean PASS; uppercase 64-hex REFUSED; `[0x.., …]` split over 2 lines REFUSED; `b"\X..…"` REFUSED; point without `04` REFUSED; sha256 checksum line PASS; single-quoted and `0x`-prefixed keys.toml REFUSED; no-hex and unreadable keys.toml REFUSED (A15 message); no keys.toml PASS. Real keys.toml parses non-empty (clean index PASS). Scratch removed.
+- **reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM. Noted limits within A16's ask (fragments <30 hex, decimal arrays, partial parse) — not findings.
+
+**Carry-forward:** none. **Next:** step 6 — crypto envelope.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T08:49:55Z
+
+```text
+
+test result: ok. 72 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running unittests src/main.rs (target/llvm-cov-target/debug/deps/bluetti_controller-6a10f69a4d815929)
+
+running 2 tests
+test cli::scan::tests::anonymised_line_masks_mac_and_serial ... ok
+test cli::scan::tests::unknown_station_still_prints ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 100% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
