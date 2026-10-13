@@ -147,7 +147,7 @@ are met).
 ## Hard stops the loop will not cross autonomously
 
 The **human-only boundary**: secrets, production deploys, destructive infra, and
-irreversible external actions. These are permanently human. The loop tags
+irreversible external actions (the exact list: ../RULES.md "Before crossing a human-only boundary"; a user-level unit on the dev laptop is not a production deploy). These are permanently human. The loop tags
 milestones and crosses code-phase gates autonomously, but stops with
 `<<LOOP:BLOCKED>>` whenever a next step would cross that boundary, and with
 `<<LOOP:DONE>>` when the project goal is reached. See [`../AGENTS.md`](../AGENTS.md)

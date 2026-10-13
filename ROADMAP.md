@@ -304,7 +304,7 @@ MIT bridge exists (JordiGrasvi/bluetti-elite200v2-mqtt). [S9][S11][S14]
 | 150–159 | 1, 0, 1959, 0, 0, 0, 2238, 0, 404, 0 | u32 low word first fits the v2 energy counters (0.1 kWh) | **contradicts** PR #49's 152 = battery V/100 (19.59 V vs 39.49 V) |
 | 180–200 | — | Modbus exception 0x02 | — |
 | 1300 / 1314 / 1315 | 0 / 0 / 0 | AC in Hz, V, A (grid off) | agrees (1315) |
-| 1315–1419 | — | exception 0x02 on 40-register reads from 1300, 1340, 1380 | the poll block stays (1300, 15) |
+| 1300–1419 | — | 40-register reads from 1300, 1340, 1380 fail (exception 0x02); 1300–1315 read singly | the poll block stays (1300, 15) |
 | 1430 / 1431 / 1432 | 389 / 2300 / 16 | AC out W, 230.0 V, 1.6 A | agrees (1432) |
 | 1460–1499 | — | exception 0x02 as one read; 1470 alone = 499 | agrees: 1470 = 49.9 Hz AC out |
 | 1500 / 1510 / 1511 / 1512 | 499 / 483 / 2287 / 21 | AC out 49.9 Hz, ~VA, 228.7 V, 2.1 A | v2 |
@@ -452,8 +452,9 @@ support; no LICENSE file; no confirmed success. Not used (ADR-002). [S18]
   encryption (2025-07); a plaintext AC180P was seen in 2026-06. [S12][S19]
 - **Elite 200 V2:** conflicting (#131 scanned encrypted; bt #86 says no) → detect.
 - **Ours (2026-10-13, `detect`):** EB3A and Elite 200 V2 both advertise
-  `BLUETTF` and complete the §4.4 handshake; the EB3A keeps the V1 layout. The
-  AC180 is off (H3). See §14 Q5.
+  `BLUETTF` and complete the §4.4 handshake; the EB3A keeps the V1 layout.
+  Firmware: EB3A ARM 2197.02 / DSP 2196.01; Elite 200 V2 BMS 1068.11
+  (register 6175). AC180: PLAN step 18. See §14 Q5.
 
 ### 4.6 Polling behaviour and BLE reliability
 
@@ -504,7 +505,7 @@ None covers all three of our stations. [S16][S24]
 | clap | 4.6.7 | derive |
 | tracing / tracing-subscriber | 0.1.44 / 0.3.23 | env-filter, stdout → journald |
 | anyhow / thiserror | 1.0.104 / 2.0.21 | |
-| p256 / aes / cbc / md-5 | 0.14.0 / 0.9.3 / 0.2.1 / 0.11.0 | RustCrypto, MIT OR Apache-2.0; p256 features `ecdh`, `ecdsa`; AES-128 temp + AES-256 session CBC, md5 IVs (§4.4); aes needs Rust ≥ 1.89 [S38] |
+| p256 / aes / cbc / md-5 | 0.14.0 / 0.9.3 / 0.2.1 / 0.11.0 | locked in `Cargo.lock` (phase 2 step 6); RustCrypto, MIT OR Apache-2.0; p256 features `ecdh`, `ecdsa`; AES-128 temp + AES-256 session CBC, md5 IVs (§4.4); aes needs Rust ≥ 1.89 [S38] |
 | uPlot (vendored JS) | 1.6.32 | 21.9 KB gzipped vs Chart.js 68.4 KB |
 
 Toolchain: rustup with Rust 1.99.0 pinned in `rust-toolchain.toml` (rustfmt +
@@ -855,7 +856,7 @@ grid_sensor = true
 - Laptop: lid switch ignored, `powertop --auto-tune`, battery charge thresholds
   if supported.
 
-### 10.2 Install (human-only steps, M5)
+### 10.2 Install on the homelab host (human-only, after the MVP)
 
 ```bash
 sudo apt install bluez libdbus-1-0      # runtime; build host also needs libdbus-1-dev pkg-config
@@ -868,26 +869,22 @@ busctl --system introspect org.bluez /org/bluez   # as the service user: D-Bus a
 
 ### 10.3 systemd unit (shipped in `deploy/` at M5)
 
+The M5 soak runs on the dev laptop as a user-level unit (owner 2026-10-13,
+§14 Q2): no `sudo`, no system unit. `loginctl enable-linger` keeps it running
+without a login session.
+
 ```ini
+# ~/.config/systemd/user/bluetti-controller.service
 [Unit]
 Description=bluetti-controller
-After=bluetooth.service network-online.target
-Wants=bluetooth.service
 
 [Service]
-User=bluetti
-SupplementaryGroups=bluetooth
-StateDirectory=bluetti-controller
-ExecStart=/usr/local/bin/bluetti-controller serve --config /etc/bluetti-controller/config.toml
+ExecStart=%h/.local/bin/bluetti-controller serve --config %h/.config/bluetti-controller/config.toml
 Restart=on-failure
 RestartSec=10
-ProtectSystem=strict
-ProtectHome=yes
-NoNewPrivileges=yes
-PrivateTmp=yes
 
 [Install]
-WantedBy=multi-user.target
+WantedBy=default.target
 ```
 
 ### 10.4 Pre-flight checklist (before any hardware run)
@@ -953,44 +950,50 @@ station or need the AC180 are deferred to `HUMAN-CHECKLIST.md` and do not block
 
 **Acceptance:** `make check` green; owner sign-off recorded in the task LOG.
 
-### M1 — BLE transport + CLI, EB3A → `v0.2-ble` (Phase 2)
+### M1 — BLE transport + CLI, EB3A (Phase 2, tagged with M2 as `v0.3-encryption`)
 
-- [ ] Add deps: tokio, bluer, clap, tracing, serde, toml, anyhow, thiserror;
-      `libdbus-1-dev` on the dev host (human).
-- [ ] `config.rs`: TOML schema (§9), validation, `config.example.toml`.
-- [ ] `transport::Gatt` trait; `BluerGatt`: find by MAC (fallback filtered
+- [x] Add deps: tokio, bluer, clap, tracing, serde, toml, anyhow, thiserror;
+      `libdbus-1-dev` on the dev host (human; CF-1 discharged).
+- [x] `config.rs`: TOML schema (§9), validation, `config.example.toml`.
+- [x] `transport::Gatt` trait; `BluerGatt`: find by MAC (fallback filtered
       discovery), connect with timeout/retries, subscribe `ff01`, write `ff02`,
       reassemble responses to the expected length, always disconnect.
-- [ ] `ReplayGatt` + `--record` to capture fixtures; anonymiser for MAC/SN.
-- [ ] CLI: `scan` (name, RSSI, model, encrypted flag), `detect <mac>` (model,
+- [x] `ReplayGatt` + `--record` to capture fixtures; anonymiser for MAC/SN.
+- [x] CLI: `scan` (name, RSSI, model, encrypted flag), `detect <mac>` (model,
       protocol, encryption, device type and firmware registers), `read <mac>`
       (decoded metrics), `dump <mac> --from --to` (read-only sweep, golden rule #2).
-- [ ] Run `scan` near all three stations (read-only, may run unattended); record
-      which are encrypted and their firmware versions (§14 Q5).
-- [ ] EB3A acceptance run — 20 polls at 60 s (unattended); **Human:** compare with
-      the official app and sign off;
-      mark the fields it confirms `verified: true` (all start `false`).
-- [ ] Exception-aware reassembly length (loop/STATE.md CF-3).
-- [ ] Record an EB3A fixture; replay test for the full read path.
-- [ ] Wire `cargo llvm-cov` into `make check` (≥ 80% on `protocol`).
+- [x] `scan` + `detect` of the EB3A and Elite 200 V2: encryption flag and
+      firmware in §14 Q5.
+- [ ] `scan` + `detect` of the AC180 → step 18 (phase-2 PLAN amendment).
+- [x] EB3A acceptance run — 20 polls at 60 s (unattended): 20/20. App comparison
+      and the `verified: true` flags it confirms → `HUMAN-CHECKLIST.md` H1.
+- [x] Exception-aware reassembly length (loop/STATE.md CF-3).
+- [x] Record an EB3A fixture; replay test for the full read path.
+- [x] Wire `cargo llvm-cov` into `make check` (≥ 80% on `protocol`).
 
-**Acceptance (RULES.md):** EB3A 19/20 polls OK, SOC equal to the app, power ±5 W.
+**Acceptance (RULES.md):** EB3A 19/20 polls OK (met, 20/20); SOC equal to the
+app, power ±5 W → H1.
 
-### M2 — Encryption + V2 stations → `v0.3-encryption` (Phase 3)
+### M2 — Encryption + V2 stations (Phase 2, merged) → `v0.3-encryption`
 
-- [ ] Read nhurman `encryption.py`, the bt port and `rustytti` side by side;
+- [x] Read nhurman `encryption.py`, the bt port and `rustytti` side by side;
       write the handshake as a pure state machine in `protocol::crypto`.
-- [ ] Keys loaded from `crypto.keys_file`; refuse to start an encrypted station
+- [x] Keys loaded from `crypto.keys_file`; refuse to start an encrypted station
       without keys (clear error).
-- [ ] Unit tests with vectors recorded from our AC180 (anonymised).
-- [ ] Transport runs the handshake when the advertisement says encrypted.
-- [ ] **Human:** AC180 acceptance run (20 polls vs app); mark confirmed fields `verified: true`.
-- [ ] **Human:** Elite 200 V2 `detect` + `dump` of 100–200, 1300–1520, 6000–6020;
-      compare with PR #49 and v2 maps; promote confirmed fields to `verified`.
-- [ ] **Human:** Elite 200 V2 acceptance run.
-- [ ] Fallback decision if blocked > 3 sessions: Python sidecar (ADR-002).
+- [x] Unit tests with vectors recorded from our EB3A and Elite 200 V2
+      (anonymised, `tests/handshake_vectors.rs`).
+- [ ] Vectors from our AC180 → step 19.
+- [x] Transport runs the handshake when the advertisement says encrypted.
+- [ ] AC180 acceptance run, 20 polls (unattended) → step 20; app comparison and
+      its `verified` flags → H3.
+- [x] Elite 200 V2 `detect` + `dump` of 100–200, 1300–1520, 6000–6020;
+      compared with PR #49 and v2 maps (§4.3); promotion to `verified` → H2.
+- [x] Elite 200 V2 acceptance run (unattended): 20/20; app comparison → H2.
+- [x] Fallback decision if blocked > 3 sessions: Python sidecar (ADR-002) —
+      n/a, the handshake works on both stations.
 
-**Acceptance:** AC180 and Elite 200 V2 meet the v0.3 criteria.
+**Acceptance:** EB3A, Elite 200 V2 (both 20/20) and the AC180 (step 20) meet the
+v0.3 poll criteria; app comparisons H1–H3.
 
 ### M3 — Collector, storage, metrics → `v0.4-collector` (Phase 4)
 
@@ -1018,9 +1021,10 @@ the unplug; DB < 10 MB per station-day.
 
 ### M5 — Deploy + soak → `v1.0-mvp` (Phase 5)
 
-- [ ] `deploy/bluetti-controller.service` (§10.3), install notes (§10.2).
+- [ ] `deploy/bluetti-controller.service` (user-level, §10.3), install notes.
 - [ ] `make build` (release) and a `make dist` tarball.
-- [ ] **Human:** install on the homelab host (§10.2), power it per ADR-008.
+- [ ] **Human:** install the user-level unit on the dev laptop (§10.3); the
+      homelab host (§10.2) arrives after the MVP (§14 Q2).
 - [ ] **Human:** 7-day unattended soak; record interventions, RSS, page time.
 - [ ] OUTCOME with measured numbers; tag `v1.0-mvp`.
 

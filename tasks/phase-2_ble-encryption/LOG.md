@@ -783,3 +783,50 @@ test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 17 ✓ 2026-10-13 — docs close-out (EB3A + Elite)
+
+**Changed:**
+- `ROADMAP.md` §M1/§M2: boxes ticked on steps 1–16 evidence; AC180 items split out as `→ step 18/19/20`; app comparisons and `verified` flips → H1–H3; sidecar fallback n/a. Headings drop `v0.2-ble`/Phase 3 (A9).
+- `ROADMAP.md` M5 + §10.2/§10.3: user-level unit on the dev laptop; homelab install after the MVP (A9). §4.3 Elite row 1300–1419 (A24). §4.5 firmware (A25). §4.9 crypto row: locked versions (match `Cargo.lock`: p256 0.14.0, aes 0.9.3, cbc 0.2.1, md-5 0.11.0).
+- `HUMAN-CHECKLIST.md` H1–H3: the fields a pass flips (SoC + four powers per profile), a fail opens a fix task (A10, old step 15).
+- `README.md`: status line, `make tools`, `make test` meaning (A4); credits already complete (MIT sources + crypto port).
+- `AGENTS.md` §4/§11, `loop/README.md`, `.claude/commands/loop-step.md`: human-only list points at RULES.md; dev-laptop user unit is not a production deploy (A11).
+- `src/transport/read.rs` `drain` doc narrowed to "after a failed chunk" (A27).
+- `loop/STATE.md`: CF-2 discharged. PLAN dispositions: A4 A7 A9 A10 A11 A24 A25 A27 fixed.
+
+**Check:**
+- step check (amended regex) → `0`; open boxes left: AC180 → steps 18/19/20 only.
+- `make amendments` → 2 open: A28 (home step 22), A29 (home step 19) — later steps by design; every step-17 home settled.
+- `make loop-hygiene` → OK.
+- Done-when bluer grep: `grep -rn bluer src/ | grep -v '^src/transport/bluer/'` → only `src/transport/mod.rs` (doc line, `pub mod bluer;`, two re-exports) and a doc comment in `src/transport/station.rs`; no `use bluer` outside the adapter.
+
+**reviewer:** INTENT satisfied (except the step's own `make amendments` check, see A30). 0 CRITICAL / 0 HIGH / 3 MEDIUM.
+- MEDIUM: step 17's "none open" check not met (A28/A29 homed later) → deferred to A30.
+- MEDIUM: EB3A "met, 20/20" hides CF-4 plausibility gap → deferred to A31 (home step 21).
+- MEDIUM: §10.2 lost its system unit → deferred to A32.
+
+**Decision:** none. **Carry-forward:** CF-2 discharged. **Next:** step 18 (AC180 identity + first read).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:14:43Z
+
+```text
+
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 2 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

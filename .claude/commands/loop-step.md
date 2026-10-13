@@ -18,7 +18,7 @@ Do this now:
 2. Respect the gates (AGENTS.md §6) — especially: if the foundation phase is
    open, do not write later-phase `src/` code. Never cross a human-only boundary
    (secrets, production deploys, destructive infra, irreversible external
-   actions) autonomously.
+   actions; exact list in RULES.md "Before crossing a human-only boundary") autonomously.
 3. Do step `.step` of `.steps`, titled `.step_title` — the single next unchecked
    `PLAN.md` step. Just one.
 4. Verify it (AGENTS.md §5), then the `reviewer` by risk tier (PROMPT §4b —

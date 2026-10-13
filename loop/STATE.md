@@ -12,7 +12,7 @@
 ## Carry-forward — obligations that outlive the task that found them
 
 - ~~CF-1 → phase 2: install `libdbus-1-dev` + `pkg-config` on the dev host before adding `bluer`. Recorded in: ROADMAP.md §4.9. Discharge: `cargo build` with bluer succeeds.~~ Discharged 2026-10-13: `cargo build --locked` compiles bluer 0.17.4 (phase-2 step 1).
-- CF-2 → phase 2 (merged): Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.
+- ~~CF-2 → phase 2 (merged): Elite 200 V2 map and encryption state are unverified. Recorded in: ROADMAP.md §4.3, §4.5. Discharge: M2 dump + acceptance run.~~ Discharged 2026-10-13: `BLUETTF` + handshake, dump vs PR #49 in §4.3 (step 14), 20/20 acceptance (step 16).
 - CF-4 → phase 2 (before the close): EB3A `ac_output_power` read 0 W on 20/20 acceptance polls while its AC outlet powered the router (~9 W) in a grid outage (owner observation, `HUMAN-CHECKLIST.md`). Plausible-range checks cannot catch it. Discharge: find the right register or a documented low-load floor (community maps, `dump`), recorded in LOG.
 - ~~CF-3 → phase 2: transport reassembly must stop at 5 bytes when the function byte has 0x80 set (Modbus exception). Recorded in: PLAN A6, `src/protocol/modbus.rs` module doc. Discharge: pure `expected_frame_len` helper + exception-vector test in M1.~~ Discharged 2026-10-13: `expected_frame_len` + `frame_len_stops_at_five_on_exception` (phase-2 step 3).
 

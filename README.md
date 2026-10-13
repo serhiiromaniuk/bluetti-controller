@@ -5,8 +5,9 @@ Bluetooth LE. One Rust binary on a low-power homelab PC: polls the stations,
 keeps the history in SQLite, logs power outages, forecasts runtime, accounts
 energy, and serves a small web page on the LAN. Works with the internet down.
 
-**Status:** Phase 1 — foundation. Spec and research are done; only the pure
-protocol layer is coded. Nothing talks to hardware yet.
+**Status:** Phase 2 — BLE transport + encryption. The read-only CLI (`scan`,
+`detect`, `read`, `dump`) reads the EB3A and Elite 200 V2 over encrypted local
+BLE; collector, storage and web UI come in phases 4–5.
 
 ## Read first
 
@@ -18,8 +19,9 @@ protocol layer is coded. Nothing talks to hardware yet.
 ## Develop
 
 ```bash
-make check   # fmt-check + clippy + tests (needs rustfmt and clippy)
-make test    # tests only
+make tools   # once per clone: pinned cargo-llvm-cov into .tools/
+make check   # fmt-check + clippy + tests (needs rustfmt, clippy, make tools)
+make test    # tests under cargo llvm-cov; fails if src/protocol/ < 80% lines
 make help    # all targets
 ```
 

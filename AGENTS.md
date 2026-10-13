@@ -242,7 +242,7 @@ prompt is [`loop/PROMPT.md`](loop/PROMPT.md); the harness is
   phase — but **only after that phase's gate has objectively passed** (§5/§6).
 - **The human-only boundary the loop must NEVER cross autonomously:** secrets /
   production credentials, production deploys, destructive infrastructure, and
-  irreversible external actions. At these, stop (`<<LOOP:DONE>>` at the final
+  irreversible external actions (the exact list: RULES.md "Before crossing a human-only boundary"; a user-level unit on the dev laptop is not a production deploy). At these, stop (`<<LOOP:DONE>>` at the final
   milestone, else `<<LOOP:BLOCKED>>`) and hand back to a human.
 - **Credentials stay out of reach.** Anything in the loop's environment or home
   can be read by every command the agent runs, so run it unattended where no
@@ -548,5 +548,5 @@ was independent, and to fixed per-step ceremony paid once per step.
   config module.
 - Introducing a forbidden runtime dependency (golden rule #1).
 - Crossing a human-only boundary (secrets, production deploys, destructive infra,
-  irreversible external actions) autonomously. (Milestone tagging and code-phase
+  irreversible external actions; RULES.md has the exact list) autonomously. (Milestone tagging and code-phase
   gates ARE autonomous once the gate objectively passes — §4/§6.)
