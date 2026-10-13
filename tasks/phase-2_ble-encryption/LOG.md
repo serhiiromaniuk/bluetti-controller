@@ -918,3 +918,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 20 ✓ 2026-10-13 — AC180 acceptance run: 20/20
+
+**Changed:**
+- No source change. `make build` (release, `--locked`, up to date). Gitignored `captures/acceptance.sh` now takes station names as args (default: router living-room); output in `captures/acceptance-mobile.log` + one `.out` per poll.
+
+**Check:**
+- Pre-flight §10.4: rfkill unblocked, adapter powered, `control.enabled = false` (config.toml:36), no other `bluetti-controller` process.
+- Each poll: `timeout -s INT -k 5 55 target/release/bluetti-controller --config config.toml --anonymise read mobile`, then sleep to the end of the 60 s slot; one process at a time (golden rule #5). No timeout fired.
+- `mobile` (AC180, V2, `BLUETTF`, BMS 1052.03): 14:30:05–14:49:03 +03:00, **20/20 ok**, exit 0 each, 20–22 s per poll. Every `.out` ends in `disconnected`.
+- Values: soc 92→91 %, pack 33.09–33.11 V at 0.9–1.0 A, all four powers 0 W, ac_output_on 1, dc_output_on 0, ac_input_voltage 2.1–2.2 V (residual, 0 Hz).
+- ok = exit 0, so every profile field decoded and passed `problems`.
+- Gate (RULES.md v0.3, loop part): ≥ 19/20 → met. App comparison stays H3 in `HUMAN-CHECKLIST.md`.
+- Note for H3 (not a gate item): ~1 A × 33 V ≈ 30 W pack draw with AC on and `ac_output_power` 0 W — idle inverter, or a small load under the reading floor (same shape as CF-4 on the EB3A); the owner's app check decides.
+
+**reviewer:** batched (LOG-only, no code; reviewed with the next batch before the push)
+
+**Decision:** none. **Carry-forward:** none. **Next:** step 21 (CF-4 dump).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:49:31Z
+
+```text
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
