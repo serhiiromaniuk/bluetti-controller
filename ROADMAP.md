@@ -474,7 +474,8 @@ support; no LICENSE file; no confirmed success. Not used (ADR-002). [S18]
 - **Ours (2026-10-13, `detect`):** EB3A and Elite 200 V2 both advertise
   `BLUETTF` and complete the §4.4 handshake; the EB3A keeps the V1 layout.
   Firmware: EB3A ARM 2197.02 / DSP 2196.01; Elite 200 V2 BMS 1068.11
-  (register 6175). AC180: PLAN step 18. See §14 Q5.
+  (register 6175). AC180 (phase-2 step 18): `BLUETTF`, V2 layout, BMS 1052.03
+  (register 6175), handshake as above. See §14 Q5.
 
 ### 4.6 Polling behaviour and BLE reliability
 
@@ -893,6 +894,9 @@ sudo install -m 0640 -o bluetti config.toml keys.toml /etc/bluetti-controller/
 busctl --system introspect org.bluez /org/bluez   # as the service user: D-Bus access works
 ```
 
+The hardened system unit for this user is still to be written, when the
+homelab host arrives; §10.3 holds only the dev-laptop user unit.
+
 ### 10.3 systemd unit (shipped in `deploy/` at M5)
 
 The M5 soak runs on the dev laptop as a user-level unit (owner 2026-10-13,
@@ -952,11 +956,11 @@ WantedBy=default.target
 ## 12. Milestones
 
 Effort is in focused sessions (~2–4 h). Phases map to RULES.md: Phase 1 = M0,
-Phase 2 = M1 + M2 (merged by the owner 2026-10-13: the EB3A is encrypted; M2
-covers the EB3A and Elite 200 V2, the AC180 is a `HUMAN-CHECKLIST.md` row),
+Phase 2 = M1 + M2 (merged by the owner 2026-10-13: the EB3A is encrypted; the
+AC180 joined read-only at 14:05 the same day, so M1/M2 cover all three stations),
 Phase 4 = M3, Phase 5 = M4 + M5 (M5 soak on the dev laptop as a user-level
-systemd unit). **Human:** items below that compare with the app, unplug a
-station or need the AC180 are deferred to `HUMAN-CHECKLIST.md` and do not block
+systemd unit). **Human:** items below that compare with the app or unplug a
+station are deferred to `HUMAN-CHECKLIST.md` and do not block
 (RULES.md "Deferred physical checks"); read-only station access is unattended.
 
 ### M0 — Foundation → `v0.1-foundation` (Phase 1)
@@ -990,7 +994,8 @@ station or need the AC180 are deferred to `HUMAN-CHECKLIST.md` and do not block
       (decoded metrics), `dump <mac> --from --to` (read-only sweep, golden rule #2).
 - [x] `scan` + `detect` of the EB3A and Elite 200 V2: encryption flag and
       firmware in §14 Q5.
-- [ ] `scan` + `detect` of the AC180 → step 18 (phase-2 PLAN amendment).
+- [x] `scan` + `detect` of the AC180 (phase-2 step 18): encryption flag and
+      firmware in §14 Q5.
 - [x] EB3A acceptance run — 20 polls at 60 s (unattended): 20/20. App comparison
       and the `verified: true` flags it confirms → `HUMAN-CHECKLIST.md` H1;
       `ac_output_power` reads 0 W below a low-load floor → CF-4, step 21, §4.3.
@@ -1009,17 +1014,17 @@ CF-4 / step 21, a low-load floor in §4.3); SOC equal to the app, power ±5 W �
       without keys (clear error).
 - [x] Unit tests with vectors recorded from our EB3A and Elite 200 V2
       (anonymised, `tests/handshake_vectors.rs`).
-- [ ] Vectors from our AC180 → step 19.
+- [x] Vectors from our AC180 (phase-2 step 19, `tests/frames/handshake-ac180.json`).
 - [x] Transport runs the handshake when the advertisement says encrypted.
-- [ ] AC180 acceptance run, 20 polls (unattended) → step 20; app comparison and
-      its `verified` flags → H3.
+- [x] AC180 acceptance run (unattended): 20/20 (phase-2 step 20); app comparison
+      and its `verified` flags → H3.
 - [x] Elite 200 V2 `detect` + `dump` of 100–200, 1300–1520, 6000–6020;
       compared with PR #49 and v2 maps (§4.3); promotion to `verified` → H2.
 - [x] Elite 200 V2 acceptance run (unattended): 20/20; app comparison → H2.
 - [x] Fallback decision if blocked > 3 sessions: Python sidecar (ADR-002) —
-      n/a, the handshake works on both stations.
+      n/a, the handshake works on all three stations.
 
-**Acceptance:** EB3A, Elite 200 V2 (both 20/20) and the AC180 (step 20) meet the
+**Acceptance:** EB3A, Elite 200 V2 and AC180 (each 20/20) meet the
 v0.3 poll criteria; app comparisons H1–H3.
 
 ### M3 — Collector, storage, metrics → `v0.4-collector` (Phase 4)
@@ -1113,7 +1118,7 @@ the unplug; DB < 10 MB per station-day.
 | Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP; the M5 soak runs on the dev laptop (owner 2026-10-13) | — |
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
 | Q4 | ~~Router powered from EB3A AC or DC 12 V?~~ — AC outlet (owner 2026-10-13) | — |
-| Q5 | ~~Station firmware versions and the encryption flag of each~~ — EB3A `BLUETTF`, V1 layout, ARM 2197.02 / DSP 2196.01; Elite 200 V2 `BLUETTF`, V2 layout, BMS 1068.11 (register 6175) (`detect`, 2026-10-13); AC180 off, see `HUMAN-CHECKLIST.md` H3 | — |
+| Q5 | ~~Station firmware versions and the encryption flag of each~~ — EB3A `BLUETTF`, V1 layout, ARM 2197.02 / DSP 2196.01; Elite 200 V2 `BLUETTF`, V2 layout, BMS 1068.11 (register 6175) (`detect`, 2026-10-13); AC180 `BLUETTF`, V2 layout, BMS 1052.03 (register 6175) (`detect`, 2026-10-13, phase-2 step 18) | — |
 | Q6 | ~~Names/roles for the stations~~ — defaults approved by the owner 2026-10-13 (phase 2 PLAN Q5): EB3A `router`, AC180 `mobile`, Elite 200 V2 `living-room` | — |
 | Q7 | ~~Poll interval~~ — 60 s (owner 2026-10-13) | — |
 | Q8 | ~~LAN or VPN~~ — LAN only (owner 2026-10-13) | — |

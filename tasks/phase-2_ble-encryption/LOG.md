@@ -1006,3 +1006,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 22 ✓ 2026-10-13 — AC180 docs close-out; A28/A30/A32 settled
+
+**Changed:**
+- `ROADMAP.md` §4.5 "Ours": AC180 `BLUETTF`, V2 layout, BMS 1052.03 (register 6175) — from step 18's `detect`.
+- §14 Q5: "AC180 off, see H3" → AC180 flag + layout + firmware (step 18).
+- §12 preamble (A28): AC180 joined read-only at 14:05; "need the AC180" dropped from the deferred list.
+- §M1 AC180 `scan` + `detect` box ticked (step 18); §M2 vectors box ticked (step 19, `handshake-ac180.json`); AC180 acceptance box ticked 20/20 (step 20), app comparison stays H3; acceptance line "each 20/20"; fallback "all three stations".
+- §10.2 (A32): states its hardened system unit is still to be written; §10.3 holds only the user unit.
+- `PLAN.md`: A28, A30, A32 → fixed. A30: step 17's amendments check excluded A28/A29 (homed at 18–22); step 22 runs the strict check below.
+
+**Check:**
+- `sed -n '/^### M1/,/^### M3/p' ROADMAP.md | grep '\[ \]' | grep -vcE 'H[0-9]|n/a'` → `0`.
+- `make amendments` → `33 finding(s), all disposed` before review; after the M1 fix below → 1 open: A28 (its OUTCOME half is a close artefact).
+- `make loop-hygiene` → `loop hygiene OK`.
+- Doc-only; no failing-first applies.
+
+**reviewer:** one pass (uncommitted diff; `@{u}..HEAD` empty). INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM `PLAN.md` A28 marked fixed while its OUTCOME citation of the 14:05 decision vs BRIEF **Out** is not written → fixed in place: A28 back to `open`, owed at the close. The strict `make amendments` check is met only when the close writes that line.
+
+**Decision:** none. **Carry-forward:** none. **Next:** task close (A28 OUTCOME citation, close-reviewer, phase gate `v0.3-encryption`).
+
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-13T11:59:16Z
+
+```text
+test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-91ff6e0c3af51e62)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
