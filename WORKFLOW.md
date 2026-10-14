@@ -230,5 +230,7 @@ phases is the content of the steps and which check proves them.
   own folder, plan, and commits.
 - **Plan was wrong:** never edit the original steps — append an `## Amendments`
   note explaining the change, then proceed.
-- **Gate fails:** `<<LOOP:GATE_FAILED>>`, fix the *work*, re-run. Never edit the
-  thresholds.
+- **Gate fails:** attempts 1 and 2 log the miss, plan the fix as amendments and
+  emit `<<LOOP:CONTINUE>>`; the third failure of the same gate emits
+  `<<LOOP:GATE_FAILED>>` (loop/PROMPT.md §7). On a gate step, that marker wins
+  over the 3-attempt `<<LOOP:BLOCKED>>` hatch. Fix the *work*, never the thresholds.

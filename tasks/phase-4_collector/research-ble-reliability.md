@@ -7,7 +7,7 @@ Scout page for phase-4 step 18a. Read-only. GPL projects were described, never c
 ### Our code (what runs today)
 - `find` tries the BlueZ cache, then `scan_for`: fresh `set_discovery_filter(transport=Le)`, `discover_devices()`, checks `Device1.Rssi` every 250 ms, 15 s cap, `HEARD_POLL`, "an RSSI means heard in this discovery" — `src/transport/bluer/scan.rs:82-114`, `src/transport/bluer/gatt.rs:41-48`.
 - `DiscoveryFilter` leaves `duplicate_data` at its default (false) — `scan.rs:73-78`; bluer field at `bluer-0.17.4/src/adapter.rs:754`.
-- ROADMAP §5.4 already records that BlueZ forgets the station ~30 s after disconnect, so at a 60 s interval every poll is uncached — `ROADMAP.md:645-651`.
+- ROADMAP §5.4 already records that BlueZ forgets the station ~30 s after disconnect, so at a 60 s interval every poll is uncached — `ROADMAP.md:645-651`. *Corrected 2026-10-14 (A27):* true for the EB3A only; 18a's read-path probe hit the cache on 28/30 `mobile` and 16/30 `living-room` polls.
 - Host: `bluetoothd` 5.85 runs as root with no `-E` flag in its command line (`ps aux`); `/etc/bluetooth/main.conf:109` has `#TemporaryTimeout = 30` (default).
 
 ### Community tools (Q1)
@@ -63,5 +63,7 @@ Passive `btmon` log of advertising reports from a second host (Qualcomm Atheros 
 
 - Silences of 15–16.5 s are routine for the EB3A (26 in 12 min) and occur on the AC180. A 15 s per-poll discovery window can fall entirely inside one, which matches the EB3A's `discover` misses on the laptop.
 - The silences show on a second adapter too, so they are station-side (or BlueZ scan cycling), not the laptop's combo chip alone.
-- Consequence for A23: a per-poll window must exceed ~17 s to be safe; a long-lived discovery that keeps the BlueZ cache warm (gaps < 30 s `TemporaryTimeout`) removes the problem without a longer window. Prefer the long-lived discovery.
+- ~~Consequence for A23: a per-poll window must exceed ~17 s to be safe; a long-lived discovery that keeps the BlueZ cache warm (gaps < 30 s `TemporaryTimeout`) removes the problem without a longer window. Prefer the long-lived discovery.~~
+
+**Superseded 2026-10-14 (A25):** 18a contradicts the station-side reading above. Fresh scans heard the EB3A in ≤ 0.86 s, 60/60, and the laptop's misses came from LE discovery stopping < 1.1 s after start (fixed in 18b, 123/123 polls). The 15–16.5 s silences are likely a capture artefact: `bluetoothctl scan on` filters duplicates and cycles the scan, and the laptop was connecting to the stations meanwhile. No per-poll window > ~17 s is needed; the 20 s budget (ROADMAP §5.4) stands.
 - Not explained: why the AC180 had no laptop misses despite similar gaps.

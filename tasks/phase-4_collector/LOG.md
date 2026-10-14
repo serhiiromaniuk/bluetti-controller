@@ -1358,3 +1358,46 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18d ⏸ 2026-10-14 — 12 h run 3 still open; A25–A28 settled meanwhile
+
+**Window:** now 1792001194 (18:06:34Z) < ETA 1792044051 (2026-10-15T06:00:51Z). `bluetti-acceptance-24h` `active`. Unit not stopped, no station touched, `data/run/` not rebuilt.
+
+**Changed (doc only, no `src/`):**
+- A25: `research-ble-reliability.md` second-adapter section — dated superseding note; the ~17 s per-poll window claim struck.
+- A26: `WORKFLOW.md` edge case "Gate fails" now matches PROMPT §7 (attempts 1–2 continue, third → `<<LOOP:GATE_FAILED>>`, which wins over the 3-attempt BLOCKED hatch on a gate step). `loop/STATE.md` decision line for the owner's 2026-10-14 rule.
+- A27: corrections to step 18a (that entry stays as written):
+  - (a) Mode C's "every scan heard < 0.3 s" covers 44 scans; 46 of 90 polls were BlueZ cache hits (mobile 28/30, living-room 16/30). The page's "every poll uncached" line is corrected; ROADMAP §5.4 already says it for the EB3A only.
+  - (b) The early stop ranged 0.26–1.08 s (17:34:01.352 → 02.429), not 0.26–0.80 s. Two sessions not started by a poll (17:24:19, 17:25:10) stayed on 42 s and 51 s.
+  - (c) The fresh start that worked after a miss is 17:19, not 17:18.
+- A28: fixed (18b + 18b2 done).
+- Open: A22 (closes at 18d's verdict), A23 (its persistent-link clause depends on run 3 < 99 %).
+
+**Check:** `make amendments` → 2 open (A22, A23), both settled by 18d. `make check` via step-done.
+
+**reviewer:** before commit. INTENT satisfied, 0 CRITICAL / 0 HIGH / 0 MEDIUM; A27(c) taken from the amendment text (raw capture not re-read).
+
+**Next:** 18d once `now ≥ 1792044051`: stop the unit, `scripts/acceptance_v04.py data/acceptance-24h.db 1792000851 1792044051 60` (≥ 684/720 per station), CF-5 from the DB if needed, H4 note on any house outage.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T18:08:59Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
