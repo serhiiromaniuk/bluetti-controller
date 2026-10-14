@@ -1,68 +1,67 @@
-# BLE reliability research (phase 4, after the failed 12 h run)
+# BLE reliability: why per-poll discovery misses, and what else exists
 
-Read-only research. No station, radio or binary was touched. Web claims not confirmed by a primary source are marked `unverified`.
+Scout page for phase-4 step 18a. Read-only. GPL projects were described, never copied.
 
 ## Findings
 
-Our run (LOG step 18 ✗, `tasks/phase-4_collector/LOG.md`):
-- AC180 99.72 %, Elite 91.81 %, EB3A 86.81 %. EB3A: all 95 misses are `discover` ("not found within 15s"), a steady 6-12 per hour for 12 h, JBL off the adapter — LOG step 18 "Miss shape".
-- Elite: 48 `discover`, 6 `handshake` (signature does not verify), 5 `read` (20 s deadline). Its `discover` misses fall from 7/h to 1/h over the run — LOG step 18. Not explained; the other two stations do not fall, so it is not simply adapter warm-up (unverified).
-- AC180 misses: 2 `handshake` ("ff01: notification stream closed"), no discover misses — LOG step 18.
+### Our code (what runs today)
+- `find` tries the BlueZ cache, then `scan_for`: fresh `set_discovery_filter(transport=Le)`, `discover_devices()`, checks `Device1.Rssi` every 250 ms, 15 s cap, `HEARD_POLL`, "an RSSI means heard in this discovery" — `src/transport/bluer/scan.rs:82-114`, `src/transport/bluer/gatt.rs:41-48`.
+- `DiscoveryFilter` leaves `duplicate_data` at its default (false) — `scan.rs:73-78`; bluer field at `bluer-0.17.4/src/adapter.rs:754`.
+- ROADMAP §5.4 already records that BlueZ forgets the station ~30 s after disconnect, so at a 60 s interval every poll is uncached — `ROADMAP.md:645-651`.
+- Host: `bluetoothd` 5.85 runs as root with no `-E` flag in its command line (`ps aux`); `/etc/bluetooth/main.conf:109` has `#TemporaryTimeout = 30` (default).
 
-How discover works today:
-- Every poll: check the BlueZ cache, else open a brand-new LE discovery (`set_discovery_filter(Transport=Le)` + `discover_devices()`), poll RSSI every 250 ms for up to 15 s, then drop the discovery when the function returns — `src/transport/bluer/scan.rs:59-100`, `src/transport/bluer/gatt.rs:42-51`.
-- BlueZ drops an unheard device ~30 s after disconnect (`TemporaryTimeout`, default 30 s; 0 = keep) — [BlueZ main.conf](https://raw.githubusercontent.com/bluez/bluez/master/src/main.conf), ROADMAP §5.4. At a 60 s interval the cache is therefore always cold, so every poll depends on hearing one advert inside a 15 s window.
-- The scan waits for `rssi.is_some()` (a fresh sighting), and a discovery started with BlueZ default LE discovery scan params (the `[LE] ScanInterval/WindowDiscovery` entries are commented out, so kernel defaults apply — main.conf above). On a shared combo chip the effective duty cycle is not known here (unverified).
+### Community tools (Q1)
+- bluetti_mqtt keeps a **persistent** link per device: `connect` once, `start_notify` once, then a command loop; on a BleakError it disconnects, sleeps 5 s, reconnects. Per-command: 5 retries, 5 s wait after a parse error, 1 s sleep after a connect error, no exponential backoff, and `BleakDeviceNotFoundError` retries with no sleep — https://raw.githubusercontent.com/warhammerkid/bluetti_mqtt/master/bluetti_mqtt/bluetooth/client.py (lines 53-163 as summarised).
+- bluetti_mqtt does not scan per poll: it takes a fixed address; scanning (`BleakScanner.discover()` with Bleak's default timeout) is only for `--scan` and the start-up `check_addresses` — https://github.com/warhammerkid/bluetti_mqtt/blob/master/bluetti_mqtt/bluetooth/__init__.py.
+- Its sample systemd unit restarts the process after 30 s (`Restart=always`) — https://pypi.org/project/bluetti-mqtt/0.15.0 (via search snippet; unverified in the unit file itself).
+- ROADMAP §4.6 (sources S2, S5, S17, S19): HA users need a 60 s poll / 120 s timeout / 10 retries on the AC180 and it still drops after hours; a station stops advertising while the phone app holds the link — `ROADMAP.md:480-495`.
+- bluetti-bt-lib README and hassio-bluetti-bt README state nothing on connection strategy (the lib is based on bluetti_mqtt) — https://github.com/Patrick762/bluetti-bt-lib, https://github.com/Patrick762/hassio-bluetti-bt. Home Assistant's Bluetooth integration owns scanning there (a passive, always-on scanner); unverified for this integration, I did not read its source.
+- Bluetti_ESP32_Bridge README says nothing on reconnect or advertising; only that the icon blinks while connecting — https://github.com/mariolukas/Bluetti_ESP32_Bridge. Its source was not read.
+- Advertising interval of the stations: not found in any source. `unverified`. Only the "stops advertising while connected" behaviour is documented (§4.6 above, and a forum report that one client at a time holds the link — https://community.bluettipower.com/t/elite-200-v2-app3-0-bt-scanning-device-not-found/41590).
+- No source says whether a station advertises right after a disconnect; none found. `unverified`.
 
-Community practice:
-- warhammerkid/bluetti_mqtt keeps ONE persistent connection per device (state machine NOT_CONNECTED → CONNECTED → READY; link dropped only on error), no keepalive, response timeout 5 s, 5 retries, 5 s sleep after a disconnect, 1 s after a connect failure. It addresses by MAC with no scan after the first blocking `BleakScanner.discover()`; a not-found is retried in a tight loop with no backoff — [client.py](https://raw.githubusercontent.com/warhammerkid/bluetti_mqtt/main/bluetti_mqtt/bluetooth/client.py), [manager.py](https://raw.githubusercontent.com/warhammerkid/bluetti_mqtt/main/bluetti_mqtt/bluetooth/manager.py).
-- Its README: one command monitors several devices but only one is talked to at a time; a polling interval (e.g. 60 s) and systemd `Restart=always`/`RestartSec=30` are the documented mitigations — [PyPI bluetti-mqtt](https://pypi.org/project/bluetti-mqtt).
-- HA users: AC180 only stable at 60 s poll / 120 s timeout / 10 retries (ROADMAP §4.6, S19: hassio-bluetti-bt#176, bluetti-bt-lib#86). I could not retrieve those issues' text this session (unverified here; cited from ROADMAP).
-- Forum reports: EB3A switches Bluetooth off after ~1 h idle with no solar/load ([Bluetti community](https://community.bluettipower.com/t/eb3a-bluetooth-shuts-off-while-unit-still-powered/24788), single user, unverified). This matches no pattern in our data (misses are steady, the EB3A answers between misses), but check EB3A load/solar state during misses.
-- I found NO public source on Bluetti advert interval or on stopping advertising after a connection ends. ROADMAP §4.6 only says adverts stop while a client (phone) IS connected. Advert interval is unknown: measure it (below).
+### BlueZ and kernel internals (Q2)
+- `DISCOV_LE_TIMEOUT 10240 /* msec */`, `DISCOV_INTERLEAVED_TIMEOUT 5120` — https://raw.githubusercontent.com/torvalds/linux/master/include/net/bluetooth/hci_core.h (~line 1010). Where the timeout is applied (does the kernel stop LE discovery after 10.24 s?) was not read: hci_sync.c fetch got HTTP 429. `unverified`.
+- `bluetoothd` `adapter.c`: `IDLE_DISCOV_TIMEOUT (5)` seconds; `discovering_callback()` restarts discovery after the kernel reports it stopped, with delay 5 s, or **0** when `no_scan_restart_delay` is set (set from `current_discovery_filter != NULL`); a failed restart waits 10 s — https://raw.githubusercontent.com/bluez/bluez/master/src/adapter.c (~lines 95, 1080, 1100, 1290; line numbers approximate, from a summarising fetch). So a gap of 0-5 s with no scan can follow every kernel scan cycle; with our filter set the gap should be ~0, but that is `unverified` on this host.
+- `TEMP_DEV_TIMEOUT 3*60` exists in `adapter.c`, but main.conf `TemporaryTimeout` default is 30 s: "How long to keep temporary devices around" — https://raw.githubusercontent.com/bluez/bluez/master/src/main.conf. `device.c` removes a temporary device after the timeout, skipped while connecting or connected, and cancelled when a connection is added — https://raw.githubusercontent.com/bluez/bluez/master/src/device.c.
+- `SetDiscoveryFilter`: `DuplicateData` default false ("disables duplicate detection of advertisement data"); with any filter set the default RSSI delta threshold is not applied; sessions from several clients are merged and discovery stops only when all end — https://raw.githubusercontent.com/bluez/bluez/master/doc/org.bluez.Adapter.rst. So with a single session the RSSI property is not refreshed on every advert, but is set when the object is created/first heard.
+- Our own comment says BlueZ drops the RSSI of devices no longer seen when discovery stops — `scan.rs:118-119`. Each poll therefore starts from "no RSSI", and any advert gap or restart gap lands in the 15 s window.
+- Net: the observed 13 % (EB3A) and 7 % (Elite) misses are consistent with a station that advertises slowly or with gaps, plus a scan that is restarted every poll. This is a hypothesis; the cause is **not** proven. Step 18a's time-to-heard measurement is what decides it.
 
-BlueZ facts:
-- `Adapter1.ConnectDevice` connects "without need of performing General Discovery"; experimental; needs `AddressType` ("public"/"random", default BR/EDR); returns the device path; errors incl. AlreadyExists — [BlueZ Adapter API](https://bluez.readthedocs.io/en/latest/adapter-api/), [org.bluez.Adapter.rst](https://raw.githubusercontent.com/bluez/bluez/master/doc/org.bluez.Adapter.rst). It is experimental, so bluetoothd must run with `-E`; not checked here (unverified). The bluer wrapper's signature/availability I could not read (docs.rs page truncated): unverified.
-- Alternative without discovery: `Device1.Connect` on an existing object. BlueZ creates the object only after seeing the device (or via ConnectDevice), so a cold cache needs one of the two.
-- `SetDiscoveryFilter`: `Transport=le`, `DuplicateData` (default on = PropertiesChanged on each ManufacturerData sighting; we already read properties by polling). A second discovery client may merge filters; bluer says `set_discovery_filter` fails if discovery is already active — [docs.rs bluer Adapter](https://docs.rs/bluer/latest/bluer/struct.Adapter.html).
-- Combo Wi-Fi/BT chips abort connections and lose scan time; community advice is a USB adapter — ROADMAP §4.6 (S20/S21, [Bleak troubleshooting](https://bleak.readthedocs.io/en/latest/troubleshooting.html)). The owner's goal host is a homelab box; the dev laptop chip is not the production target (RULES.md "What this is"), so a laptop-only result may not transfer.
-
-"Signature does not verify" (handshake message 4, ECDSA over station point ‖ temp_iv — ROADMAP §4.4; error text `src/protocol/crypto/handshake.rs:109`):
-- No public source found on its cause. Plausible, unverified: a truncated/interleaved notification from a link not fully torn down after the previous poll (our own session overlapped by ≤ 5 s cleanup disconnects), a corrupted/stale challenge from a half-closed station session, or the high-S signature open risk noted in ROADMAP §4.4. 6 in 720 on Elite only, 0 on EB3A/AC180, argues for a station-side or timing cause, not a key bug (a bad key fails every time).
-- A fresh connect + handshake is a safe retry (new keys per connection; read-only). It is not a replay.
+### Alternatives (Q3)
+- **Direct `Device1.Connect` on a known object, no discovery.** `dev_connect` calls `btd_device_set_temporary(dev,false)` then `device_connect_le`, so a cached LE device connects without fresh adverts — device.c above. Needs the Device1 object to exist: it is removed ~30 s after disconnect while temporary. LE connect itself still needs the peer to advertise (connectable), so it can still fail; its failure shows as `le-connection-abort`/page timeout (`unverified` which error).
+- **`Adapter1.ConnectDevice`.** Connects without general discovery; needs `Address`, optional `AddressType` public/random; **experimental**, so `bluetoothd -E` (or `Experimental = true` in main.conf) — a BlueZ config change, human-only — https://raw.githubusercontent.com/bluez/bluez/master/doc/org.bluez.Adapter.rst. bluer 0.17.4 exposes it as `Adapter::connect_device` and marks it experimental — `bluer-0.17.4/src/adapter.rs:385-399`. Current host runs bluetoothd without `-E`, so it would return NotSupported/UnknownMethod; `unverified` (not called, would connect).
+- **One discovery session kept open across polls.** BlueZ sessions are refcounted, so a process-wide `discover_devices()` stream held for the service lifetime keeps the Device1 objects and RSSI alive and fresh; no restart gap per poll, no cache expiry (objects seen in discovery are not removed while heard). A scan is not a connection, so golden rule #5 (one link, no held connection) is not touched; its cost is continuous radio use on the host, and it must not collide with `connect` (BlueZ pauses/resumes scanning during LE connect; `unverified` for our adapter). No sudo, no config change. Shared state: one discovery handle for 3 stations, owned by one task.
+- **Passive scan via AdvertisementMonitor (`org.bluez.AdvertisementMonitorManager1`).** Lets a client watch for manufacturer-data patterns without active scan requests; the `main.conf` `AdvMon*` scan settings exist (defaults 300/500 ms duty) — https://raw.githubusercontent.com/bluez/bluez/master/src/main.conf. Exposed in bluer as `adapter.register_advertisement_monitor` (`unverified`, not checked in the crate source); needs kernel/controller MSFT or AdvMon support (`unverified`) and possibly `-E` on older BlueZ; heavier code than the other options.
 
 ## Gaps and risks
-
-- Root cause of `discover` misses is unmeasured. Rank by evidence:
-  1. Cold scan per poll with a short, single window (strongest: only EB3A/Elite fail; AC180 never misses; cache always cold at 60 s; misses uniform over 12 h, so not an event). Station advert interval likely long on EB3A/Elite (hypothesis, unverified).
-  2. Scan scheduling on the shared combo chip: discovery start/stop each poll, kernel default LE scan params (unverified duty cycle). JBL removal did not help — LOG step 18.
-  3. Station-side: advertising pause/slowdown near a prior connection (no source) or after-disconnect state.
-  4. Bluetti Bluetooth sleep (forum, one user) — weak.
-- A18's "JBL coexistence" is falsified for EB3A (LOG step 18); keep measuring.
-- A persistent connection fights golden rule #5 and the phone app (adverts stop while connected, ROADMAP §4.6); 3 persistent links from one laptop chip is also untested (the chip may cap concurrent LE links; unverified).
-- Retry/longer scan inside the 20 s per-poll budget (ROADMAP §5.4) is tight: connect+handshake+read ≈ 4-5 s (§5.4), leaving ~15 s for discovery.
+- Cause of the misses is unproven: no measurement of the stations' advertising gaps. A scan-window increase might not help if the station goes quiet for tens of seconds after disconnect.
+- Kernel LE discovery timeout use and the BlueZ restart delay were read through summaries, not line-by-line; line numbers above are approximate.
+- Station advertising interval and post-disconnect behaviour are undocumented anywhere found; EB3A (13 %) vs AC180 (0.3 %) suggests firmware difference, not host radio.
+- A held discovery session raises radio load and might starve the single-adapter connect; needs a trial, and it may mask a station that really stopped advertising (phone app attached).
+- The 20 s per-poll budget leaves ~15 s after a ~5 s healthy poll; a longer scan window cannot exceed that without a §5.4 decision.
 
 ## Open questions
+- Is a continuously running LE scan on the dev laptop acceptable under golden rule #5's spirit ("gentle with the hardware")? A scan is not a connection, but the owner may read it differently.
+- Is enabling `bluetoothd -E` (for `ConnectDevice`) acceptable? It is a system-wide BlueZ change, human-only; only needed if the discovery-held option fails.
 
-- Q1: may golden rule #5 change from "connect-read-disconnect per poll" to "hold the link, release on demand for the phone app"? (Trade-off below.)
-- Q2: may we ask for a USB BT adapter (or is the target the homelab host's adapter, making the laptop numbers moot)?
-- Q3: may bluetoothd run with `-E` (experimental, for `ConnectDevice`) or `TemporaryTimeout=0` in `/etc/bluetooth/main.conf`? Both are system-wide changes (human-only, RULES.md).
+## Recommendation for 18b
+1. First choice: **one process-wide discovery session kept open across polls** (start at service start, restart if its stream ends, owned by one task), with the existing `Device1` RSSI/advert check reading from live objects. Connect then needs no per-poll scan, removes the 0-5 s restart gap and the ~30 s cache expiry, stays within rule #5 (links remain connect-read-disconnect) and the 20 s budget, and needs no sudo or config.
+2. Use 18a's p50/p95/max time-to-heard to confirm: if adverts arrive with gaps ≤ ~20 s, a held scan reaches ~100 %. If the max exceeds the budget, the station is the limit; then extend the deadline only via a §5.4 decision, and add a direct `Device.connect` attempt on the cached object (no wait for an advert) as a fallback before giving up.
+3. Keep `ConnectDevice` and AdvertisementMonitor as later options; both need human-only host changes or more code.
+4. Mirror bluetti_mqtt's lesson: retry connect with a short, bounded sleep, never a tight loop on "device not found".
 
-## Recommendation
+## Measurement — second adapter (owner's homelab IdeaPad, 2026-10-14 15:12)
 
-Ranked, cheapest and least rule-bending first. Do 1-3 before touching rule #5.
+Passive `btmon` log of advertising reports from a second host (Qualcomm Atheros USB BT, Debian 13), active `bluetoothctl scan on`, no connection to any station; the laptop's loop was polling at the same time. The capture ran 12.3 min, not the planned 60 (cause not found).
 
-1. **Measure first (A22 18a).** Passive: run one continuous LE discovery for ≥ 1 h (read-only, between runs, not during one) and log every sighting per station — gives advert interval distribution and the true p95 time-to-heard. Expected: tells whether 15 s is below p95 for EB3A. Source for method: our own `scan.rs`; no external source.
-2. **Keep one discovery alive across polls** (one long-lived `discover_devices()` in the transport, shared by `find`). Removes per-poll scan start/stop and the cold cache: a station heard any time in the last 60 s is already cached with RSSI; `find` becomes a lookup. Keeps rule #5 (the station link is still per poll; only the host scan persists). Cost: continuous scan load on the shared combo chip, which may reduce connect/Wi-Fi throughput (unverified); BlueZ forbids changing the filter while discovery is active (bluer docs above) — set it once at start. Expected: the largest cut of `discover` misses if the cause is #1/#2 above. Phone app unaffected (scanning is not a connection).
-3. **Extend the cache lifetime instead**: `TemporaryTimeout=0` ([main.conf](https://raw.githubusercontent.com/bluez/bluez/master/src/main.conf)) so the Device object survives between polls, and use `Device1.Connect` on it (no discovery). Caveat: a cached object still needs the station to be advertising at connect time (a connect is a scan for that device's adverts with BlueZ's connect-scan params), so on its own this may only move the miss from `discover` to `connect` (unverified). System-wide change, human-only (Q3). Better combined with 2.
-4. **Bounded poll retries within the interval** instead of one 20 s deadline: after a `discover` miss, rescan (continuing, not restarting) until the round's budget ends; `ConnectDevice` with `AddressType` as a fallback for a cold cache once bluer support is confirmed (Q3). Expected: converts most single-window misses to successes without any rule change; budget is the limit (A22 requires a §5.4 decision first).
-5. **Retry a handshake failure once** with a fresh connection (same poll if budget allows, else next tick counts as a miss anyway). Rationale: bluetti_mqtt retries 5× on parse errors; our 6/720 on Elite is a transient (cause unverified). Add the failing frame's length and time-since-previous-disconnect to the failure log first, so the cause can be settled (no secrets: mask MACs).
-6. **Persistent connection (rule #5 change), only if 1-4 plateau below the goal.** Evidence for: bluetti_mqtt and the ESPHome bridges hold the link; removes discover+connect+handshake per poll (the `discover` failures disappear by construction; handshake runs once). Evidence against: the phone app cannot connect while we hold the link (adverts stop, ROADMAP §4.6) — mitigated by the planned pause-polling button, which must then also disconnect all three links; stations drop links over hours (HA AC180 reports), so reconnect logic returns with the same discovery weakness at each reconnect; 3 simultaneous links on one combo chip are untested; an outage (laptop on battery, stations switching) could drop a link at exactly the moment data matters. Net: do not adopt before 2+4 are measured; if adopted, it needs the owner's explicit rule change (Q1) and a hybrid: hold links, reconnect via the same long-lived discovery.
-7. **Hardware**: a USB adapter on a USB 2.0 port with a short extension (ROADMAP §4.6; [Bleak troubleshooting](https://bleak.readthedocs.io/en/latest/troubleshooting.html)) removes the combo-chip variable. Cheap; ask the owner (Q2).
+| Station | Adverts | Gap p50 | p95 | p99 | Max | Gaps > 15 s |
+|---|---|---|---|---|---|---|
+| EB3A | 114 | 2.56 s | 16.13 s | 16.49 s | 16.5 s | 26 |
+| AC180 | 216 | 0.67 s | 15.22 s | 15.91 s | 16.1 s | 14 |
+| Elite 200 V2 | 395 | 0.72 s | 7.69 s | 12.11 s | 14.1 s | 0 |
 
-## Measurement plan
-
-- Between runs (radio free), 1 h passive discovery log: per station, inter-advert gaps (p50/p95/max) and RSSI. Confirms or kills the "long advert interval" hypothesis. Also run it once with Wi-Fi off, once on (coexistence), and once with each station's phone app closed.
-- After change 2: repeat the step 14 smoke, then the step 15 12 h run unchanged; compare per-station `discover` misses/hour (baseline above: EB3A 6-12/h, Elite 7→1/h, AC180 ~0).
-- Log per failure: stage, elapsed in stage, time since the station's last successful poll, whether the discovery was warm (new fields; schema owner decision).
-- Gate unchanged: ≥ 95 % per station (RULES.md); owner goal ~100 % tracked as a second column, not a gate.
+- Silences of 15–16.5 s are routine for the EB3A (26 in 12 min) and occur on the AC180. A 15 s per-poll discovery window can fall entirely inside one, which matches the EB3A's `discover` misses on the laptop.
+- The silences show on a second adapter too, so they are station-side (or BlueZ scan cycling), not the laptop's combo chip alone.
+- Consequence for A23: a per-poll window must exceed ~17 s to be safe; a long-lived discovery that keeps the BlueZ cache warm (gaps < 30 s `TemporaryTimeout`) removes the problem without a longer window. Prefer the long-lived discovery.
+- Not explained: why the AC180 had no laptop misses despite similar gaps.
