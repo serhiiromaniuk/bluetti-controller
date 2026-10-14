@@ -1401,3 +1401,9 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Owner action 2026-10-14 23:47 — 12 h run 3 lost to a host power loss; run restarted
+- The laptop's battery ran flat during the grid outage; the host died at ~22:49 EEST (last sample 1792007340) and rebooted 23:24. Not a collector fault.
+- Run 3 partial evidence (1792000851–1792007340, 1 h 48 min): router 109, living-room 109, mobile 109 samples; `poll_failure` 0. DB kept as `data/acceptance-24h-run3-partial.db*` (not measured for the gate).
+- Restarted on the same binary and config, fresh `data/acceptance-24h.db`. **New window for step 18d: start 1792010814, ETA 1792054014** (2026-10-15 08:46:54 UTC). Supersedes 1792000851. Run 3 never finished, so it does not count as a gate attempt.
+- Host power is now a reliability risk: the dev laptop must charge from a station (ROADMAP ADR-008), not the grid, or an outage kills the run (`HUMAN-CHECKLIST.md` H8).
