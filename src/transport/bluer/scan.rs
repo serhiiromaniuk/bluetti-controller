@@ -85,14 +85,42 @@ async fn listen_for(
     timeout: Duration,
 ) -> anyhow::Result<Advert> {
     let adapter = le_adapter(adapter_name).await?;
-    let _events = adapter.discover_devices().await?;
+    // Discovery runs while `_session` lives.
+    let mut _session = Some(adapter.discover_devices().await?);
     let device = adapter.device(address)?;
     let until = tokio::time::Instant::now() + timeout;
     let mut last_error = None;
+    let mut restarts = 0_u32;
     loop {
+        // Under `serve` BlueZ ends the LE discovery 0.3–1 s after it starts and
+        // does not restart it (phase-4 LOG step 18a), so it is restarted here:
+        // dropping the session stops it, a new one starts it again.
+        match adapter.is_discovering().await {
+            Ok(true) => {}
+            Ok(false) => {
+                _session = None;
+                restarts += 1;
+                match adapter.discover_devices().await {
+                    Ok(stream) => _session = Some(stream),
+                    Err(err) => {
+                        let text = mask_macs(&err.to_string());
+                        tracing::warn!(error = %text, "LE discovery restart failed");
+                        last_error = Some(text);
+                    }
+                }
+            }
+            Err(err) => {
+                let text = mask_macs(&err.to_string());
+                tracing::debug!(error = %text, "adapter Discovering not readable");
+                last_error = Some(text);
+            }
+        }
         match advert_of(&device).await {
             // An RSSI means heard in this discovery.
-            Ok(Some(advert)) if advert.rssi.is_some() => return Ok(advert),
+            Ok(Some(advert)) if advert.rssi.is_some() => {
+                tracing::debug!(restarts, "station heard");
+                return Ok(advert);
+            }
             Ok(_) => {}
             // Unknown to BlueZ reads as an error too, so it is kept, not
             // failed on: a real D-Bus failure then shows in the not-found error.
@@ -103,6 +131,7 @@ async fn listen_for(
             }
         }
         if tokio::time::Instant::now() >= until {
+            tracing::debug!(restarts, "station not heard");
             let last = last_error.map_or_else(String::new, |e| format!("; last BlueZ error: {e}"));
             return Err(anyhow!(
                 "station not found within {timeout:?}: out of range, or the official app \

@@ -1150,3 +1150,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18b ✓ 2026-10-14 — LE discovery restart in `listen_for`: 123/123 polls over 41 min (A28)
+
+**Changed:** `src/transport/bluer/scan.rs` — `listen_for` checks the adapter's `Discovering` every 250 ms; on `false` it drops the session and starts a new one (A24 part 1). Debug log counts `restarts` per scan. `PLAN.md` A28 (split 18b/18b2), A29.
+
+**Check:** `make check` green. Read-only `serve` (user unit `bluetti-18b2`, `/tmp/b18b2`, fresh DB, binary built from this tree 19:18:47), window `[1791994727, +2460)`, no suspend in the journal:
+- `scripts/acceptance_v04.py`: router 41/41, living-room 41/41, mobile 41/41, 0 `poll_failure` rows; 0.719 MB per station-day.
+- 18a baseline under `serve` (40 min): router 31/40, living-room 35/40, mobile 40/40.
+- 83 scans: 69 heard with 0 restarts, 14 heard only after 1 restart (each a likely miss before the fix); 0 not heard, 0 restart failures.
+
+**Interrupted first run** (`bluetti-18b`, 17:45:09, binary built 17:44 with the restart logic, tree edited 17:47):
+- Lid closed, laptop suspended 18:14:53 to ~19:17, so it covers only 29 polls: router 29/29, living-room 29/29, mobile 21/29.
+- Mobile failures cluster 18:04–18:13: connect `le-connection-abort-by-local` 2, handshake "out of order: expected message 6, got 4" 2, discover 4 (2 with discovery up, 0 restarts: station silent for 15 s), deadline 1. Cause unproven (station side or phone app); 18b2's per-failure log targets it.
+- Stopped and replaced by the clean run above; its DB is kept at `/tmp/b18b/run-1.db`.
+
+**reviewer:** risky, before commit. INTENT satisfied, 0 CRITICAL / 0 HIGH. bluer 0.17.4 source checked: drop-then-start has no race (new start waits for the old `StopDiscovery`), still bounded by `scan_for`'s timeout. M1 (a restart error overwritten by the same pass's `advert_of` error in the not-found text): deferred to A29.
+
+**Next:** 18b2 — A23 (2) handshake retry once on a fresh connection, (3) per-failure log (stage, warm/cold cache, time since last success); A29 fits there.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T17:00:50Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
