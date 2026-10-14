@@ -1313,3 +1313,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18c2 ✓ 2026-10-14 — AC180 back; smoke on df66955 passes; 12 h run 3 started (A31)
+
+**Changed:** no code. `PLAN.md` A31 disposition: fixed. Smoke-3 DB (18c1) moved to `data/old/smoke3/`. `make build` on df66955, copied to `data/run/bluetti-controller` (`cmp` equal).
+
+**Scan** (read-only, 30 s, 17:44 UTC): `AC180`, `Elite200V2` and `EB3A` all heard (-65 / -66 / -70 dBm). H7's condition met; H7 stays for the owner to mark.
+
+**Smoke** (`bluetti-smoke`, invocation 809db8a7, start 1791999868, stop 1792000841, `data/smoke.toml`):
+- §10.4 pre-flight: adapter powered, rfkill unblocked, `control.enabled = false` (both configs); `config.toml` vs `data/smoke.toml` / `data/acceptance.toml` differ only in `storage.path`. App force-quit not verifiable by the loop.
+- `systemd-inhibit --list`: `v0.4 smoke` `sleep:idle` `block`. `/healthz` 200 at +120 s (`54`), +731 s (`6`), +973 s (`5`).
+- Samples / failures: router 17 / 0, living-room 17 / 0, mobile 16 / 0. **Check (≥ 14 each) passes.**
+- Journal (this invocation): 0 retries; one WARN, "dropped while connected" at SIGTERM. `stopped`, unit inactive, 6.4 MB memory peak. 0 devices connected after stop. `register_snapshot` 15 rows.
+- Grid still out: `ac_in_v` 0 V router and Elite, ≤ 2.3 V AC180; 4 open `grid_event` rows from the first poll (house + each station).
+
+**12 h run 3 started:** unit `bluetti-acceptance-24h` (invocation 4fe36d01), start **1792000851** (2026-10-14T18:00:51Z), `data/run/bluetti-controller serve --config data/acceptance.toml`, fresh `data/acceptance-24h.db`, inhibit wrapper as step 15.
+- **ETA (18d):** `now ≥ 1792044051` (2026-10-15T06:00:51Z); window `[1792000851, 1792044051)`, ≥ 684/720 polls per station (A17). Attempt 2 of step 18 (A22).
+- `Linger=no` still (A19 → CF-6): the owner must stay logged in until the ETA.
+- From now to 18d: no command touches a station; `data/run/` is not rebuilt.
+- **Check (+212 s, 1792001063):** `is-active` → `active`; samples router 4, living-room 4, mobile 4, 0 failures; `/healthz` 200 `{"last_poll_age_s":23}`; `systemd-inhibit --list` shows `v0.4 acceptance`; journal `serving … stations=3 interval_s=60`, no WARN. **Passes.**
+
+**reviewer:** risky, before commit. INTENT satisfied, 0 CRITICAL / 0 HIGH / 0 MEDIUM (binary `cmp`, smoke and run invocations, DB counts, ETA arithmetic re-checked read-only).
+**Next:** 18d — step 18 as written once `now ≥ 1792044051`; before then `<<LOOP:BLOCKED>>` with the ETA.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T18:06:10Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
