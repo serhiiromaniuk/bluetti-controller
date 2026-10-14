@@ -9,7 +9,7 @@ use std::num::NonZeroU32;
 use std::path::{Path, PathBuf};
 use std::time::Duration;
 
-use bluetti_controller::collector::{Collector, Connect, Control, Target};
+use bluetti_controller::collector::{Collector, Connect, Control, Progress, Target};
 use bluetti_controller::config::StationConfig;
 use bluetti_controller::metrics::grid::Params;
 use bluetti_controller::protocol::device::{self, Metric, Model};
@@ -50,9 +50,9 @@ impl Connect for Replay {
         &self,
         station: &StationConfig,
         _retry: bool,
-        stage: &mut Stage,
+        progress: &mut Progress,
     ) -> Result<(ReplayGatt, bool), String> {
-        *stage = Stage::Connect;
+        progress.stage = Stage::Connect;
         let fixture = self.0.get(&station.name).ok_or("connect refused")?;
         let advert: Advert = fixture.advert().map_err(|e| e.to_string())?;
         let mut gatt = ReplayGatt::new(fixture).map_err(|e| e.to_string())?;

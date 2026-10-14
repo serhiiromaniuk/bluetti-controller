@@ -3,7 +3,7 @@
 
 use std::num::NonZeroU32;
 
-use super::Connect;
+use super::{Connect, Progress};
 use crate::config::{BleConfig, StationConfig};
 use crate::protocol::crypto::handshake::StaticKeys;
 use crate::protocol::device::Model;
@@ -34,12 +34,13 @@ impl Connect for BluezConnect {
         &self,
         station: &StationConfig,
         retry: bool,
-        stage: &mut Stage,
+        progress: &mut Progress,
     ) -> Result<(Link, bool), String> {
         let text = |err: anyhow::Error| mask_macs(&format!("{err:#}"));
-        let advert = transport::find(&self.ble, &station.address)
+        let (advert, cached) = transport::find(&self.ble, &station.address)
             .await
             .map_err(text)?;
+        progress.cached = Some(cached);
         let advertised = advert.name.as_deref().and_then(Model::from_ble_name);
         if let Some(model) = advertised
             && model != station.model
@@ -49,7 +50,7 @@ impl Connect for BluezConnect {
                 station.model
             ));
         }
-        *stage = Stage::Connect;
+        progress.stage = Stage::Connect;
         let ble = if retry {
             self.ble.clone()
         } else {
@@ -64,7 +65,7 @@ impl Connect for BluezConnect {
                 Ok((link, encrypted))
             }
             Err(err) => {
-                *stage = open_stage(&err);
+                progress.stage = open_stage(&err);
                 Err(text(err))
             }
         }

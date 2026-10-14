@@ -38,21 +38,44 @@ pub enum Control {
     Shutdown,
 }
 
+/// How far one open got, for the failure record and its log line.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Progress {
+    /// Where the poll stopped; starts at [`Stage::Discover`].
+    pub stage: Stage,
+    /// Whether discovery found the station in BlueZ's cache (warm) or had to
+    /// scan (cold); `None` until discovery ends.
+    pub cached: Option<bool>,
+    /// The first key-exchange error while its retry runs: the poll's failure
+    /// stays a `handshake` one, also when the deadline cuts the retry.
+    retrying: Option<String>,
+}
+
+impl Progress {
+    fn new() -> Progress {
+        Progress {
+            stage: Stage::Discover,
+            cached: None,
+            retrying: None,
+        }
+    }
+}
+
 /// Opens one station as a [`Gatt`]. No BlueZ type appears here, so tests
 /// drive the collector with a fake.
 pub trait Connect {
     type Gatt: Gatt + Send;
 
     /// Finds and connects `station` (key exchange included), returning the
-    /// channel and whether it is encrypted. `stage` starts at
-    /// [`Stage::Discover`]; the call moves it as it gets further, so a failure
-    /// or a fired deadline names where the poll stopped. `retry: false` is a
-    /// station already unreachable: one connect attempt (§5.4).
+    /// channel and whether it is encrypted. The call moves `progress` as it
+    /// gets further, so a failure or a fired deadline names where the poll
+    /// stopped. `retry: false` is a station already unreachable: one connect
+    /// attempt (§5.4).
     fn open(
         &self,
         station: &StationConfig,
         retry: bool,
-        stage: &mut Stage,
+        progress: &mut Progress,
     ) -> impl Future<Output = Result<(Self::Gatt, bool), String>> + Send;
 
     /// Disconnects `station` by address, whatever a cancelled poll left up.
@@ -85,6 +108,7 @@ impl<C: Connect + Sync> Collector<C> {
         let mut tick = 0_u32;
         let mut failures = vec![0_u32; self.stations.len()];
         let mut hours = vec![None; self.stations.len()];
+        let mut last_ok: Vec<Option<Instant>> = vec![None; self.stations.len()];
         let mut clock = Clock::new(self.stations.len());
         loop {
             let at = start + self.interval.saturating_mul(tick);
@@ -101,18 +125,26 @@ impl<C: Connect + Sync> Collector<C> {
                 }
                 let ts = clock.now(i);
                 let retry = *failed < UNREACHABLE_AFTER;
-                let mut stage = Stage::Discover;
+                let mut progress = Progress::new();
                 let outcome = tokio::select! {
-                    result = tokio::time::timeout(deadline, self.poll(target, ts, retry, &mut stage)) => Some(result),
+                    result = tokio::time::timeout(deadline, self.poll(target, ts, retry, &mut progress)) => Some(result),
                     () = shutdown(&mut control) => None,
                 };
                 self.connect.release(&target.config).await;
                 let Some(outcome) = outcome else { return };
                 let result = outcome.unwrap_or_else(|_| {
-                    Err(Failure {
-                        ts,
-                        stage,
-                        error: format!("no result within the {deadline:?} poll deadline"),
+                    let error = format!("no result within the {deadline:?} poll deadline");
+                    Err(match &progress.retrying {
+                        Some(first) => Failure {
+                            ts,
+                            stage: Stage::Handshake,
+                            error: format!("{first}; retry on a fresh connection: {error}"),
+                        },
+                        None => Failure {
+                            ts,
+                            stage: progress.stage,
+                            error,
+                        },
                     })
                 });
                 let name = &target.config.name;
@@ -123,6 +155,7 @@ impl<C: Connect + Sync> Collector<C> {
                             tracing::info!(station = name, "reachable again");
                         }
                         *failed = 0;
+                        last_ok[i] = Some(Instant::now());
                         if new_hour(hour, ts) {
                             snapshot = blocks
                                 .into_iter()
@@ -141,9 +174,12 @@ impl<C: Connect + Sync> Collector<C> {
                     }
                     Err(failure) => {
                         *failed += 1;
+                        let (cache, since_success) = failure_fields(progress.cached, last_ok[i]);
                         tracing::warn!(
                             station = name,
                             stage = failure.stage.as_str(),
+                            cache,
+                            since_success,
                             error = failure.error,
                             "poll failed"
                         );
@@ -168,21 +204,37 @@ impl<C: Connect + Sync> Collector<C> {
     }
 
     /// One poll: open, read the profile, always disconnect, decode (§5.4).
+    /// A failed key exchange is retried once on a fresh connection, unless the
+    /// station is unreachable (phase-4 PLAN A23 part 2); the deadline bounds both.
     /// A sample comes with every profile block as read, `(start, values)`.
     async fn poll(
         &self,
         target: &Target,
         ts: i64,
         retry: bool,
-        stage: &mut Stage,
+        progress: &mut Progress,
     ) -> Result<(Sample, Vec<(u16, Vec<u16>)>), Failure> {
         let fail = |stage, error| Failure { ts, stage, error };
-        let (mut gatt, encrypted) = self
-            .connect
-            .open(&target.config, retry, stage)
-            .await
-            .map_err(|error| fail(*stage, error))?;
-        *stage = Stage::Read;
+        let (mut gatt, encrypted) = match self.connect.open(&target.config, retry, progress).await {
+            Err(first) if retry && progress.stage == Stage::Handshake => {
+                tracing::info!(
+                    station = target.config.name,
+                    error = first,
+                    "key exchange failed, retrying once on a fresh connection"
+                );
+                self.connect.release(&target.config).await;
+                progress.cached = None;
+                progress.retrying = Some(first);
+                let opened = self.connect.open(&target.config, retry, progress).await;
+                let first = progress.retrying.take().unwrap_or_default();
+                opened.map_err(|second| {
+                    let error = format!("{first}; retry on a fresh connection: {second}");
+                    fail(Stage::Handshake, error)
+                })?
+            }
+            opened => opened.map_err(|error| fail(progress.stage, error))?,
+        };
+        progress.stage = Stage::Read;
         let profile = target.config.model.profile();
         let (read, closed) = transport::with_disconnect(&mut gatt, async |gatt| {
             read_profile(gatt, profile, &self.policy).await
@@ -228,6 +280,22 @@ fn new_hour(last: &mut Option<i64>, ts: i64) -> bool {
     let due = *last != Some(hour);
     *last = Some(hour);
     due
+}
+
+/// The log fields that tell a station-side miss from a host one (phase-4
+/// PLAN A23 part 3): the BlueZ cache state (warm / cold / `-` when discovery
+/// did not end) and the time since the station's last good poll.
+fn failure_fields(cached: Option<bool>, last_ok: Option<Instant>) -> (&'static str, String) {
+    let cache = match cached {
+        Some(true) => "warm",
+        Some(false) => "cold",
+        None => "-",
+    };
+    let since = last_ok.map_or_else(
+        || "never".to_owned(),
+        |at| format!("{}s", at.elapsed().as_secs()),
+    );
+    (cache, since)
 }
 
 /// Resolves on [`Control::Shutdown`] or when the sender is gone.

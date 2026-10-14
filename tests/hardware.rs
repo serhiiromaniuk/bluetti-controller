@@ -13,7 +13,7 @@ use bluetti_controller::transport::{self, Gatt, TransportError};
 async fn connects_subscribes_and_disconnects() {
     let mac = std::env::var("BLUETTI_TEST_MAC").expect("set BLUETTI_TEST_MAC");
     let ble = BleConfig::default();
-    let advert = transport::find(&ble, &mac).await.expect("station found");
+    let (advert, _) = transport::find(&ble, &mac).await.expect("station found");
     let mut gatt = transport::connect(&ble, &advert).await.expect("connected");
     let first = gatt.next_notification(Duration::from_secs(5)).await;
     gatt.disconnect().await.expect("disconnected");

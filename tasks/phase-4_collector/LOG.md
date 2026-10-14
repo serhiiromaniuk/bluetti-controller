@@ -1191,3 +1191,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18b2 ✓ 2026-10-14 — key-exchange retry once on a fresh connection; per-failure log fields (A23 parts 2–3, A29)
+
+**Changed:**
+- `src/collector/mod.rs` — `Collector::poll`: an open failing at `handshake` on a reachable station is released and opened once more, inside the same §5.4 deadline. Unreachable stations get no retry (one attempt, §5.4).
+- `Connect::open` takes `&mut Progress { stage, cached }` instead of `&mut Stage`. The `poll failed` warn adds `cache` (warm / cold / -) and `since_success` (seconds since the station's last good poll, or `never`).
+- `transport::find` returns `(Advert, bool)`, true = from BlueZ's cache. Callers updated: `src/collector/bluez.rs`, `src/cli/session.rs`, `tests/hardware.rs`.
+- `src/transport/bluer/scan.rs` — A29: restart error kept in its own variable; pure `not_found` names both errors.
+- Tests: `src/collector/tests/retry.rs` (new; keeps `tests.rs` at 392 lines), `FailFirst` fake behaviour, `each_failure_names_its_stage` releases 4 → 5.
+
+**Check:** `make check` green. Failed first as intended: `a_handshake_failure_is_retried_once_on_a_fresh_connection` (`["handshake"]` vs `["ok"]`), `an_unreachable_station_gets_no_handshake_retry` (4 opens vs 7), `each_failure_names_its_stage` (releases 4 vs 5). `other_open_failures_are_not_retried_in_the_poll` passed before and after (guard). No station touched; hardware effect is measured by 18c's run.
+
+**reviewer:** risky, before commit. INTENT shortfall (part 3 untested), 0 CRITICAL / 2 HIGH / 0 MEDIUM.
+- H1 fixed: the retry reset `progress`, so a deadline during the retry stored `discover`/`connect` and dropped the first error. `Progress.retrying` keeps it, and both the deadline path and a failed retry now store `handshake` with both errors. Tests `a_deadline_during_the_retry_still_names_the_handshake` and `a_failed_retry_keeps_both_errors_under_the_handshake` failed first. Mutation check: when the deadline branch ignores `retrying`, the test fails with `Connect`.
+- H2 fixed: new pure `failure_fields`, tested warm / cold / `-` / `never` / 75 s; the Fake now sets `progress.cached`.
+- Second pass on the fixes only: INTENT satisfied, H1 and H2 confirmed fixed, 0 CRITICAL / 0 HIGH. M1 (a deadline during the in-poll `release` loses the first error): deferred to A30.
+
+**Next:** 18c — rebuild `data/run/`, step 14's smoke, then step 15's 12 h run (A22).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T17:09:21Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

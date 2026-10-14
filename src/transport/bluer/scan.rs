@@ -90,6 +90,8 @@ async fn listen_for(
     let device = adapter.device(address)?;
     let until = tokio::time::Instant::now() + timeout;
     let mut last_error = None;
+    // Kept apart, so a later "unknown device" error cannot hide it (A29).
+    let mut restart_error = None;
     let mut restarts = 0_u32;
     loop {
         // Under `serve` BlueZ ends the LE discovery 0.3–1 s after it starts and
@@ -105,7 +107,7 @@ async fn listen_for(
                     Err(err) => {
                         let text = mask_macs(&err.to_string());
                         tracing::warn!(error = %text, "LE discovery restart failed");
-                        last_error = Some(text);
+                        restart_error = Some(text);
                     }
                 }
             }
@@ -132,14 +134,30 @@ async fn listen_for(
         }
         if tokio::time::Instant::now() >= until {
             tracing::debug!(restarts, "station not heard");
-            let last = last_error.map_or_else(String::new, |e| format!("; last BlueZ error: {e}"));
-            return Err(anyhow!(
-                "station not found within {timeout:?}: out of range, or the official app \
-                 is connected (ROADMAP.md §4.6){last}"
-            ));
+            return Err(not_found(timeout, last_error, restart_error));
         }
         tokio::time::sleep(HEARD_POLL).await;
     }
+}
+
+/// The error of a station not heard within `timeout`, naming the last BlueZ
+/// error and the last failed discovery restart when there were any.
+fn not_found(
+    timeout: Duration,
+    last_error: Option<String>,
+    restart_error: Option<String>,
+) -> anyhow::Error {
+    let mut text = format!(
+        "station not found within {timeout:?}: out of range, or the official app is \
+         connected (ROADMAP.md §4.6)"
+    );
+    if let Some(err) = last_error {
+        text.push_str(&format!("; last BlueZ error: {err}"));
+    }
+    if let Some(err) = restart_error {
+        text.push_str(&format!("; LE discovery restart failed: {err}"));
+    }
+    anyhow!(text)
 }
 
 async fn discover(adapter_name: &str, timeout: Duration) -> anyhow::Result<Vec<Advert>> {
@@ -165,4 +183,22 @@ async fn discover(adapter_name: &str, timeout: Duration) -> anyhow::Result<Vec<A
     }
     adverts.sort_by_key(|a| std::cmp::Reverse(a.rssi));
     Ok(adverts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn not_found_names_both_the_last_error_and_a_failed_restart() {
+        let timeout = Duration::from_secs(15);
+        let both = not_found(timeout, Some("unknown".into()), Some("busy".into())).to_string();
+        assert!(both.starts_with("station not found within 15s"), "{both}");
+        assert!(
+            both.ends_with("; last BlueZ error: unknown; LE discovery restart failed: busy"),
+            "{both}"
+        );
+        let none = not_found(timeout, None, None).to_string();
+        assert!(none.ends_with("(ROADMAP.md §4.6)"), "{none}");
+    }
 }

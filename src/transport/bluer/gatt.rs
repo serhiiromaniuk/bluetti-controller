@@ -40,15 +40,15 @@ pub struct BluerGatt {
 
 /// Finds the station at `address` (`XX:XX:XX:XX:XX:XX`): BlueZ's device cache
 /// first, then a scan that ends once the station is heard, at most
-/// `connect_timeout_secs`.
-pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<Advert> {
+/// `connect_timeout_secs`. The flag is true when the advert came from the cache.
+pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<(Advert, bool)> {
     let parsed = parse_address(address)?;
     let timeout = Duration::from_secs(ble.connect_timeout_secs.get());
     if let Some(advert) = cached(&ble.adapter, parsed, timeout).await? {
-        return Ok(advert);
+        return Ok((advert, true));
     }
     tracing::debug!("station not in the BlueZ cache, scanning");
-    scan_for(&ble.adapter, parsed, timeout).await
+    Ok((scan_for(&ble.adapter, parsed, timeout).await?, false))
 }
 
 /// Disconnects `address` whatever handle a cancelled poll left behind, and

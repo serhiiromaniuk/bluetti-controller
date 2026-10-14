@@ -35,7 +35,7 @@ pub(super) async fn run<T>(
     let mut sigint = signal(SignalKind::interrupt())?;
     let address = detect::resolve(ctx.stations, target);
     let advert = tokio::select! {
-        advert = transport::find(ctx.ble, address) => advert?,
+        found = transport::find(ctx.ble, address) => found?.0,
         _ = sigint.recv() => bail!("interrupted"),
     };
     println!("{}", detect::line(&advert, ctx.anonymise));

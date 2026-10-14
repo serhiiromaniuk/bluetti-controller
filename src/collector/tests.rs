@@ -20,6 +20,10 @@ enum Behave {
     Stall,
     /// Opening fails at this stage.
     Fail(Stage),
+    /// The first open fails at this stage, every later one reads 0.
+    FailFirst(Stage),
+    /// The first open fails at this stage, every later one never returns.
+    FailThenHang(Stage),
     /// Opening never returns.
     Hang,
 }
@@ -57,7 +61,7 @@ impl Connect for Fake {
         &self,
         station: &StationConfig,
         retry: bool,
-        stage: &mut Stage,
+        progress: &mut Progress,
     ) -> Result<(FakeGatt, bool), String> {
         let behave = self
             .behave
@@ -65,20 +69,28 @@ impl Connect for Fake {
             .find(|(name, _)| *name == station.name)
             .expect("configured")
             .1;
-        {
+        let first = {
             let mut state = self.state.lock().unwrap();
             assert_eq!(state.live, None, "two links open at once");
             let at = self.start.elapsed().as_secs();
             state.opens.push((station.name.clone(), retry, at));
-        }
-        *stage = Stage::Connect;
+            state.opens.iter().filter(|o| o.0 == station.name).count() == 1
+        };
+        progress.cached = Some(first);
+        progress.stage = Stage::Connect;
         let fill = match behave {
             Behave::Fill(value) => Some(value),
             Behave::Silent | Behave::Stall => None,
             Behave::Fail(failed) => {
-                *stage = failed;
+                progress.stage = failed;
                 return Err(format!("{} failed", failed.as_str()));
             }
+            Behave::FailFirst(failed) | Behave::FailThenHang(failed) if first => {
+                progress.stage = failed;
+                return Err(format!("{} failed", failed.as_str()));
+            }
+            Behave::FailFirst(_) => Some(0),
+            Behave::FailThenHang(_) => std::future::pending().await,
             Behave::Hang => std::future::pending().await,
         };
         self.state.lock().unwrap().live = Some(station.name.clone());
@@ -236,8 +248,9 @@ async fn each_failure_names_its_stage() {
     let stages: Vec<_> = summary(&drain(&mut rx)).iter().map(|r| r.2).collect();
     assert_eq!(stages, ["discover", "handshake", "read", "decode"]);
     // The failed opens left no link; the two that connected disconnected.
+    // The handshake failure was retried once, after its own release.
     let state = state.lock().unwrap();
-    assert_eq!((state.disconnects, state.releases), (2, 4));
+    assert_eq!((state.disconnects, state.releases), (2, 5));
 }
 
 #[tokio::test(start_paused = true)]
@@ -379,4 +392,5 @@ fn a_clock_stepped_back_still_gives_each_station_a_new_ts() {
     assert_eq!(ts, [0, 0, 1, 1, 2]);
 }
 
+mod retry;
 mod snapshot;
