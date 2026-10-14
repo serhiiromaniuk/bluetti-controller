@@ -253,7 +253,11 @@ the reason instead. Never end silently.
 - `<<LOOP:DONE>>` — the whole project goal is reached: all phases done, final
   milestone tagged, everything verified. STOP.
 - `<<LOOP:GATE_FAILED>>` — a hard gate (acceptance criteria, coverage, golden
-  rule) failed. Explain in `LOG.md`. Do NOT lower the threshold. **If the gate
+  rule) failed. Explain in `LOG.md`. Do NOT lower the threshold. **Attempts 1
+  and 2 of 3 do not stop the loop** (owner, 2026-10-14): log the miss, append
+  the fix steps as `## Amendments`, and emit `<<LOOP:CONTINUE>>`. Emit
+  `GATE_FAILED` only on the third failed attempt of the same gate, or on the
+  falsified-metric path below. **If the gate
   itself is the wrong metric** — same overage shape on record at ≥3 checkpoints,
   arithmetically unreachable alongside the project's other mandated
   requirements, and fixable only by re-scoping *what is counted* while keeping a

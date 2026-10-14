@@ -229,7 +229,9 @@ prompt is [`loop/PROMPT.md`](loop/PROMPT.md); the harness is
 - `<<LOOP:BLOCKED>>` — stuck (escape hatch tripped) or a step needs a human (e.g.
   a human-only boundary). The loop stops; `LOG.md`/`OUTCOME.md` explain why.
 - `<<LOOP:GATE_FAILED>>` — a hard gate (acceptance criteria, coverage, golden
-  rule) failed. The loop stops; **never** lower the threshold to get past it.
+  rule) failed on its third attempt (attempts 1–2 log the miss, plan the fix
+  and continue — loop/PROMPT.md §7). The loop stops; **never** lower the
+  threshold to get past it.
 
 **Safety (mandatory):**
 - `--max-iterations` is the **primary** safety mechanism. The loop is always
@@ -284,7 +286,8 @@ gate) is crossed only once that sign-off is on record.
 - **Acceptance gate:** the authoritative criteria live in [`RULES.md`](./RULES.md)
   — do not restate the numbers here (avoids drift). The agent evaluates
   objectively against RULES.md: **all pass → tag the milestone and continue; any
-  miss → `<<LOOP:GATE_FAILED>>`** (fix the work, never lower a threshold).
+  miss → plan the fix and continue; the third miss → `<<LOOP:GATE_FAILED>>`**
+  (fix the work, never lower a threshold).
 - **Milestone gate (autonomous):** at the end of a phase, once the gate has
   **objectively passed** (`make check` green for code phases; the documented
   acceptance criteria otherwise), the agent itself tags the milestone and rolls
