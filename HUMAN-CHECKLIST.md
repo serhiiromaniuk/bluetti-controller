@@ -12,6 +12,7 @@ row becomes a fix task.
 | H3 | AC180: `read mobile` vs the official app (the loop runs scan, detect and the acceptance run itself since 2026-10-13 14:05). On a pass, a follow-up task sets `verified: true` in `AC180` on `battery_soc` (102) and the powers 140/142/144/146, as for H2; on a fail, open a fix task | owner, 2026-10-13 | pending |
 | H4 | Outage test: unplug the AC input of a grid-sensor station once during a collector run; recorded within 2 min. Skip if a real grid outage was already recorded | owner, 2026-10-13 | pending |
 | H5 | AC180 grid input (CF-5 half, phase-4 Q5): plug `mobile` into the grid, then the loop or the owner runs `read mobile --anonymise`; expect `ac_input_voltage` (reg 1314) ≈ 230 V and `ac_input_frequency` (reg 1300) ≈ 50 Hz. On a wrong scale, open a fix task for `src/protocol/device.rs` | loop, 2026-10-13 | pending |
+| H6 | Optional: a USB Bluetooth adapter on a short extension (the laptop's internal combo chip shares radio time with Wi-Fi). Plug it in and tell the loop its `hciN`; the loop then sets `ble.adapter` in `config.toml` | loop, 2026-10-14 | pending |
 
 ## Owner observations (for the loop's plausibility checks)
 
