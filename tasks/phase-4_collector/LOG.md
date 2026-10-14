@@ -1023,3 +1023,49 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 - Run 2: same unit `bluetti-acceptance-24h`, same command and binary, fresh `data/acceptance-24h.db`.
 - **New window for step 18: start 1791906447, ETA 1791949647** (2026-10-14 03:47:27 UTC = 06:47 EEST). Supersedes start 1791904529.
 - Keep audio devices off the laptop's Bluetooth during runs (A18).
+
+## Step 18 ✗ 2026-10-14 — 12 h run FAIL: router 86.81 %, living-room 91.81 % (min 95 %)
+
+**State:** now 1791949750 ≥ ETA 1791949647. `/healthz` ok (`last_poll_age_s` 40). `systemctl --user stop bluetti-acceptance-24h`: SIGTERM, "stopped", clean exit; 12h 2min wall, 29 s CPU, 19.3 MB peak memory.
+
+**Check:** `python3 -I scripts/acceptance_v04.py data/acceptance-24h.db 1791906447 1791949647 60` → `RESULT: FAIL`, EXIT=1. 720 scheduled polls per station (A17).
+- router (EB3A): 625/720 = 86.81 % FAIL — 95 misses vs 36 allowed; all 95 `discover` ("station not found within 15s").
+- living-room (Elite200V2): 661/720 = 91.81 % FAIL — 48 `discover`, 6 `handshake` ("station signature does not verify"), 5 `read` (20 s poll deadline).
+- mobile (AC180): 718/720 = 99.72 % PASS — 2 `handshake` ("ff01: notification stream closed").
+- size: db 409600 B + wal 4144752 B = 4554352 B over 3 stations × 0.5 days = 3.036 MB per station-day PASS (max 10).
+
+**Miss shape (`discover` per hour from start, read-only `sqlite3`):**
+- router 7, 6, 12, 7, 7, 8, 8, 9, 6, 9, 9, 7: steady ~13 % for 12 h. Not a startup burst, not tied to the outage.
+- living-room 7, 7, 6, 4, 6, 7, 2, 4, 2, 1, 1, 1: falls with time.
+- The JBL was off the adapter for the whole run (owner, 18:43), so A18's coexistence cause is falsified for router. Next suspect: router's advert interval vs the 15 s `scan_for` window.
+
+**Real house outage (for the owner's H4; the loop does not mark it):** `grid_event` id 3 `house` 1791911072 → 1791922527 (3 h 11 min). Station rows: router id 1 from 1791911067, living-room id 2 from 1791911072, mobile id 4 from 1791911076; precision 60 s. The true grid-loss time is unknown, so the detection delay cannot be computed here; the owner compares it with the house clock for H4.
+
+**Decision:** gate failed, so no tick and no ROADMAP M3 tick. Fix the work, never the threshold. A22 splits the fix path: 18a measure, 18b fix, 18c re-run, 18d measure. The DB stays under `data/` for 18a.
+
+**reviewer:** risky, with the batch 67733a7 + 6d2e56c. INTENT satisfied; numbers re-run and matched; 0 CRITICAL / 0 HIGH. M1 (18b must fit the 20 s per-poll budget) and M2 (escape hatch is the PLAN 3-try hatch, not AGENTS §6) fixed in A22's own wording before its first commit.
+
+**Next:** step 18a — measure `scan_for` time-to-heard per station (read-only).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T03:52:30Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
