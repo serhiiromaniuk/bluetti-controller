@@ -1069,3 +1069,56 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18a ✓ 2026-10-14 — discover misses come from LE discovery stopping < 1 s after start inside `serve`
+
+**What:** measured time-to-heard read-only (A22 18a): three probes with no 15 s cap, then two `serve` runs at HEAD with debug logging. Probe scripts were throwaway, under `/tmp`. Scout page `research-ble-reliability.md` covers community tools and BlueZ internals (owner goal 2026-10-14).
+
+**Time-to-heard, 30 samples per station each (ms, p50/p95/max, misses):**
+- A, `bluetoothctl` LE scan, no connect: router 291/857/859, living-room 566/1405/1405, mobile 289/574/849; 0 misses.
+- B, as A plus a GATT connect for 3 s and a disconnect: router 268/807/809, living-room 269/809/1075, mobile 269/806/809; 0 misses. One router connect was not up within 15 s.
+- C, the real `read` path (run-2 binary, scan cap 90 s, 60 s rounds): 90/90 exit 0, every scan heard < 0.3 s, `read` 3.9–6.0 s.
+- Result: advert interval and the 15 s window are not the cause. The A18 coexistence cause was already out.
+
+**Reproduced only under `serve`** (HEAD 53774c9, user unit, 40 min): router 31/40 (9 `discover`), living-room 35/40 (5), mobile 40/40. The A16 error text ends "last BlueZ error: the target object was either not present or removed", so the device object never appeared.
+
+**Mechanism** (`gdbus monitor --system --dest org.bluez` + `serve`, 20 min, 62 `Discovering` events):
+- Every poll's `StartDiscovery` gives `Discovering: true`, then `false` 0.26–0.80 s later. BlueZ does not restart it, and the session stays open 14–15 s with no adverts.
+- A station heard inside that first ≤ 0.8 s window succeeds. Otherwise it misses at 15 s, e.g. router 17:18:01.352 true, 02.113 false, miss 17:18:16.
+- The next session's `StartDiscovery` works again: living-room was heard 0.5 s after the router miss.
+- Probes A/B logged no true→false before heard. The early stop is seen only in `serve`, where the poll waits after it.
+- Who stops the scan (kernel or bluetoothd) is unproven: the bluetoothd journal shows only "No matching connection for device". The fix does not depend on it.
+- Run 2's misses are independent per poll: router P(miss | previous miss) 0.14 vs P(miss) 0.132; living-room 0.06 vs 0.067. No silent stretches.
+
+**Living-room `handshake` "station signature does not verify"** (run-2 journal): 6 of ~672 Elite handshakes (0.9 %), isolated, the next poll succeeds. None in 625 EB3A or 720 AC180 handshakes, and none in the 60 Elite polls today.
+- Hypothesis, unproven: an Elite firmware encoding edge, e.g. a leading-zero r/s/X, expected rate 2/256 = 0.78 %.
+- Also seen: 5 Elite `read` misses (block 100 gets no notification twice, then "dropped while connected").
+
+**Next, 18b inputs:**
+- (1) Keep the station scan alive: restart discovery whenever `Discovering` goes false inside `scan_for`, or hold one session across polls (scout page recommendation 1).
+- (2) Retry one failed handshake or read inside the 20 s budget, or log message-4's shape (lengths, leading bytes, never key bytes).
+
+**reviewer:** batched with the 2 unpushed commits (low-risk: doc and measurement only, no `src/` change).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T14:36:33Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
