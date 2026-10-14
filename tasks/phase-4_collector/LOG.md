@@ -1122,3 +1122,31 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+**reviewer dispositions (batch `@{u}..7b4cbf4`, 2026-10-14):**
+- The batch is 6 commits, not 2. A concurrent session committed 0cdaa3f, 8624469 and dddbf4e during 18a (A23, H6, the second-adapter page). Its page content is theirs; this step's `git add` of the page was a no-op.
+- H1 fixed: A24 supersedes A23's rule #5 clause and requires an explicit owner line. It also carries the restart-on-`Discovering=false` steer (M1, A23 part).
+- M1 (page), M2 (marker docs), M3 (precision of this entry): deferred to A25, A26, A27.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T14:42:07Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
