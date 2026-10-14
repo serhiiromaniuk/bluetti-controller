@@ -1232,3 +1232,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18c1 ✓ 2026-10-14 — smoke on 15dfa92 passes; 12 h start held, AC180 stopped advertising (A31)
+
+**Changed:** no code. `make build` on 15dfa92 (`target/release/`; `data/run/` not yet replaced). Run-2 DB moved to `data/old/run2/`, smoke-2 DB to `data/old/smoke2/`. `PLAN.md` A31 (split 18c). `HUMAN-CHECKLIST.md` H7.
+
+**Smoke** (`bluetti-smoke`, start 1791997817 + 950 s, `data/smoke.toml`, same as `config.toml` except `storage.path`):
+- §10.4 pre-flight: adapter powered, rfkill unblocked, `control.enabled = false`, no device connected; app force-quit not verifiable by the loop.
+- `systemd-inhibit --what=sleep:idle` accepted (`v0.4 smoke`, `block`). `/healthz` 200 at +120 s (`10`) and +950 s (`45`). Stop: SIGTERM, `stopped`, unit gone; 6.4 MB memory peak.
+- Samples / failures: router 16 / 0, living-room 16 / 0, mobile 14 / 2. **Check (≥ 14 each) passes.**
+- Mobile failures: `discover` at 17:24:44 and 17:25:41, `cache="-"`, `since_success` 72 s and 129 s (18b2's fields work). Last mobile sample 1791998608.
+- First live 18b2 handshake retry: router 17:14:19, "notification stream closed", recovered on the fresh connection (router 0 failures). 1 `read` retry (start 1300, attempt 1, no notification in 5 s), recovered. `register_snapshot` 10 rows; 0 devices connected after stop.
+- Grid outage during the whole window: `ac_in_v` 0 V router and Elite, ≤ 2.3 V AC180; 4 open `grid_event` rows (house + each station, from the first poll). CF-5 not re-checkable now; it stays discharged (STATE).
+
+**AC180 absent:** read-only `scan` at 17:27 (15 s, 30 s) and 5× at ~110 s to 17:36: EB3A and Elite heard every time, AC180 never. Likely switched off or moved during the outage (cause not visible to the loop).
+
+**Decision:** the 12 h run does not start with a station known to be absent (A31); H7 asks the owner. A30 (code) lands first.
+
+**reviewer:** risky, before commit. INTENT satisfied, 0 CRITICAL / 0 HIGH / 3 MEDIUM, all one-line text fixes to this uncommitted entry, fixed now:
+- M1: handshake retry added above; H7 now says 7 scans, silent between 17:23:28 and 17:24:29 UTC (DB).
+- M2: A31 now re-runs step 14's smoke on the A30 commit before the run.
+- M3: A31 now says why H7 blocks despite the deferred-checks rule.
+**Next:** A30, then 18c2 — start the 12 h run once `scan` hears `mobile`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T17:39:07Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

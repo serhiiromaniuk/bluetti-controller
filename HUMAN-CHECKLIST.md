@@ -13,6 +13,7 @@ row becomes a fix task.
 | H4 | Outage test: unplug the AC input of a grid-sensor station once during a collector run; recorded within 2 min. Skip if a real grid outage was already recorded | owner, 2026-10-13 | pending |
 | H5 | AC180 grid input (CF-5 half, phase-4 Q5): plug `mobile` into the grid, then the loop or the owner runs `read mobile --anonymise`; expect `ac_input_voltage` (reg 1314) ≈ 230 V and `ac_input_frequency` (reg 1300) ≈ 50 Hz. On a wrong scale, open a fix task for `src/protocol/device.rs` | loop, 2026-10-13 | pending |
 | H6 | Optional: a USB Bluetooth adapter on a short extension (the laptop's internal combo chip shares radio time with Wi-Fi). Plug it in and tell the loop its `hciN`; the loop then sets `ble.adapter` in `config.toml` | loop, 2026-10-14 | pending |
+| H7 | AC180 (`mobile`) went silent between 17:23:28 and 17:24:29 UTC 2026-10-14, during a grid outage (7 read-only scans to 17:36 did not hear it; EB3A and Elite heard each time). Switch it on and keep it in BLE range: the v0.4 12 h run counts it (phase-4 Q1) and starts only once a scan hears it (PLAN A31) | loop, 2026-10-14 | pending |
 
 ## Owner observations (for the loop's plausibility checks)
 
