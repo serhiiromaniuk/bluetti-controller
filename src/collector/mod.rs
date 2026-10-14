@@ -222,9 +222,10 @@ impl<C: Connect + Sync> Collector<C> {
                     error = first,
                     "key exchange failed, retrying once on a fresh connection"
                 );
+                // Set before the release, so a deadline during it keeps `first` (A30).
+                progress.retrying = Some(first);
                 self.connect.release(&target.config).await;
                 progress.cached = None;
-                progress.retrying = Some(first);
                 let opened = self.connect.open(&target.config, retry, progress).await;
                 let first = progress.retrying.take().unwrap_or_default();
                 opened.map_err(|second| {

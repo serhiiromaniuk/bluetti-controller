@@ -1277,3 +1277,39 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## A30 ✓ 2026-10-14 — a deadline during the pre-retry release keeps the first key-exchange error
+
+**Changed:**
+- `src/collector/mod.rs` `poll` — `progress.retrying = Some(first)` now runs before `release`, so the deadline path names both errors under `handshake`.
+- `src/collector/tests/retry.rs` — `a_deadline_during_the_retry_release_keeps_the_first_error`: `Fail(Handshake)` with a 70 s release (> 60 s deadline).
+- `PLAN.md` A30 disposition: fixed.
+
+**Check:** `make check` green. Failed first as intended: the stored error was only "no result within the 60s poll deadline" (no "handshake failed"). Other retry tests unchanged and green. No station touched.
+
+**reviewer:** risky, before commit. INTENT satisfied, 0 CRITICAL / 0 HIGH / 0 MEDIUM (timing of the new test traced: record sent at 130 s < 140 s).
+
+**Next:** 18c2 — one read-only `scan` for `mobile` (A31); heard → step 14's smoke on this commit, then step 15's 12 h run; silent → `<<LOOP:BLOCKED>>` on H7.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-14T17:42:59Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

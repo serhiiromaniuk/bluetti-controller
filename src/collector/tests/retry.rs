@@ -86,3 +86,23 @@ async fn failure_fields_name_the_cache_and_the_time_since_success() {
     );
     assert_eq!(failure_fields(None, None), ("-", "never".to_owned()));
 }
+
+#[tokio::test(start_paused = true)]
+async fn a_deadline_during_the_retry_release_keeps_the_first_error() {
+    let (mut collector, _state, mut rx) = collector(&[("a", Behave::Fail(Stage::Handshake))]);
+    // The release before the retry outlasts the 60 s deadline (A30).
+    collector.connect.release_delay = Duration::from_secs(70);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 140).await;
+    let records = drain(&mut rx);
+    let Record::Failure { failure, .. } = &records[0] else {
+        panic!("{records:?}")
+    };
+    assert_eq!(failure.stage, Stage::Handshake);
+    assert!(failure.error.contains("deadline"), "{}", failure.error);
+    assert!(
+        failure.error.contains("handshake failed"),
+        "{}",
+        failure.error
+    );
+}
