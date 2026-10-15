@@ -10,19 +10,19 @@ use crate::store::temp_db::TempDb;
 use crate::store::{Sample, insert_sample, open_reader, open_writer, sync_stations};
 
 /// A raw HTTP/1.1 GET; returns the status line and the body.
-fn get(addr: SocketAddr, path: &str) -> (String, String) {
+pub(super) fn get(addr: SocketAddr, path: &str) -> (String, String) {
     request(addr, "GET", path)
 }
 
 /// A raw HTTP/1.1 request with no body; returns the status line and the body.
-fn request(addr: SocketAddr, method: &str, path: &str) -> (String, String) {
+pub(super) fn request(addr: SocketAddr, method: &str, path: &str) -> (String, String) {
     let (status, _, body) = raw_request(addr, method, path);
     (status, String::from_utf8(body).unwrap())
 }
 
 /// A raw HTTP/1.1 request with no body; returns the status line, the header
 /// lines and the body bytes.
-fn raw_request(addr: SocketAddr, method: &str, path: &str) -> (String, Vec<String>, Vec<u8>) {
+pub(super) fn raw_request(addr: SocketAddr, method: &str, path: &str) -> (String, Vec<String>, Vec<u8>) {
     let mut stream = TcpStream::connect(addr).unwrap();
     write!(
         stream,
@@ -43,7 +43,7 @@ fn raw_request(addr: SocketAddr, method: &str, path: &str) -> (String, Vec<Strin
 }
 
 /// Serves `router(state)` on a free loopback port until the sender fires.
-async fn start(
+pub(super) async fn start(
     state: AppState,
 ) -> (
     SocketAddr,
@@ -104,16 +104,8 @@ async fn every_unbuilt_route_answers_501() {
     crate::store::migrate(&mut reader).unwrap();
     let (addr, stop, server) = start(AppState::for_tests(reader)).await;
 
-    let routes = [
-        ("GET", "/"),
-        ("GET", "/telemetry"),
-        ("GET", "/api/status"),
-        ("GET", "/api/series?station=router&metric=soc"),
-        ("GET", "/api/outages"),
-        ("GET", "/api/energy?days=7"),
-        ("GET", "/events"),
-        ("POST", "/api/polling/pause?minutes=5"),
-    ];
+    // Group B (steps 9–12) builds the rest; each step tests its own routes.
+    let routes = [("GET", "/telemetry")];
     for (method, path) in routes {
         let (status, _) = tokio::task::spawn_blocking(move || request(addr, method, path))
             .await
