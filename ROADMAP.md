@@ -586,7 +586,12 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
 - Laptop: `HandleLidSwitch=ignore` and `HandleLidSwitchExternalPower=ignore` in
   logind; `powertop --auto-tune`; if the BT dongle misbehaves under autosuspend,
   TLP `USB_EXCLUDE_BTUSB=1` or `btusb.enable_autosuspend=0`; battery charge
-  thresholds via TLP where the vendor supports them. [S31]
+  thresholds via TLP where the vendor supports them. [S31] *Measured on the
+  ideapad host (2026-10-15, Debian 13):* the TLP option alone does not survive a
+  reboot — Debian builds `btusb` with `CONFIG_BT_HCIBTUSB_AUTOSUSPEND=y` and the
+  driver re-enables autosuspend when it binds; `options btusb
+  enable_autosuspend=0` in `/etc/modprobe.d/` does (homelab repo,
+  `servers/ideapad`).
 
 ---
 
