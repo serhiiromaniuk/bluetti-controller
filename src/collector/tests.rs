@@ -364,6 +364,20 @@ async fn pause_skips_polls_until_it_ends() {
     assert_eq!(opens, [120]);
 }
 
+#[tokio::test(start_paused = true)]
+async fn a_pause_sent_while_running_skips_polls_until_it_ends() {
+    let (collector, state, _rx) = collector(&[("a", Behave::Fill(0))]);
+    let (tx, control) = watch::channel(Control::Run);
+    let pause = async {
+        tokio::time::sleep(Duration::from_secs(70)).await;
+        let until = Instant::now() + Duration::from_secs(90);
+        tx.send(Control::Pause { until }).unwrap();
+    };
+    tokio::join!(run_for(collector, control, 250), pause);
+    let opens: Vec<_> = state.lock().unwrap().opens.iter().map(|o| o.2).collect();
+    assert_eq!(opens, [0, 60, 180, 240]);
+}
+
 #[test]
 fn next_tick_is_the_first_one_not_yet_past() {
     let at = |secs| Duration::from_secs(secs);

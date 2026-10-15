@@ -265,7 +265,7 @@ fn verified(model: &str) -> bool {
 }
 
 /// `Pause { until }` as unix seconds (§8.4 h); `None` once past or not paused.
-fn paused_until(control: Control) -> Option<i64> {
+pub(crate) fn paused_until(control: Control) -> Option<i64> {
     let Control::Pause { until } = control else {
         return None;
     };
