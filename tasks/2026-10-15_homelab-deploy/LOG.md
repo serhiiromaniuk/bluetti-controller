@@ -199,3 +199,7 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-10-15 — close review: close/push, 3 MEDIUM fixed
+
+**close-reviewer** (also the batched review of 08faeff): 0 CRITICAL / 0 HIGH / 3 MEDIUM, fixed: unit comment named `backups/` in the state dir → `/var/backups/bluetti-controller`; ROADMAP §10.6 preflight said "1 = bad config" → "1 = keys or DB unusable"; HOMELAB §6 exit table → preflight abort, rollback, unhealthy first install, exit-3 cases (unit may be stopped). Re-ran `make check` (39 + 7 deploy checks), `check` exit codes 0/1/2/4 on temp configs, a real `make dist` tarball through `bluetti-update` (first install, status, refused preflight, rollback with no previous).

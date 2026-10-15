@@ -24,11 +24,11 @@ from the laptop, updates, rollback).
 telemetry registers, CI/CD (owner decision 2026-10-13), remote access setup.
 
 ## Done when
-- [ ] ROADMAP records the postponed extras and the rollout design before the code.
-- [ ] `bluetti-controller --version` and `/healthz` report the build; `check` validates config, keys and schema without touching BLE.
-- [ ] `bluetti-update apply` backs up the DB, switches the release, waits for a sample newer than the restart from the new version, and rolls back (release + DB when the schema moved) when that fails; `rollback` and `status` work; a stubbed test proves each path and runs in `make check`.
-- [ ] `deploy/HOMELAB.md` gives the owner exact commands for the first install, the migration and every later update.
-- [ ] `make check` green; reviewer findings fixed.
+- [x] ROADMAP records the postponed extras and the rollout design before the code.
+- [x] `bluetti-controller --version` and `/healthz` report the build; `check` validates config, keys and schema without touching BLE.
+- [x] `bluetti-update apply` backs up the DB, switches the release, waits for a sample newer than the restart from the new version, and rolls back (release + DB when the schema moved) when that fails; `rollback` and `status` work; a stubbed test proves each path and runs in `make check`.
+- [x] `deploy/HOMELAB.md` gives the owner exact commands for the first install, the migration and every later update.
+- [x] `make check` green; reviewer findings fixed.
 
 ## References
 - ROADMAP §10 · RULES.md human-only boundary, golden rules #3 and #5 · `deploy/INSTALL.md` (laptop unit)

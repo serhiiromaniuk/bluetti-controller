@@ -16,7 +16,8 @@ SupplementaryGroups=bluetooth
 ExecStart=/opt/bluetti-controller/current/bluetti-controller --config /etc/bluetti-controller/config.toml serve
 Restart=on-failure
 RestartSec=10
-# /var/lib/bluetti-controller, owned by the service user: data.db and backups/.
+# /var/lib/bluetti-controller, owned by the service user: data.db (+ -wal/-shm).
+# Backups live in /var/backups/bluetti-controller (root only), never here.
 StateDirectory=bluetti-controller
 StateDirectoryMode=0750
 
