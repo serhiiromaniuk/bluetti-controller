@@ -1243,7 +1243,7 @@ so it is human-only (RULES.md); the agent writes and tests the tooling.
   1. verify `SHA256SUMS`; the release's build equal to `current` → nothing to
      do;
   2. preflight, nothing changed yet: the new binary's `check` against the live
-     config and DB must exit 0 (1 = bad config, 2 = a downgrade below the DB
+     config and DB must exit 0 (1 = keys or DB unusable, 2 = a downgrade below the DB
      schema, 4 = config rejected → abort); free space ≥ 2 × (DB + WAL) for
      the backups and the release size for `releases/`. A build already in
      `releases/` (e.g. `previous`) is refused: `rollback` goes back to it

@@ -139,8 +139,10 @@ by the new build. On failure it rolls back on its own.
 | `make deploy` exit | Meaning | Do |
 |---|---|---|
 | 0 | the new build is current and polling | nothing |
-| 1 | it failed and rolled back; the old build runs | read the output and `journalctl -u bluetti-controller -n 200` on the host, fix, release again |
-| 3 | rolled back, but the old build is unhealthy too (left running) | look now: §8 |
+| 1 | stopped in the preflight (checksums, `check`, disk space, already installed): **nothing changed**, the old build runs | read the `!!` line, fix, deploy again |
+| 1 | the new build was unhealthy and **rolled back**: the old build runs | `journalctl -u bluetti-controller -n 200` on the host, fix, release again |
+| 1 | a **first install** came up unhealthy: nothing to roll back to, the new build stays running | `journalctl -u bluetti-controller -n 200`; fix the config (§3) or BLE, then `sudo systemctl restart bluetti-controller` |
+| 3 | needs you now: the rolled-back build is unhealthy or fails its check (started anyway), a backup to restore is missing (**unit may be stopped**), or a symlink was refused | `sudo /opt/bluetti-controller/current/bluetti-update status` shows which; then §8 |
 
 Every station off on purpose (e.g. a maintenance window)? The sample check
 cannot pass: `make deploy HOST=homelab NO_POLL_CHECK=1` checks the version only.
