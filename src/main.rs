@@ -10,7 +10,7 @@ use tracing_subscriber::EnvFilter;
 mod cli;
 
 #[derive(Debug, Parser)]
-#[command(version, about)]
+#[command(version = bluetti_controller::BUILD, about)]
 struct Args {
     /// Config file (`config.example.toml`); without it the `[ble]` defaults apply
     /// and no station names resolve.
@@ -50,6 +50,11 @@ async fn main() -> anyhow::Result<()> {
         .and_then(|c| c.crypto.as_ref())
         .map(|c| c.load_keys())
         .transpose()?;
+    if let cli::Command::Check = args.command {
+        let config = config.context("check needs --config")?;
+        let code = cli::check::run(&config, keys.is_some())?;
+        std::process::exit(code);
+    }
     if let cli::Command::Serve = args.command {
         let config = config.context("serve needs --config")?;
         return cli::serve::run(&config, keys).await;

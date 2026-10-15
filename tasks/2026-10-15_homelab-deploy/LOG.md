@@ -83,3 +83,40 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-10-15 — build id, `check` subcommand, `/healthz` version + own-sample count
+
+**Changed:**
+- `src/lib.rs` — `BUILD` (`BLUETTI_BUILD`, empty/unset → `v` + crate version); `--version` uses it; Makefile `build` passes `git describe`.
+- `src/cli/check.rs` (new) + `src/main.rs` — `check`: config + keys (main, exit 1), prints `build`, `database`, `health <url>` (unspecified IP → loopback), schema verdict; exit 2 when the DB is newer. Read-only, no BLE, never creates the DB.
+- `src/store/schema.rs` — `SCHEMA_VERSION`, `schema_version(path)`.
+- `src/web/{mod,state}.rs` + `cli/serve.rs` — `/healthz` `version`, `samples_since_start` (in-memory count of the writer's `Sample` updates; §10.6 H1).
+
+**Check:** `make check` green; new tests `check::tests::*` (missing/current/newer schema, file not created; health URL v4/v6/specific), `web::tests::healthz_counts_only_this_process_samples`, healthz body tests. Smoke on the laptop config: `check` exit 0 "database v1, binary v1 (ok)"; `/nonexistent` config exit 1; `--version` = `v1.0-mvp-8-g88dc783-dirty`.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM; 2 LOW fixed (empty `BLUETTI_BUILD`; counter doc said "until the sender closes").
+
+**Next:** step 3 — system unit, `bluetti-update`, stubbed test, Makefile targets.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T16:28:29Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

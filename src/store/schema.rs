@@ -12,6 +12,23 @@ const MIGRATIONS: &[&str] = &[include_str!("../../migrations/001_init.sql")];
 
 const BUSY_TIMEOUT: Duration = Duration::from_millis(5000);
 
+/// The schema version this binary migrates a database to.
+pub const SCHEMA_VERSION: u32 = MIGRATIONS.len() as u32;
+
+/// The schema version of the database at `path`, read-only; `None` when no
+/// file exists yet (the first `serve` creates it).
+pub fn schema_version(path: &Path) -> anyhow::Result<Option<u32>> {
+    if !path.try_exists()? {
+        return Ok(None);
+    }
+    let conn = open_reader(path)?;
+    Ok(Some(conn.pragma_query_value(
+        None,
+        "user_version",
+        |row| row.get(0),
+    )?))
+}
+
 /// Opens (or creates) the database for the single writer: WAL, `synchronous=NORMAL`,
 /// `busy_timeout=5000`, then applies every migration the file has not seen yet.
 pub fn open_writer(path: &Path) -> anyhow::Result<Connection> {

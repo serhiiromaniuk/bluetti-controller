@@ -28,11 +28,15 @@ pub mod telemetry;
 pub use state::AppState;
 
 /// The `/healthz` body: always `ok` while the process runs; the age of the
-/// newest sample of any station, `null` before the first successful poll.
+/// newest sample of any station, `null` before the first successful poll; the
+/// running build (`crate::BUILD`) and the samples this process stored, which
+/// `bluetti-update` checks after a restart (§10.6).
 #[derive(Debug, Serialize, PartialEq, Eq)]
 pub struct Health {
     pub status: &'static str,
     pub last_poll_age_s: Option<i64>,
+    pub version: &'static str,
+    pub samples_since_start: u64,
 }
 
 /// Every route of §8.1/§8.2 over `state`.
@@ -96,6 +100,10 @@ async fn healthz(State(state): State<Arc<AppState>>) -> (StatusCode, Json<Health
     let health = Health {
         status: "ok",
         last_poll_age_s: newest.map(|ts| (unix_now() - ts).max(0)),
+        version: crate::BUILD,
+        samples_since_start: state
+            .samples_stored
+            .load(std::sync::atomic::Ordering::Relaxed),
     };
     (StatusCode::OK, Json(health))
 }

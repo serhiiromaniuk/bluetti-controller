@@ -10,6 +10,7 @@ use bluetti_controller::transport::anonymise::{anonymise_fixture, anonymise_wire
 use bluetti_controller::transport::fixture::Fixture;
 use clap::Subcommand;
 
+pub mod check;
 mod detect;
 mod dump;
 mod read;
@@ -48,6 +49,11 @@ pub enum Command {
         #[arg(long)]
         to: u16,
     },
+    /// Validate the config and keys file and compare the database schema with
+    /// this binary's, read-only and without BLE (`ROADMAP.md` §10.6). Exit 0
+    /// ok, 1 invalid config or keys, 2 the database is newer than this binary.
+    /// Needs `--config`.
+    Check,
     /// Poll every configured station, store the readings and serve
     /// `/healthz` until SIGINT/SIGTERM (`ROADMAP.md` §5.3). Needs `--config`.
     Serve,
@@ -90,8 +96,8 @@ pub async fn run(command: Command, ctx: &Context<'_>) -> anyhow::Result<()> {
         Command::Detect { station } => detect::run(ctx, &station).await,
         Command::Read { station } => read::run(ctx, &station).await,
         Command::Dump { station, from, to } => dump::run(ctx, &station, from, to).await,
-        // main runs it with the owned config and keys.
-        Command::Serve => bail!("serve is dispatched by main"),
+        // main runs them with the owned config and keys.
+        Command::Serve | Command::Check => bail!("serve and check are dispatched by main"),
         Command::Anonymise {
             input,
             output,

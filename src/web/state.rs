@@ -2,6 +2,7 @@
 //! collector's `Control` sender, the SSE `Update` sender, the shutdown signal
 //! and the config values the views need. No `Debug`: it would print the token.
 
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use jiff::tz::TimeZone;
@@ -37,6 +38,10 @@ pub struct AppState {
     /// Set to `true` by `serve` before the server stops, so every `/events`
     /// stream ends and the graceful close does not wait on it (§8.4 g).
     pub shutdown: watch::Sender<bool>,
+    /// Samples this process stored (at least: a lagged receiver counts what it
+    /// missed). `/healthz` reports it, so `bluetti-update` sees the new build
+    /// poll, never an older sample in the database (ROADMAP.md §10.6).
+    pub samples_stored: AtomicU64,
 }
 
 impl AppState {
@@ -57,7 +62,27 @@ impl AppState {
             tz: config.general.timezone.clone(),
             token: config.web.token.clone(),
             shutdown: watch::channel(false).0,
+            samples_stored: AtomicU64::new(0),
         }))
+    }
+
+    /// Counts the writer's `Sample` updates into `samples_stored` for the
+    /// process lifetime (the state holds a sender, so the channel never
+    /// closes under `serve`). `serve` starts it once.
+    pub fn spawn_sample_counter(self: &Arc<Self>) -> tokio::task::JoinHandle<()> {
+        let state = Arc::clone(self);
+        let mut updates = self.updates.subscribe();
+        tokio::spawn(async move {
+            loop {
+                let n = match updates.recv().await {
+                    Ok(Update::Sample { .. }) => 1,
+                    Ok(_) => 0,
+                    Err(broadcast::error::RecvError::Lagged(missed)) => missed,
+                    Err(broadcast::error::RecvError::Closed) => return,
+                };
+                state.samples_stored.fetch_add(n, Ordering::Relaxed);
+            }
+        })
     }
 
     /// A state over `reader` with test defaults: 60 s interval, factor 0.9,
@@ -75,6 +100,7 @@ impl AppState {
             tz: TimeZone::get("Europe/Kyiv").expect("tzdb has Europe/Kyiv"),
             token: None,
             shutdown: watch::channel(false).0,
+            samples_stored: AtomicU64::new(0),
         }
     }
 }

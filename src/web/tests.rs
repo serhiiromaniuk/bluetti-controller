@@ -80,7 +80,13 @@ async fn healthz_reports_the_newest_sample_age() {
     let request = |path: &'static str| tokio::task::spawn_blocking(move || get(addr, path));
     let (status, body) = request("/healthz").await.unwrap();
     assert_eq!(status, "HTTP/1.1 200 OK");
-    assert_eq!(body, r#"{"status":"ok","last_poll_age_s":null}"#);
+    assert_eq!(
+        body,
+        format!(
+            r#"{{"status":"ok","last_poll_age_s":null,"version":"{}","samples_since_start":0}}"#,
+            crate::BUILD
+        )
+    );
 
     let sample = Sample {
         ts: unix_now() - 30,
@@ -112,7 +118,13 @@ async fn healthz_is_null_before_the_first_poll() {
         .await
         .unwrap();
     assert_eq!(status, "HTTP/1.1 200 OK");
-    assert_eq!(body, r#"{"status":"ok","last_poll_age_s":null}"#);
+    assert_eq!(
+        body,
+        format!(
+            r#"{{"status":"ok","last_poll_age_s":null,"version":"{}","samples_since_start":0}}"#,
+            crate::BUILD
+        )
+    );
 
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
@@ -176,4 +188,46 @@ async fn every_asset_is_served_with_its_type_and_bytes() {
 
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn healthz_counts_only_this_process_samples() {
+    // The database's newest sample says nothing about this process (§10.6):
+    // only the writer's `Sample` updates count; other updates do not.
+    let mut reader = rusqlite::Connection::open_in_memory().unwrap();
+    crate::store::migrate(&mut reader).unwrap();
+    let state = std::sync::Arc::new(AppState::for_tests(reader));
+    let counter = state.spawn_sample_counter();
+    let sample = || crate::store::Update::Sample {
+        station: 1,
+        ts: 0,
+        core: Default::default(),
+    };
+    state.updates.send(sample()).unwrap();
+    state
+        .updates
+        .send(crate::store::Update::PollFailure {
+            station: 1,
+            ts: 0,
+            stage: crate::store::Stage::Read,
+        })
+        .unwrap();
+    state.updates.send(sample()).unwrap();
+    for _ in 0..100 {
+        if state
+            .samples_stored
+            .load(std::sync::atomic::Ordering::Relaxed)
+            == 2
+        {
+            break;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+    assert_eq!(
+        state
+            .samples_stored
+            .load(std::sync::atomic::Ordering::Relaxed),
+        2
+    );
+    counter.abort();
 }

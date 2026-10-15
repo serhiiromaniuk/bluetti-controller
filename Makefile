@@ -108,11 +108,13 @@ amendments:                     ## warn which deferred reviewer findings (the PL
 
 # ── Project-specific targets ──────────────────────────────────────────────
 # Added with their milestones (ROADMAP.md §12): build (M1), run (M3), dist (M5).
+# The build id baked into the binary (`--version`, /healthz; ROADMAP.md §10.6).
+BUILD_ID := $(shell git describe --tags --always --dirty)
 .PHONY: build
 build:                          ## release binary: target/release/bluetti-controller
-	$(CARGO) build --release --locked
+	BLUETTI_BUILD=$(BUILD_ID) $(CARGO) build --release --locked
 
-DIST_NAME = bluetti-controller-$(shell git describe --tags --always --dirty)-x86_64-linux
+DIST_NAME = bluetti-controller-$(BUILD_ID)-x86_64-linux
 .PHONY: dist
 dist: build                     ## release tarball in dist/: binary, user unit, config.example.toml, INSTALL.md
 	mkdir -p dist

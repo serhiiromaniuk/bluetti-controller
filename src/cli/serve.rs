@@ -63,6 +63,7 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     )?;
     let (control, control_rx) = watch::channel(Control::Run);
     let state = web::AppState::new(open_reader(path)?, config, control, updates)?;
+    state.spawn_sample_counter();
     let router = web::router(Arc::clone(&state));
     let listener = TcpListener::bind(config.web.listen)
         .await
