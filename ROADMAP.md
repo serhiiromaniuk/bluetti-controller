@@ -608,7 +608,7 @@ clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
 | `collector` | the poll loop: per station connect → (handshake) → read blocks → disconnect | M3 ✓ |
 | `store` | SQLite: migrations, single writer, read-only pool, retention, rollups | M3 ✓ |
 | `metrics` | grid state, outage events, runtime forecast, energy integration | M3 ✓ |
-| `web` | axum routes, askama templates, SSE, embedded assets | M3 (`/healthz` stub) ✓ / M4 |
+| `web` | axum routes, askama templates, SSE, embedded assets | M3 (`/healthz` stub) ✓ / M4 ✓ |
 
 ### 5.3 Concurrency and lifecycle
 
@@ -937,7 +937,8 @@ recommendation the code follows.
   `src/metrics/localtime.rs` (DST days are 23/25 h), unit-tested.
 - **(e) Outage log.** The newest 20 `grid_event` rows of every scope, newest
   `started_at` first; `ended_at NULL` shows as "ongoing" with its duration so far.
-- **(f) API** (§8.2). Every error is `400` with `{"error": "<message>"}`.
+- **(f) API** (§8.2). Every bad parameter is `400` with `{"error": "<message>"}`;
+  a failed database read is `500` with `{"error": "database read failed"}`.
   - `/api/status` → the `Status` of (a).
   - `/api/series`: `station` and `metric` required (unknown → 400); `from`
     default `to − 24 h`, `to` default now, `from < to`. Ranges ≤ 48 h read raw
@@ -949,7 +950,8 @@ recommendation the code follows.
     "t":[…],"v":[…]}`.
   - `/api/outages`: `from` default `to − 7 d`, `to` default now; events
     overlapping the window, newest first.
-  - `/api/energy?days=N`: `1..=min(30, raw_retention_days)`, default 7; the
+  - `/api/energy?days=N`: `1..=min(30, raw_retention_days)`, default
+    `min(7, cap)`; the
     rows of (d). Beyond → 400: (d) reads raw rows only, and older days are gone.
 - **(g) SSE `/events`.** The writer task publishes `sample`, `grid_event` and
   `poll_failure` (the row as JSON) on a `tokio::sync::broadcast` channel after
@@ -1265,11 +1267,12 @@ the unplug; DB < 10 MB per station-day.
 
 ### M4 — Web UI (part of Phase 5)
 
-- [ ] axum router, askama templates, embedded assets (uPlot vendored).
-- [ ] Status page (§8.1), telemetry page, pause-polling button.
-- [ ] JSON API + SSE (§8.2); optional bearer token for the POST.
-- [ ] Page weight < 100 KB; works on a phone browser.
-- [ ] Handler tests against an in-memory DB.
+- [x] axum router, askama templates, embedded assets (uPlot vendored).
+- [x] Status page (§8.1), telemetry page, pause-polling button.
+- [x] JSON API + SSE (§8.2); optional bearer token for the POST.
+- [x] Page weight < 100 KB (65.7 KB, phase-5 step 14); the phone-browser look is
+  `HUMAN-CHECKLIST.md` H9.
+- [x] Handler tests against an in-memory DB.
 
 ### M5 — Deploy + soak → `v1.0-mvp` (Phase 5)
 

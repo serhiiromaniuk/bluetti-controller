@@ -1,7 +1,7 @@
 use rusqlite::{Connection, params};
 
 use super::*;
-use crate::protocol::device::Metric;
+use crate::protocol::device::{Field, Metric};
 use crate::store::migrate;
 use crate::store::read::series;
 use crate::web::tests::{get, start};
@@ -33,6 +33,24 @@ fn a_flat_series_and_a_single_sample_sit_mid_height() {
     );
     assert_eq!(sparkline(&[43_200], &[7.0], 0, 86_400), "60.0,15.0");
     assert_eq!(sparkline(&[], &[], 0, 86_400), "");
+}
+
+#[test]
+fn the_flag_follows_the_matching_field() {
+    let field = |metric, verified| Field {
+        metric,
+        register: 0,
+        scale: 1.0,
+        verified,
+    };
+    let fields = [
+        field(Metric::BatterySoc, true),
+        field(Metric::AcInputVoltage, false),
+    ];
+    assert!(is_verified(&fields, Some(Metric::BatterySoc)));
+    assert!(!is_verified(&fields, Some(Metric::AcInputVoltage)));
+    assert!(!is_verified(&fields, Some(Metric::DcInputVoltage)));
+    assert!(!is_verified(&fields, None));
 }
 
 #[test]
@@ -81,11 +99,19 @@ async fn the_page_lists_core_and_extra_metrics_with_their_flag() {
         "230.0 V",
         "dc_input_voltage",
         "12.5 V",
-        r#"<span class="badge warn">unverified</span>"#,
         "<polyline",
     ] {
         assert!(body.contains(text), "{text} missing in {body}");
     }
+    // The extra's own row carries the flag, not just some row on the page.
+    let row = body
+        .split("<tr>")
+        .find(|r| r.contains("<td>dc_input_voltage</td>"))
+        .expect("dc_input_voltage row");
+    assert!(
+        row.contains(r#"<span class="badge warn">unverified</span>"#),
+        "{row}"
+    );
     assert!(!body.contains("ac_input_power"), "no NULL column: {body}");
     assert!(!body.contains("<script"), "no JS: {body}");
     stop.send(()).unwrap();

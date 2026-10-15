@@ -7,7 +7,7 @@
 //! register snapshot (§6).
 
 use std::future::Future;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
@@ -345,10 +345,19 @@ impl Clock {
     }
 }
 
+#[cfg(not(test))]
 fn unix_now() -> i64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
+    std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
         .map_or(0, |d| i64::try_from(d.as_secs()).unwrap_or(i64::MAX))
+}
+
+/// Tests run on paused tokio time, so the wall clock is frozen: a record's ts
+/// then follows virtual time alone. The real second once ticked between two
+/// stations of one round (phase-5 A11).
+#[cfg(test)]
+fn unix_now() -> i64 {
+    1_792_022_400
 }
 
 #[cfg(test)]

@@ -15,9 +15,14 @@ path = "/var/lib/bluetti-controller/data.db"
 raw_retention_days = 30
 
 [web]
-# `serve` answers GET /healthz here (M3); the pages arrive in M4.
+# `serve` serves the status page `/`, `/telemetry`, the JSON API, `/events`
+# (SSE) and `/healthz` here. Bind to a LAN address only (ROADMAP.md §8.3): GET
+# has no auth, and the host firewall must block other networks.
 listen = "0.0.0.0:8080"
-# token = "change-me"            # required for POST endpoints when set
+# Optional bearer token for POST /api/polling/pause. Unset: the POST is open
+# (it only pauses polling for up to 60 min, never writes to a station). Set: a
+# non-empty string, sent as `Authorization: Bearer <token>`; never commit it.
+# token = "change-me"
 
 [ble]
 adapter = "hci0"

@@ -514,3 +514,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 15 ✓ 2026-10-15 — M4 close-out: ROADMAP/README/config docs, boundary greps clean, A8/A10/A11 fixed
+
+**Docs:** ROADMAP §12 M4 ticked (page weight 65.7 KB; phone look → H9), §5.2 `web` row M4 ✓, §8.4 f (A8: bad parameter 400, failed read 500, energy default `min(7, cap)`). README: status line, "Web UI and API" section (pages, route table). `config.example.toml`: `web.listen` (LAN only, GET unauthenticated) and `web.token` (unset = POST open; bearer when set) comments.
+**Greps (done-when):**
+- `bluer::|use bluer` → `src/transport/bluer/gatt.rs` 5, `scan.rs` 6, `src/transport/mod.rs:23-24` (`pub use self::bluer::…` re-exports) ✓.
+- `env::var|from_default_env|from_env` → only `src/main.rs:38` (`EnvFilter::try_from_default_env`, the documented `RUST_LOG` exception) ✓.
+- `0x06|0x10|write_single|write_multiple` in `src/web src/collector` → none (exit 1) ✓.
+- `reqwest|hyper::client|https?://` in `src/web templates` → one hit, `src/web/pages/tests.rs:108`, the test asserting the page has no `http(s)://`; no client, no URL in production code ✓.
+**A10:** pure `telemetry::is_verified(fields, metric)`; new `the_flag_follows_the_matching_field` (a verified field → true; unverified, absent, `None` → false); page test asserts the badge inside the `dc_input_voltage` row. Mutation `&& !f.verified` → both tests FAILED; restored → 5 passed.
+**A11:** stress, lib test binary 400 runs × 12-way: 1 failure, `collector::tests::stations_are_polled_in_turn_and_every_poll_disconnects`, `left: [0, 1, 60, 60, 120, 120]`. Cause: `Clock::now` takes `max(unix_now(), anchor + virtual elapsed)`; under paused time the real second can tick between two stations of one round (or between `Clock::new` and the first poll → `[0, 0, 59, …]`). Fix: the collector's `unix_now()` returns a frozen constant under `cfg(test)` (integration `tests/collector.rs` keeps the real clock). `collector::` × 3000: old binary 2 failed (both shapes), new 0.
+**Amendments:** A8/A10/A11 → fixed. A3 (step 16/18), A7 (steps 17–22), A9 (step 19) stay open: they target later steps, so `make amendments` → 3 open (A3 A7 A9), none due by step 15.
+**Check:** `make check` green, coverage 99.82 % / 99.4 %.
+**reviewer:** risky, before commit; batch `@{u}..HEAD` (step 14) + step 15 — INTENT satisfied both; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM M1: `api.rs:152` doc comment "default 7" vs `min(7, cap)` → A12 (step 16).
+- Deviations (A3/A7/A9 open, test-only net-grep hit, test code for A10/A11) judged sound.
+**Decision:** none. **Carry-forward:** none.
+**Next:** parallel group C (steps 16–17; A7 declines 17).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:08:31Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -10,7 +10,7 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use rusqlite::Connection;
 
-use crate::protocol::device::Metric;
+use crate::protocol::device::{Field, Metric};
 use crate::store::read;
 use crate::web::pages::local;
 use crate::web::status::model_named;
@@ -73,13 +73,6 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
     let mut stations = Vec::new();
     for station in read::stations(conn)? {
         let profile = model_named(&station.model).map(|m| m.profile());
-        let verified = |metric: Option<Metric>| {
-            profile.is_some_and(|p| {
-                p.fields
-                    .iter()
-                    .any(|f| Some(f.metric) == metric && f.verified)
-            })
-        };
         // The core columns of the newest sample, then every recent extra key.
         let mut latest: Vec<(String, Option<Metric>, i64, f64)> = Vec::new();
         if let Some((ts, values)) = read::latest_sample(conn, station.id)? {
@@ -106,7 +99,7 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
                 key,
                 value: format!("{v:.1} {unit}").trim_end().to_owned(),
                 at: local(ts, &state.tz, "%a %H:%M")?,
-                verified: verified(metric),
+                verified: profile.is_some_and(|p| is_verified(p.fields, metric)),
                 points,
             });
         }
@@ -117,6 +110,14 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
         });
     }
     Ok(Page { stations }.render()?)
+}
+
+/// Whether `metric` is a verified field of the profile's `fields`; an extra key
+/// that is no [`Metric`] is unverified.
+pub fn is_verified(fields: &[Field], metric: Option<Metric>) -> bool {
+    fields
+        .iter()
+        .any(|f| Some(f.metric) == metric && f.verified)
 }
 
 /// The sparkline window `[from, to)`: it ends just after `now` and starts on a
