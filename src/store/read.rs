@@ -183,17 +183,22 @@ pub fn latest_extras(
 }
 
 /// The station's `rollup_5m` buckets that can belong to a discharge (no input,
-/// some output, an SOC), oldest first. The filter only trims the scan: a
-/// skipped bucket leaves a ts gap, which splits a run just as it would.
-pub fn discharge_buckets(conn: &Connection, station_id: i64) -> anyhow::Result<Vec<Bucket>> {
+/// some output, an SOC, at least `min_n` samples), oldest first. A skipped
+/// bucket leaves a ts gap, which splits a run. `min_n` drops buckets with a
+/// long poll gap, whose energy `energy::integrate` leaves out (missing_s).
+pub fn discharge_buckets(
+    conn: &Connection,
+    station_id: i64,
+    min_n: i64,
+) -> anyhow::Result<Vec<Bucket>> {
     let mut stmt = conn.prepare(
         "SELECT ts, soc_avg, energy_in_wh, energy_out_wh FROM rollup_5m
          WHERE station_id = ?1 AND energy_in_wh = 0 AND energy_out_wh > 0
-           AND soc_avg IS NOT NULL
+           AND soc_avg IS NOT NULL AND n >= ?2
          ORDER BY ts",
     )?;
     let rows = stmt
-        .query_map([station_id], |row| {
+        .query_map([station_id, min_n], |row| {
             Ok(Bucket {
                 ts: row.get(0)?,
                 soc_avg: row.get(1)?,

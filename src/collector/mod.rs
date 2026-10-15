@@ -131,9 +131,13 @@ impl<C: Connect + Sync> Collector<C> {
                 let mut progress = Progress::new();
                 // Slow blocks get half the deadline from the poll start, so
                 // the core sample always has the other half.
+                // Measured from poll start to poll start, with half an
+                // interval of slack, so a slow read lands every 10th poll.
+                let started = Instant::now();
                 let slow = !target.config.model.profile().slow_blocks.is_empty()
-                    && slow_at[i].is_none_or(|at| at.elapsed() >= slow_every);
-                let slow_until = slow.then(|| Instant::now() + deadline / 2);
+                    && slow_at[i]
+                        .is_none_or(|at: Instant| at.elapsed() + self.interval / 2 >= slow_every);
+                let slow_until = slow.then(|| started + deadline / 2);
                 let outcome = tokio::select! {
                     result = tokio::time::timeout(deadline, self.poll(target, ts, retry, slow_until, &mut progress)) => Some(result),
                     () = shutdown(&mut control) => None,
@@ -165,7 +169,7 @@ impl<C: Connect + Sync> Collector<C> {
                         *failed = 0;
                         last_ok[i] = Some(Instant::now());
                         if slow {
-                            slow_at[i] = last_ok[i];
+                            slow_at[i] = Some(started);
                         }
                         if new_hour(hour, ts) {
                             snapshot = blocks

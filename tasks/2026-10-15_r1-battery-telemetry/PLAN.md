@@ -6,17 +6,17 @@ Direct work in an interactive session (owner: no loop needed). One release.
 None: the owner approved R1 + R1a and one deploy on 2026-10-15.
 
 ## Steps
-- [ ] 1. ROADMAP §2.2 decision record for R1 + R1a (fields, ranges, slow-block
+- [x] 1. ROADMAP §2.2 decision record for R1 + R1a (fields, ranges, slow-block
       rules, estimator rule) — check: section reads complete; reviewer batch.
-- [ ] 2. [parallel: A] R1a: `Field` u32 support, `Profile.extras` (never a
+- [x] 2. [parallel: A] R1a: `Field` u32 support, `Profile.extras` (never a
       problem, out-of-range dropped), `Profile.slow_blocks`; collector reads slow
       blocks every 600 s after the core blocks, one try per block, bounded by
       half the poll deadline, failures logged only; `read` CLI prints extras —
       check: `make check` with new tests.
-- [ ] 3. [parallel: A] R1: `metrics::capacity` segment finder over `rollup_5m`
+- [x] 3. [parallel: A] R1: `metrics::capacity` segment finder over `rollup_5m`
       rows, `store::read::rollups`, "Battery health" section on `/telemetry` —
       check: `make check` with hand-computed tests.
-- [ ] 4. Merge, reviewer pass on the whole diff, fix CRITICAL/HIGH — check:
+- [x] 4. Merge, reviewer pass on the whole diff, fix CRITICAL/HIGH — check:
       `make check` on the merged tree.
 - [ ] 5. Live read-only check: pause production polling, `read` the AC180 and
       the Elite from the dev laptop, resume — check: extras printed, no problem
@@ -43,3 +43,5 @@ None: the owner approved R1 + R1a and one deploy on 2026-10-15.
   check` is green and the failure-isolation tests pass; note it in the LOG.
 
 ## Amendments
+- 2026-10-15 — plan: step 5 replaced by a post-deploy check of `/telemetry` and `/healthz`; a laptop read needs a production polling pause, and the owner asked for no interruption.
+- A1 · 2026-10-15 · MEDIUM `src/protocol/device.rs` — 461 lines, past the ~400 soft limit · disposition: declined — under the 800 hard max; split the register maps out when R3 adds the write allow-list

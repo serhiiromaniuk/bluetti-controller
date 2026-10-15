@@ -12,6 +12,7 @@ use axum::response::{Html, IntoResponse, Response};
 use rusqlite::Connection;
 
 use crate::metrics::capacity;
+use crate::metrics::energy::BUCKET_S as BUCKET_S_5M;
 use crate::protocol::device::{Field, Metric};
 use crate::store::read;
 use crate::web::pages::local;
@@ -124,7 +125,10 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
                 points,
             });
         }
-        let segments = capacity::segments(&read::discharge_buckets(conn, station.id)?);
+        // A full bucket less one missed poll (5 − 1 at the 60 s interval).
+        let min_n = (BUCKET_S_5M / state.interval_s.max(1) - 1).max(1);
+        let buckets = read::discharge_buckets(conn, station.id, min_n)?;
+        let segments = capacity::segments(&buckets);
         let estimate = capacity::estimate(&segments, station.capacity_wh).map(|e| {
             format!(
                 "≈ {:.0} Wh usable of {:.0} Wh nominal, factor {:.2} (median of the newest {})",

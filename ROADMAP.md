@@ -132,6 +132,12 @@ internet down.
   are read after the core blocks, one try per block (no retry), within half the
   poll deadline counted from the poll start; a failed or cut slow read is
   logged and retried at the next 10-min slot, and the sample is stored without it.
+  Ranges (`Metric::range`): `charging_status` / `charging_mode` 0–255 (raw
+  enums of unknown span); `time_to_full` / `time_to_empty` 0–60 000 min (~41
+  days; 0xFFFF = no estimate); the five counters 0–100 000 kWh (2 kWh a day for
+  100 years is 73 000); `pack_temperature` 0–200 °F (93 °C, past any cut-off).
+  The 10-min slot is measured poll start to poll start with half an interval of
+  slack, so it lands on every 10th poll.
   Extras land in the existing `sample_extra` table: no migration, so a rollback
   to 1.1.x needs no database restore. They show on `/telemetry` as any extra
   key does.
@@ -140,7 +146,9 @@ internet down.
   segment is a run of consecutive 5-min buckets with `energy_in_wh = 0`,
   `energy_out_wh > 0` in every bucket (so the EB3A's unmetered low loads, §4.3
   CF-4, never count) and a SOC drop of at least 10 points between the first
-  and the last bucket's `soc_avg`. Estimate = energy between the two bucket
+  and the last bucket's `soc_avg`; a bucket must also hold a full set of
+  samples less one (`n ≥ 300 s ÷ interval − 1`), since a longer poll gap drops
+  energy from the rollup (`missing_s`). Estimate = energy between the two bucket
   midpoints (sum minus half of each end bucket) ÷ SOC drop × 100, in Wh. The
   page shows each station's segments (newest first), the median of the newest
   5 and that median ÷ nominal as the suggested `usable_capacity_factor`; the

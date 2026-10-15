@@ -5,6 +5,21 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.2.0 — 2026-10-15
+
+- **Battery health (R1):** `/telemetry` estimates each station's usable
+  capacity from observed discharges (runs of 5-min buckets with metered output,
+  no input and a SOC drop of 10 points or more), lists the discharges, and
+  suggests a `usable_capacity_factor` (median of the newest 5 ÷ nominal). The
+  config is not changed automatically.
+- **Telemetry extras (R1a), AC180 and Elite 200 V2, all unverified:** charging
+  status and the station's own time to full / to empty on every poll; lifetime
+  energy counters (kWh), charging mode and pack temperature (°F as read) from
+  two slow blocks read every 10 min. A slow block that fails or runs long is
+  skipped and never fails the poll.
+- `read` prints the extras.
+- No schema change: rollback to 1.1.1 is a binary swap.
+
 ## 1.1.1 — 2026-10-15
 
 - Battery % is verified against the official app on all three stations, and

@@ -145,6 +145,16 @@ async fn the_page_shows_the_capacity_estimate_from_a_discharge() {
         [],
     )
     .unwrap();
+    // The same 10-point drop with a long poll gap in the middle bucket (n = 2
+    // < 4): its energy is incomplete, so the run splits and nothing qualifies.
+    for (ts, soc, n) in [(0, 90.0, 5), (300, 85.0, 2), (600, 80.0, 5)] {
+        conn.execute(
+            "INSERT INTO rollup_5m (station_id, ts, soc_avg, energy_in_wh, energy_out_wh, n)
+             VALUES (2, ?1, ?2, 0, 10, ?3)",
+            params![ts, soc, n],
+        )
+        .unwrap();
+    }
     let (addr, stop, server) = start(AppState::for_tests(conn)).await;
     let (status, body) = tokio::task::spawn_blocking(move || get(addr, "/telemetry"))
         .await

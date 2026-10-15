@@ -451,7 +451,9 @@ fn slow_extras(records: &[Record]) -> Vec<(bool, bool)> {
 
 #[tokio::test(start_paused = true)]
 async fn slow_blocks_are_read_on_the_first_poll_then_every_ten_minutes() {
-    let (collector, _state, mut rx) = collector_of(Model::Ac180, &[("a", Behave::Fill(0))]);
+    let (mut collector, _state, mut rx) = collector_of(Model::Ac180, &[("a", Behave::Fill(0))]);
+    // A poll that takes time must not push the slow read to the 11th poll.
+    collector.connect.release_delay = Duration::from_secs(5);
     let (_tx, control) = watch::channel(Control::Run);
     run_for(collector, control, 690).await;
     let records = drain(&mut rx);
