@@ -149,7 +149,7 @@ pub async fn outages(
 }
 
 /// `GET /api/energy?days=N`: the energy table of the last `N` local days,
-/// newest first; `N` in `1..=min(30, raw_retention_days)`, default 7 (§8.4 f).
+/// newest first; `N` in `1..=min(30, raw_retention_days)`, default `min(7, cap)` (§8.4 f).
 pub async fn energy(
     State(state): State<Arc<AppState>>,
     Query(q): Params,

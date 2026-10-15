@@ -555,3 +555,42 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 16 ✓ 2026-10-15 — deploy unit, INSTALL.md, `make dist` tarball; A3/A12 fixed
+
+**Changed:** `deploy/bluetti-controller.service` (§10.3 + `systemd-inhibit --what=sleep:idle:handle-lid-switch --mode=block` wrapper, `Restart=on-failure`, `RestartSec=10`). `deploy/INSTALL.md`: build/unpack, binary/config/data dirs, absolute paths (A3), unit + `systemctl --user enable --now`, `loginctl enable-linger`, logs, upgrade, uninstall, §10.2 pointer; no hourly probe timer (A7). `Makefile` `dist: build` → `dist/bluetti-controller-$(git describe --tags --always --dirty)-x86_64-linux.tar.gz`. `.gitignore` `/dist/`. `src/web/api.rs:152` comment → default `min(7, cap)` (A12).
+**Check:**
+- `systemd-analyze --user verify deploy/bluetti-controller.service` → exit 0 (only an unrelated `/usr/lib/systemd/user/spice-vdagent.service` warning).
+- `make build` → release in 11.9 s; `make dist` first run put `config.example.toml` at the tarball root (transform `^.*/` needs a slash) → transform `^\(.*/\)\?` → `tar tzf`: 4 entries, all under `bluetti-controller-v0.4-collector-22-g3ab9066-dirty-x86_64-linux/` (binary, `.service`, `INSTALL.md`, `config.example.toml`).
+- `make check` green.
+**reviewer:** risky, before commit — INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM. It ran `systemd-inhibit … sh -c 'exit 3'` under `systemd-run --user --wait` → lock granted, exit=3 propagates (`Restart=on-failure` holds); `--config` is global.
+- MEDIUM M1: INSTALL.md §2–§3 bare names fail from the repo root → A13 (step 19).
+**Decision:** none. **Carry-forward:** none (CF-6 stays for step 18).
+**Next:** step 18 — install the user unit (1 h run, A7).
+
+## Step 17 ✓ 2026-10-15 — (declined — A7): no soak, no `scripts/soak_probe.sh`; step 21 measures the 1 h run directly
+
+**reviewer:** n/a (no change). **Next:** step 18.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:12:10Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -107,10 +107,19 @@ amendments:                     ## warn which deferred reviewer findings (the PL
 	@./loop/amendments-guard.sh
 
 # ── Project-specific targets ──────────────────────────────────────────────
-# Added with their milestones (ROADMAP.md §12): build (M1), run (M3).
+# Added with their milestones (ROADMAP.md §12): build (M1), run (M3), dist (M5).
 .PHONY: build
 build:                          ## release binary: target/release/bluetti-controller
 	$(CARGO) build --release --locked
+
+DIST_NAME = bluetti-controller-$(shell git describe --tags --always --dirty)-x86_64-linux
+.PHONY: dist
+dist: build                     ## release tarball in dist/: binary, user unit, config.example.toml, INSTALL.md
+	mkdir -p dist
+	tar czf dist/$(DIST_NAME).tar.gz --transform 's,^\(.*/\)\?,$(DIST_NAME)/,' \
+		target/release/bluetti-controller deploy/bluetti-controller.service \
+		deploy/INSTALL.md config.example.toml
+	@echo ">> wrote dist/$(DIST_NAME).tar.gz"
 
 CONFIG ?= config.toml
 .PHONY: run

@@ -1,0 +1,16 @@
+# User-level unit for the dev laptop (ROADMAP.md §10.3). Install:
+#   ~/.config/systemd/user/bluetti-controller.service — see deploy/INSTALL.md.
+# The homelab system unit (§10.2) is separate and human-only.
+[Unit]
+Description=bluetti-controller
+
+[Service]
+# The inhibit lock keeps the laptop awake, lid closed included: logind's default
+# LidSwitchIgnoreInhibited=yes ignores a plain sleep lock. systemd-inhibit is
+# MainPID and returns the child's exit status, so Restart=on-failure still fires.
+ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle:handle-lid-switch --mode=block --who=bluetti-controller --why=monitoring %h/.local/bin/bluetti-controller serve --config %h/.config/bluetti-controller/config.toml
+Restart=on-failure
+RestartSec=10
+
+[Install]
+WantedBy=default.target
