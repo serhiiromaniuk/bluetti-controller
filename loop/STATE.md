@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 2 (merged with 3) closed, tagged `v0.3-encryption`. Phase 4 next: `tasks/phase-4_collector/` (to open) |
+| **Gate status** | 🟢 Phase 4 gate `v0.4-collector` passed (step 19, 2026-10-15; unplug deferred to H4). Next: close `tasks/phase-4_collector/` + tag |
 | **Blocked?** | no — owner answered everything up front 2026-10-13; physical checks go to `HUMAN-CHECKLIST.md` |
 
 ## Carry-forward — obligations that outlive the task that found them

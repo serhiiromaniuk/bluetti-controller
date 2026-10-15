@@ -1467,3 +1467,49 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 19 ✓ 2026-10-15 — phase gate `v0.4-collector` passes on its objective part; close next
+
+**Changed:** `loop/STATE.md` gate line → phase-4 gate passed, close + tag next.
+
+**Check:** `make check` (gate block below) · `make amendments` → `31 finding(s), all disposed` · RULES.md v0.4 gate vs run 4.
+
+**Done-when → evidence (BRIEF):**
+- `make check` + both coverage lines ≥ 80 %: gate block below (protocol, metrics).
+- §6 schema + restart safety: steps 2, 8, 9 · tests `reopening_runs_no_migration_twice`, `house_outage_survives_a_restart_as_one_event`, `a_restart_continues_from_the_newest_rollup`, `house::restart_resumes_the_open_event`.
+- Metric tests, hand-computed: steps 4–7 · `flapping_on_off_on_never_flips`, `gap_over_three_intervals_is_unknown_then_recovers`, `both_unreachable_is_unknown_with_no_new_event`, `tiny_nonzero_load_uses_the_one_watt_floor`, `gap_over_3_intervals_adds_no_energy_and_reports_missing`.
+- Replay end-to-end: step 12 · `tests/collector.rs::replayed_rounds_land_samples_failures_and_unreachable`.
+- `bluer` / config boundary: step 17a greps; re-run today, same result: only the `src/transport/mod.rs:23-24` re-exports, no `env::var` in `src/`.
+- CF-5: steps 1, 14b (discharged in `loop/STATE.md`).
+- 12 h run: step 18 (18d), owner decision 2026-10-15 13:35. Router 712/712, AC180 710/710, Elite 151/151 outside the owner's switch-off; DB 0.341 MB/station-day (max 10).
+- Unplug: `HUMAN-CHECKLIST.md` H4 row exists (`pending`); run 4 grid-loss event 02:03:54 left for the owner to judge.
+- ROADMAP §12 M3: 12 h item ticked (step 18d); Human unplug item open, points at H4.
+
+**Verdict:** RULES.md v0.4 gate passes on its objective part (poll ratio per owner decision, DB size); unplug deferred to H4. All 19 steps done.
+
+**reviewer:** batched (low-risk; the `close-reviewer` audits the close next iteration, batch pass before the push).
+
+**Decision:** none new · **Carry-forward:** none
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T10:34:00Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

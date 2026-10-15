@@ -133,7 +133,7 @@
   - On PASS, tick ROADMAP §12 M3's 24 h item (objective half); the unplug half points at H4.
   - If a real house outage was recorded, note its `grid_event` row and detection delay in the LOG for the owner's H4; the loop does not mark H4.
   - check: the script exits 0; any FAIL → `<<LOOP:GATE_FAILED>>` (fix the work, then re-run 15 → 18 by amendment; never the threshold) · review: risky (stops the host unit)
-- [ ] 19. Phase gate `v0.4-collector` (RULES.md v0.4 gate, AGENTS.md §6).
+- [x] 19. Phase gate `v0.4-collector` (RULES.md v0.4 gate, AGENTS.md §6).
   - `make check` is green, with both coverage lines ≥ 80 %.
   - Every BRIEF done-when item points at its LOG evidence (steps 2–18), and ROADMAP §12 M3's 24 h item is ticked; the unplug item points at H4.
   - The `loop/STATE.md` gate line shows the verdict. All pass → the close: OUTCOME and the tag, through the loop's close path and the `close-reviewer`.
