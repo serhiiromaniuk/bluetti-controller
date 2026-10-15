@@ -1,6 +1,6 @@
 [package]
 name = "bluetti-controller"
-version = "1.1.0"
+version = "1.1.1"
 edition = "2024"
 rust-version = "1.89"
 description = "Local monitor for Bluetti power stations over Bluetooth LE"
