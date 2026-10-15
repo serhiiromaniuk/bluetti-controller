@@ -472,3 +472,45 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 14 ✓ 2026-10-15 — UI smoke: page weight 65.7 KB, max page 5.9 ms on the LAN, SSE + pause live
+
+**Pre-flight (§10.4):** `bluetoothctl show` Powered: yes; `rfkill` hci0 not blocked; `control.enabled = false`; app force-quit not observable from here (H9 covers the app). `make build` → release in 18.7 s.
+**Run:** scratch `data/ui-smoke.toml` (gitignored, absolute `storage.path`) on `data/ui-smoke.db` = `sqlite3 .backup` of `data/acceptance-24h.db`; `systemd-run --user --unit=bluetti-ui-smoke … serve`, 11:52:21–11:57:44 UTC (5.4 min), stopped by `systemctl --user stop` — "SIGTERM, shutting down" → "stopped" in 1.8 s (open `/events` closed).
+**Routes** (`curl` to 192.168.0.179:8080, status bytes): `/` 200 6324 · `/?range=7d` 200 6324 · `/telemetry` 200 14132 · `/healthz` 200 35 · `/api/status` 200 931 · `/api/series` router soc 24h 200 13640, living-room 7d 200 2605 · `/api/outages` 200 838 · `/api/energy` 200 3663 · `/assets/nope.js` 404.
+**Assets:** app.css 2261 · app.js 4203 · uPlot.iife.min.js 51081 · uPlot.min.css 1857.
+- **Page weight = `/` + 4 assets = 65 726 B < 100 KB** ✓.
+**Latency:** 20 GETs of `/` to the LAN IP: min 3.2 ms, median 3.7 ms, **max 5.9 ms ≤ 1 s** ✓. One each: `/telemetry` 14.8 ms, `/api/*` ≤ 3.0 ms.
+**SSE:** `/events` delivered `poll_failure` (station 2, discover) and `sample` (stations 1, 3) with `:` keep-alives.
+**Pause:** POST `minutes=2` at 1792065249 → 200 `{"paused_until":1792065369}`, journal `web::pause: polling control set from the web control=Pause {…}`; DB has no `sample`/`poll_failure` row in (1792065221, 1792065381) — two cycles skipped. POST `minutes=0` → 200 `null`, journal `control=Run`, next sample ts 1792065381. `minutes=61` → 400.
+- No write frame: journal `grep -ciE 'write|0x06|0x10'` → 0.
+**Assets offline:** `grep -rnE 'https?://' templates assets/app.*` → none (exit 1).
+**Stations:** living-room (Elite) failed discover every cycle (out of range or off; not this step's gate); mobile one connect failure after resume ("GATT services have not been resolved"), router fine.
+**H9** added to `HUMAN-CHECKLIST.md` (phone layout, charts, pause with the app, page time); `grep -c '^| H9 '` → 1.
+**Gate flake:** first `step-done.sh` gate RED, `279 passed; 1 failed` (lib), name not kept; not reproduced in 4 `make check` + 160 test-binary runs → A11 (step 15).
+**reviewer:** batched (low-risk; `.unreviewed` 1 after this commit).
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 15, M4 close-out + boundary greps (A8, A10).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:02:04Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
