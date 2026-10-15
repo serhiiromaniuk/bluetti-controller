@@ -50,7 +50,8 @@ optional bearer token.
       `make dist` produce the binary and tarball — check: commands in LOG.md
 - [ ] User unit running on the dev laptop; CF-6 discharged (`loginctl
       show-user` shows `Linger=yes`) or an H-row records the refusal
-- [ ] 7-day soak: ≤ 1 manual intervention, RSS ≤ 50 MB, status page ≤ 1 s on
+- [ ] 1 h functional run (owner 2026-10-15, replaces the 7-day soak): ≥ 95% polls
+      per powered station, RSS ≤ 50 MB, status page and API ≤ 1 s on
       the LAN — check: measured numbers in LOG.md; the phone-browser look is a
       `HUMAN-CHECKLIST.md` row
 - [ ] the phase gate passes (`v1.0-mvp`) — see RULES.md / AGENTS.md §6

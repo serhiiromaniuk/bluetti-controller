@@ -83,7 +83,7 @@ a human-only boundary" below. Detailed tasks per phase: ROADMAP.md §12.
 | 2 | BLE transport + encryption handshake + CLI (`scan`, `detect`, `read`, `dump`), validated on the EB3A and Elite 200 V2 (M1 + M2) | `v0.3-encryption` |
 | 3 | Merged into phase 2 (owner, 2026-10-13: the EB3A advertises encrypted, so M1 cannot validate without M2) | — |
 | 4 | Collector, SQLite storage, outage log, runtime forecast, energy accounting (M3) | `v0.4-collector` |
-| 5 | Web UI + deployment on the dev laptop (user-level systemd), 7 days unattended (M4 + M5) | `v1.0-mvp` |
+| 5 | Web UI + user-level deploy files, a 1 h functional run on the dev laptop (M4 + M5; owner 2026-10-15: no 7-day soak, the homelab install follows v1.0 interactively) | `v1.0-mvp` |
 
 **Acceptance gate.** Every code phase: `make check` green. Phase-specific
 criteria (never weaken them; fix the work, not the threshold):
@@ -103,10 +103,12 @@ criteria (never weaken them; fix the work, not the threshold):
   below 10 MB per station-day. *Arithmetic:* 2880 rows/day × ~100 B ≈ 0.3 MB, so
   10 MB is a 30× headroom that only a bug can exceed. The unplug is deferred to
   `HUMAN-CHECKLIST.md`; a real grid outage during the run satisfies it instead.
-- **v1.0 — it runs unattended.** 7 days on the dev laptop with ≤ 1 manual
-  intervention, resident memory ≤ 50 MB, the status page served in ≤ 1 s on the
-  LAN. *Arithmetic:* tokio + axum + SQLite typically use under 20 MB; 50 MB
-  leaves room for caches without hiding a leak over 7 days.
+- **v1.0 — it works end to end.** A 1 h `serve` run of the installed user unit
+  on the dev laptop (owner, 2026-10-15; was a 7-day soak): ≥ 95% successful polls
+  per powered station, resident memory ≤ 50 MB, the status page and every API
+  route served in ≤ 1 s on the LAN, and `make check` green. *Arithmetic:* tokio +
+  axum + SQLite typically use under 20 MB; 50 MB leaves room for caches. Long-run
+  stability is proven on the homelab host after v1.0, installed interactively.
 
 A threshold that turns out to measure the wrong thing is re-scoped only via the
 falsified-metric path (`AGENTS.md` §6): a decision record and a human, never a
