@@ -10,6 +10,7 @@ use std::num::{NonZeroU32, NonZeroU64};
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context, bail};
+use jiff::tz::TimeZone;
 use serde::{Deserialize, Deserializer};
 
 use crate::protocol::device::Model;
@@ -37,7 +38,9 @@ pub struct Config {
 #[serde(deny_unknown_fields)]
 pub struct GeneralConfig {
     pub poll_interval_secs: NonZeroU64,
-    pub timezone: String,
+    /// IANA name, resolved from the host tzdb at load (ADR-009).
+    #[serde(deserialize_with = "timezone_from_str")]
+    pub timezone: TimeZone,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -52,7 +55,8 @@ pub struct StorageConfig {
 #[serde(deny_unknown_fields)]
 pub struct WebConfig {
     pub listen: SocketAddr,
-    /// Bearer token for POST endpoints; `None` disables them.
+    /// Bearer token for POST endpoints. Unset = the POST is open (ROADMAP.md
+    /// §9, §8.4 h); an empty token is rejected at load.
     pub token: Option<String>,
 }
 
@@ -151,6 +155,16 @@ fn model_from_str<'de, D: Deserializer<'de>>(de: D) -> Result<Model, D::Error> {
     }
 }
 
+/// Fails fast on a name the host tzdb lacks (ADR-009: no bundled tzdb).
+fn timezone_from_str<'de, D: Deserializer<'de>>(de: D) -> Result<TimeZone, D::Error> {
+    let name = String::deserialize(de)?;
+    TimeZone::get(&name).map_err(|e| {
+        serde::de::Error::custom(format!(
+            "general.timezone: unknown time zone `{name}` ({e})"
+        ))
+    })
+}
+
 /// Reads, parses and validates the config file at `path`.
 pub fn load(path: &Path) -> anyhow::Result<Config> {
     let text = std::fs::read_to_string(path)
@@ -179,6 +193,14 @@ impl Config {
                     station.name
                 );
             }
+        }
+        if self
+            .web
+            .token
+            .as_deref()
+            .is_some_and(|t| t.trim().is_empty())
+        {
+            bail!("web.token must not be empty; remove it to leave the POST open");
         }
         let m = &self.metrics;
         if !(m.usable_capacity_factor > 0.0 && m.usable_capacity_factor <= 1.0) {
@@ -322,6 +344,28 @@ mod tests {
             "usable_capacity_factor = 1.0",
         );
         assert!(parse(&text).is_ok());
+    }
+
+    #[test]
+    fn timezone_parses_and_unknown_fails_naming_the_key() {
+        let config = parse(EXAMPLE).unwrap();
+        assert_eq!(config.general.timezone.iana_name(), Some("Europe/Kyiv"));
+        let err = error_of(&EXAMPLE.replace("\"Europe/Kyiv\"", "\"Mars/Base\""));
+        assert!(
+            err.contains("general.timezone") && err.contains("Mars/Base"),
+            "{err}"
+        );
+    }
+
+    #[test]
+    fn rejects_empty_token() {
+        for token in ["\"\"", "\"  \""] {
+            let text = EXAMPLE.replace("# token = \"change-me\"", &format!("token = {token}"));
+            assert_ne!(text, EXAMPLE);
+            assert!(error_of(&text).contains("web.token"), "{token}");
+        }
+        let text = EXAMPLE.replace("# token = \"change-me\"", "token = \"t\"");
+        assert_eq!(parse(&text).unwrap().web.token.as_deref(), Some("t"));
     }
 
     #[test]

@@ -4,4 +4,5 @@
 pub mod energy;
 pub mod grid;
 pub mod house;
+pub mod localtime;
 pub mod runtime;

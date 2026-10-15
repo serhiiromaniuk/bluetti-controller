@@ -69,7 +69,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
     - the soak definitions are Q6's; the soak starts at the unit's `ActiveEnterTimestamp` after linger.
   - (m) An ADR for `jiff` (Q3); askama and uPlot are already ADR-004.
   - check: §8, §9 and §10.3 hold items a–l, each with a recommendation; §3 has the new ADR; `make loop-hygiene` is clean · review: risky (decision record)
-- [ ] 2. Config: timezone and token semantics (spec §9) (needs Q1, Q3).
+- [x] 2. Config: timezone and token semantics (spec §9) (needs Q1, Q3).
   - Add `jiff` with `cargo build --all-targets` (unlocked, insertions only; not `make lock`).
   - `src/config.rs` parses `general.timezone` into a `jiff::tz::TimeZone` at load and fails fast on an unknown zone.
   - `web.token`: an empty string is rejected; the doc comment says "unset = POST open" (Q1).

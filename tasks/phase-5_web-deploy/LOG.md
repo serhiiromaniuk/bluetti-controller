@@ -124,3 +124,43 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-10-15 — config tz + token semantics, `metrics::localtime`
+
+**Changed:**
+- `Cargo.toml`/`Cargo.lock` — `jiff = "0.2.38"` via unlocked `cargo build --all-targets`. Lock: +109; the 2 `-` lines are `"bitflags"` → `"bitflags 2.13.2"` renames (bitflags 1.3.2 now also listed, via non-Linux `defmt`); on Linux jiff builds only `jiff-core`.
+- `src/config.rs` — `general.timezone: jiff::tz::TimeZone` via `timezone_from_str` (host tzdb, ADR-009); empty/blank `web.token` rejected; doc: unset = POST open (Q1). 376 lines, tests stay inline.
+- `src/metrics/localtime.rs` (new, pure) — `local_day_bounds(ts, tz) -> Result<(start, end)>`, `local_hhmm(ts, tz) -> Result<String>`; out-of-range ts is an error.
+
+**Check:** `cargo test metrics::localtime` failed first (5/5 `todo!()` panics), then 5/5 ok; `cargo test config::` failed first (E0599 `iana_name` on `String`), then 19/19 ok.
+- Hand-computed (zdump confirms Kyiv 2026 DST Mar 29 / Oct 25): Mar 29 day `[1774735200, 1774818000)` = 23 h; Oct 25 day `[1792875600, 1792965600)` = 25 h; 1767225600 → `02:00`, 1782909240 → `15:34`.
+- Fail-fast smoke: `Mars/Base` → `general.timezone: unknown time zone \`Mars/Base\` (failed to find time zone …)` at line 10.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM — INTENT satisfied; lock renames accepted as insertions-only.
+
+**Decision:** none.
+**Carry-forward:** none.
+**Next:** step 3 — store read API (`src/store/read.rs`).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:07:39Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-cdfeb076974a97ea)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
