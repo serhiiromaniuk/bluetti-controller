@@ -1,0 +1,83 @@
+/* bluetti-controller (ROADMAP.md §8.4 j): system fonts only, one column
+   below 600 px. */
+* { box-sizing: border-box; }
+body {
+  margin: 0 auto;
+  max-width: 1100px;
+  padding: 12px;
+  font: 15px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color: #1d2328;
+  background: #f4f5f7;
+}
+h1, h2, h3 { margin: 0.6em 0 0.3em; line-height: 1.2; }
+a { color: #1f5fbf; }
+nav a { margin-right: 0.8em; }
+a.on { font-weight: 700; text-decoration: none; color: inherit; }
+
+.banner {
+  padding: 12px 16px;
+  margin: 8px 0 12px;
+  border-radius: 6px;
+  font-size: 1.15em;
+  font-weight: 600;
+  background: #e3e6ea;
+}
+.banner.present { background: #dff3e4; color: #145c2a; }
+.banner.absent { background: #fbe0de; color: #8a1c13; }
+.banner.unknown { background: #fdf1d6; color: #6b4e00; }
+
+.cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 12px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #d9dde2;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+.card h2 { font-size: 1.1em; }
+.big { font-size: 1.8em; font-weight: 700; }
+.muted { color: #66707a; font-size: 0.9em; }
+.chart { min-height: 220px; margin: 8px 0; }
+
+.badge {
+  display: inline-block;
+  padding: 0 6px;
+  border-radius: 9px;
+  font-size: 0.75em;
+  font-weight: 600;
+  vertical-align: middle;
+  background: #e3e6ea;
+  color: #3b444c;
+}
+.badge.ok { background: #dff3e4; color: #145c2a; }
+.badge.warn { background: #fdf1d6; color: #6b4e00; }
+.badge.bad { background: #fbe0de; color: #8a1c13; }
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  margin: 8px 0 16px;
+}
+th, td {
+  padding: 5px 8px;
+  border-bottom: 1px solid #e3e6ea;
+  text-align: right;
+  white-space: nowrap;
+}
+th:first-child, td:first-child { text-align: left; }
+th { background: #eef0f3; font-weight: 600; }
+.scroll { overflow-x: auto; }
+
+form { margin: 8px 0; }
+input, button { font: inherit; padding: 4px 8px; }
+output { display: block; margin-top: 4px; }
+
+@media (max-width: 600px) {
+  body { padding: 8px; }
+  .cards { grid-template-columns: 1fr; }
+  th, td { padding: 4px 5px; }
+}

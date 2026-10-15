@@ -50,6 +50,10 @@ and the [nhurman fork](https://github.com/nhurman/bluetti_mqtt),
 [bluetti-monitor](https://github.com/j4m3z0r/bluetti-monitor) (James),
 [rustytti](https://gitlab.com/spock/rustytti). Not affiliated with Bluetti.
 
+The web UI charts use [uPlot](https://github.com/leeoniya/uPlot) 1.6.32
+(Leon Sorokin, MIT), vendored in `assets/` with its license as
+`assets/uPlot.LICENSE`.
+
 The encryption layer (`src/protocol/crypto/`: envelopes and the key-exchange
 state machine in `handshake.rs`) is ported from rustytti `crypto.rs` (MIT) and
 cross-checked against the nhurman fork's `encryption.py` (MIT); ROADMAP.md §4.4
