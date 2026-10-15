@@ -1,6 +1,7 @@
 //! The raw telemetry page `/telemetry` (ROADMAP.md §8.1, §7.5, §8.4 k): every
 //! stored metric per station with its latest value, its `verified` flag and a
-//! server-side SVG sparkline, so the page needs no JS.
+//! server-side SVG sparkline, so the page needs no JS. Each station opens with
+//! its usable-capacity estimate from observed discharges (R1, ROADMAP.md §2.2).
 
 use std::sync::Arc;
 
@@ -10,6 +11,7 @@ use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use rusqlite::Connection;
 
+use crate::metrics::capacity;
 use crate::protocol::device::{Field, Metric};
 use crate::store::read;
 use crate::web::pages::local;
@@ -31,7 +33,26 @@ struct Page {
 struct StationView {
     name: String,
     model: String,
+    health: Health,
     rows: Vec<Row>,
+}
+
+/// The R1 "Battery health" block (ROADMAP.md §2.2).
+struct Health {
+    /// The estimate line; `None` before the first qualifying discharge.
+    estimate: Option<String>,
+    /// The profile's AC output field is not verified against the app.
+    meter_unverified: bool,
+    /// Newest first.
+    segments: Vec<SegmentRow>,
+}
+
+struct SegmentRow {
+    start: String,
+    hours: String,
+    soc: String,
+    energy: String,
+    capacity: String,
 }
 
 struct Row {
@@ -103,9 +124,36 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
                 points,
             });
         }
+        let segments = capacity::segments(&read::discharge_buckets(conn, station.id)?);
+        let estimate = capacity::estimate(&segments, station.capacity_wh).map(|e| {
+            format!(
+                "≈ {:.0} Wh usable of {:.0} Wh nominal, factor {:.2} (median of the newest {})",
+                e.median_wh, station.capacity_wh, e.factor, e.n
+            )
+        });
+        let segments = segments
+            .iter()
+            .rev()
+            .map(|s| {
+                Ok(SegmentRow {
+                    start: local(s.start, &state.tz, "%d %b %H:%M")?,
+                    hours: format!("{:.1}", (s.end - s.start) as f64 / 3600.0),
+                    soc: format!("{:.0} → {:.0} %", s.soc_from, s.soc_to),
+                    energy: format!("{:.0}", s.energy_wh),
+                    capacity: format!("{:.0}", s.capacity_wh),
+                })
+            })
+            .collect::<anyhow::Result<_>>()?;
+        let health = Health {
+            estimate,
+            meter_unverified: profile
+                .is_some_and(|p| !is_verified(p.fields, Some(Metric::AcOutputPower))),
+            segments,
+        };
         stations.push(StationView {
             name: station.name,
             model: station.model,
+            health,
             rows,
         });
     }
