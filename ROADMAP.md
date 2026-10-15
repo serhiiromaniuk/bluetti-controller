@@ -979,7 +979,8 @@ recommendation the code follows.
   100 KB = 100 000 B): 51 081 + 1 857 + `app.js` ≤ 12 000 + `app.css` ≤ 5 000 +
   HTML ≤ 18 000 = 87 938 B < 100 000 B. Over budget → trim HTML/JS, never the
   threshold; compression would add `tower-http` and needs an amendment here.
-  *Rebalanced 2026-10-15 (owner):* was JS 6 000 / CSS 4 000 / HTML 25 000; the
+  *Rebalanced 2026-10-15 (owner — answered in the interactive session, recorded
+  at the owner's request):* was JS 6 000 / CSS 4 000 / HTML 25 000; the
   dashboard (j) needs ~11 KB of JS while `/` renders ~7 KB of HTML. Same sum,
   same 100 KB limit; `web::tests` enforces each per-file cap.
 - **(j) Front end** (reworked 2026-10-15 at the owner's request, task
