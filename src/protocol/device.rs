@@ -95,6 +95,27 @@ pub enum Metric {
 }
 
 impl Metric {
+    /// Every metric, in declaration order.
+    pub const ALL: [Metric; 12] = [
+        Metric::BatterySoc,
+        Metric::AcInputPower,
+        Metric::DcInputPower,
+        Metric::AcOutputPower,
+        Metric::DcOutputPower,
+        Metric::AcInputVoltage,
+        Metric::AcInputFrequency,
+        Metric::DcInputVoltage,
+        Metric::AcOutputOn,
+        Metric::DcOutputOn,
+        Metric::PackVoltage,
+        Metric::PackCurrent,
+    ];
+
+    /// The metric whose [`Metric::key`] is `key`; `None` for any other string.
+    pub fn from_key(key: &str) -> Option<Metric> {
+        Self::ALL.into_iter().find(|m| m.key() == key)
+    }
+
     /// Stable name for storage and the HTTP API.
     pub fn key(self) -> &'static str {
         match self {

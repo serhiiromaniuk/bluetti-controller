@@ -89,8 +89,13 @@ fn metric_keys_and_units() {
         (PackVoltage, "pack_voltage", "V"),
         (PackCurrent, "pack_current", "A"),
     ];
+    assert_eq!(table.len(), Metric::ALL.len());
     for (metric, key, unit) in table {
         assert_eq!((metric.key(), metric.unit()), (key, unit), "{metric:?}");
+        assert_eq!(Metric::from_key(key), Some(metric));
+    }
+    for unknown in ["soc", "BatterySoc", "", "battery_soc "] {
+        assert_eq!(Metric::from_key(unknown), None, "{unknown:?}");
     }
 }
 
