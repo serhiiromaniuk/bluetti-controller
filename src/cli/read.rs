@@ -29,10 +29,10 @@ pub async fn run(ctx: &Context<'_>, target: &str) -> anyhow::Result<()> {
     .await
 }
 
-/// One line per profile field (value or `-`, unit, `verified`), then one per
-/// problem.
+/// One line per profile field and extra (value or `-`, unit, `verified`),
+/// then one per problem.
 fn report(profile: &Profile, poll: &Poll) -> Vec<String> {
-    let fields = profile.fields.iter().map(|field| {
+    let fields = profile.fields.iter().chain(profile.extras).map(|field| {
         let value = poll
             .values
             .get(&field.metric)

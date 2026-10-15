@@ -15,7 +15,7 @@ use tokio::time::Instant;
 use crate::config::StationConfig;
 use crate::protocol::device;
 use crate::store::{Failure, Record, Sample, Stage};
-use crate::transport::read::{ReadPolicy, read_profile};
+use crate::transport::read::{ReadError, ReadPolicy, read_profile, read_slow};
 use crate::transport::station::Poll;
 use crate::transport::{self, Gatt};
 
@@ -109,6 +109,9 @@ impl<C: Connect + Sync> Collector<C> {
         let mut failures = vec![0_u32; self.stations.len()];
         let mut hours = vec![None; self.stations.len()];
         let mut last_ok: Vec<Option<Instant>> = vec![None; self.stations.len()];
+        // When each station's slow blocks were last read (ROADMAP.md §2.2 R1a).
+        let mut slow_at: Vec<Option<Instant>> = vec![None; self.stations.len()];
+        let slow_every = Duration::from_secs(device::SLOW_EVERY_S);
         let mut clock = Clock::new(self.stations.len());
         loop {
             let at = start + self.interval.saturating_mul(tick);
@@ -126,8 +129,13 @@ impl<C: Connect + Sync> Collector<C> {
                 let ts = clock.now(i);
                 let retry = *failed < UNREACHABLE_AFTER;
                 let mut progress = Progress::new();
+                // Slow blocks get half the deadline from the poll start, so
+                // the core sample always has the other half.
+                let slow = !target.config.model.profile().slow_blocks.is_empty()
+                    && slow_at[i].is_none_or(|at| at.elapsed() >= slow_every);
+                let slow_until = slow.then(|| Instant::now() + deadline / 2);
                 let outcome = tokio::select! {
-                    result = tokio::time::timeout(deadline, self.poll(target, ts, retry, &mut progress)) => Some(result),
+                    result = tokio::time::timeout(deadline, self.poll(target, ts, retry, slow_until, &mut progress)) => Some(result),
                     () = shutdown(&mut control) => None,
                 };
                 self.connect.release(&target.config).await;
@@ -156,6 +164,9 @@ impl<C: Connect + Sync> Collector<C> {
                         }
                         *failed = 0;
                         last_ok[i] = Some(Instant::now());
+                        if slow {
+                            slow_at[i] = last_ok[i];
+                        }
                         if new_hour(hour, ts) {
                             snapshot = blocks
                                 .into_iter()
@@ -207,11 +218,14 @@ impl<C: Connect + Sync> Collector<C> {
     /// A failed key exchange is retried once on a fresh connection, unless the
     /// station is unreachable (phase-4 PLAN A23 part 2); the deadline bounds both.
     /// A sample comes with every profile block as read, `(start, values)`.
+    /// With `slow_until`, the slow blocks follow the core ones, cut at that
+    /// instant; whatever they miss only drops extras.
     async fn poll(
         &self,
         target: &Target,
         ts: i64,
         retry: bool,
+        slow_until: Option<Instant>,
         progress: &mut Progress,
     ) -> Result<(Sample, Vec<(u16, Vec<u16>)>), Failure> {
         let fail = |stage, error| Failure { ts, stage, error };
@@ -238,7 +252,17 @@ impl<C: Connect + Sync> Collector<C> {
         progress.stage = Stage::Read;
         let profile = target.config.model.profile();
         let (read, closed) = transport::with_disconnect(&mut gatt, async |gatt| {
-            read_profile(gatt, profile, &self.policy).await
+            let mut registers = read_profile(gatt, profile, &self.policy).await?;
+            if let Some(until) = slow_until {
+                let slow = read_slow(gatt, profile, &self.policy, &mut registers);
+                if tokio::time::timeout_at(until, slow).await.is_err() {
+                    tracing::warn!(
+                        station = target.config.name,
+                        "slow blocks cut at half the poll deadline"
+                    );
+                }
+            }
+            Ok::<_, ReadError>(registers)
         })
         .await;
         if let Err(err) = closed {

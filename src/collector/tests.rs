@@ -3,7 +3,7 @@ use std::num::NonZeroU32;
 use std::sync::{Arc, Mutex};
 
 use super::*;
-use crate::protocol::device::Model;
+use crate::protocol::device::{Metric, Model};
 use crate::protocol::modbus::crc16;
 use crate::transport::TransportError;
 
@@ -26,6 +26,10 @@ enum Behave {
     FailThenHang(Stage),
     /// Opening never returns.
     Hang,
+    /// Reads 0, but the slow block at 6007 answers a Modbus exception.
+    SlowRefused,
+    /// Reads 0, but the slow block at 150 never answers.
+    SlowStalls,
 }
 
 #[derive(Default)]
@@ -49,6 +53,7 @@ struct Fake {
 
 struct FakeGatt {
     stall: bool,
+    behave: Behave,
     fill: Option<u16>,
     replies: VecDeque<Vec<u8>>,
     state: Arc<Mutex<State>>,
@@ -80,6 +85,7 @@ impl Connect for Fake {
         progress.stage = Stage::Connect;
         let fill = match behave {
             Behave::Fill(value) => Some(value),
+            Behave::SlowRefused | Behave::SlowStalls => Some(0),
             Behave::Silent | Behave::Stall => None,
             Behave::Fail(failed) => {
                 progress.stage = failed;
@@ -96,6 +102,7 @@ impl Connect for Fake {
         self.state.lock().unwrap().live = Some(station.name.clone());
         let gatt = FakeGatt {
             stall: matches!(behave, Behave::Stall),
+            behave,
             fill,
             replies: VecDeque::new(),
             state: Arc::clone(&self.state),
@@ -117,7 +124,18 @@ impl Gatt for FakeGatt {
         let Some(fill) = self.fill else {
             return Ok(());
         };
+        let start = u16::from_be_bytes([data[2], data[3]]);
         let count = u16::from_be_bytes([data[4], data[5]]);
+        match (self.behave, start) {
+            (Behave::SlowStalls, 150) => self.stall = true,
+            (Behave::SlowRefused, 6007) => {
+                let frame = [0x01, 0x83, 0x02];
+                let crc = crc16(&frame).to_le_bytes();
+                self.replies.push_back([&frame[..], &crc].concat());
+                return Ok(());
+            }
+            _ => {}
+        }
         let mut frame = vec![0x01, 0x03, u8::try_from(2 * count).unwrap()];
         for _ in 0..count {
             frame.extend(fill.to_be_bytes());
@@ -149,6 +167,13 @@ impl Gatt for FakeGatt {
 fn collector(
     stations: &[(&str, Behave)],
 ) -> (Collector<Fake>, Arc<Mutex<State>>, mpsc::Receiver<Record>) {
+    collector_of(Model::Eb3a, stations)
+}
+
+fn collector_of(
+    model: Model,
+    stations: &[(&str, Behave)],
+) -> (Collector<Fake>, Arc<Mutex<State>>, mpsc::Receiver<Record>) {
     let state = Arc::new(Mutex::new(State::default()));
     let fake = Fake {
         behave: stations
@@ -166,7 +191,7 @@ fn collector(
             id,
             config: StationConfig {
                 name: (*name).to_owned(),
-                model: Model::Eb3a,
+                model,
                 address: "AA:BB:CC:DD:EE:FF".into(),
                 grid_sensor: true,
             },
@@ -408,3 +433,63 @@ fn a_clock_stepped_back_still_gives_each_station_a_new_ts() {
 
 mod retry;
 mod snapshot;
+
+/// The extras of each sample, in order: whether it has a lifetime counter (a
+/// slow block) and the pack temperature (the other slow block).
+fn slow_extras(records: &[Record]) -> Vec<(bool, bool)> {
+    records
+        .iter()
+        .filter_map(|record| match record {
+            Record::Sample { sample, .. } => Some((
+                sample.values.contains_key(&Metric::DcOutEnergy),
+                sample.values.contains_key(&Metric::PackTemperature),
+            )),
+            _ => None,
+        })
+        .collect()
+}
+
+#[tokio::test(start_paused = true)]
+async fn slow_blocks_are_read_on_the_first_poll_then_every_ten_minutes() {
+    let (collector, _state, mut rx) = collector_of(Model::Ac180, &[("a", Behave::Fill(0))]);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 690).await;
+    let records = drain(&mut rx);
+    let mut want = vec![(false, false); 12];
+    want[0] = (true, true);
+    want[10] = (true, true);
+    assert_eq!(slow_extras(&records), want);
+    // The core extras (103–105) come with every sample.
+    assert!(records.iter().all(|r| match r {
+        Record::Sample { sample, .. } => sample.values.contains_key(&Metric::TimeToEmpty),
+        _ => true,
+    }));
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_refused_slow_block_only_drops_its_extras() {
+    let (collector, _state, mut rx) = collector_of(Model::Ac180, &[("a", Behave::SlowRefused)]);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 30).await;
+    let records = drain(&mut rx);
+    assert_eq!(
+        summary(&records).iter().map(|r| r.2).collect::<Vec<_>>(),
+        ["ok"]
+    );
+    assert_eq!(slow_extras(&records), [(true, false)]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_stalled_slow_block_is_cut_at_half_the_deadline_and_the_sample_kept() {
+    let (collector, state, mut rx) = collector_of(Model::Ac180, &[("a", Behave::SlowStalls)]);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 45).await;
+    let records = drain(&mut rx);
+    // One station: a 60 s deadline, cut at 30 s, the sample stored.
+    assert_eq!(
+        summary(&records).iter().map(|r| r.2).collect::<Vec<_>>(),
+        ["ok"]
+    );
+    assert_eq!(slow_extras(&records), [(false, false)]);
+    assert_eq!(state.lock().unwrap().live, None);
+}

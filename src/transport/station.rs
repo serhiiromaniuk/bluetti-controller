@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 
 use super::Advert;
 use super::Gatt;
-use super::read::{ReadError, ReadPolicy, read_block, read_profile};
+use super::read::{ReadError, ReadPolicy, read_block, read_profile, read_slow};
 use crate::protocol::device::{self, Metric, Model, Problem, Profile, Protocol};
 use crate::protocol::identity::{self, Layout};
 
@@ -99,14 +99,16 @@ pub struct Poll {
     pub problems: Vec<Problem>,
 }
 
-/// Reads every block of `profile` and decodes it. A failed block fails the
-/// poll; a missing or implausible field is named in [`Poll::problems`].
+/// Reads every block of `profile`, then its slow blocks, and decodes them. A
+/// failed block fails the poll, a failed slow block only drops its extras; a
+/// missing or implausible field is named in [`Poll::problems`].
 pub async fn poll(
     gatt: &mut impl Gatt,
     profile: &Profile,
     policy: &ReadPolicy,
 ) -> Result<Poll, ReadError> {
-    let registers = read_profile(gatt, profile, policy).await?;
+    let mut registers = read_profile(gatt, profile, policy).await?;
+    read_slow(gatt, profile, policy, &mut registers).await;
     Ok(Poll {
         values: device::decode(profile, &registers),
         problems: device::problems(profile, &registers),

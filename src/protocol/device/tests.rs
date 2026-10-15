@@ -40,6 +40,76 @@ fn every_field_is_covered_by_a_block() {
 }
 
 #[test]
+fn every_extra_is_covered_by_a_block_or_a_slow_block() {
+    for model in [Model::Eb3a, Model::Ac180, Model::Elite200V2] {
+        let profile = model.profile();
+        for f in profile.extras {
+            let last = f.register + u16::from(f.wide);
+            let covered =
+                profile
+                    .blocks
+                    .iter()
+                    .chain(profile.slow_blocks)
+                    .any(|&(start, count)| {
+                        (start..start + count).contains(&f.register)
+                            && (start..start + count).contains(&last)
+                    });
+            assert!(covered, "{model:?}: extra {} not read", f.register);
+            assert!(!f.verified, "{model:?}: extra {} is unverified", f.register);
+        }
+    }
+}
+
+/// The step-14 Elite dump's 150–159 (1, 0, 1959, 0, 0, 0, 2238, 0, 404, 0),
+/// 103–105 = 2, 249, 249 and 6007 = 71, plus a high word to prove the order.
+#[test]
+fn decodes_v2_extras_low_word_first() {
+    let mut registers = Registers::default();
+    let mut first = [0u16; 20];
+    first[3..6].copy_from_slice(&[2, 249, 249]);
+    registers.insert_block(100, &first);
+    registers.insert_block(140, &[0; 8]);
+    registers.insert_block(1300, &[0; 15]);
+    registers.insert_block(150, &[1, 0, 1959, 0, 0, 0, 2238, 1, 404, 0, 3]);
+    registers.insert_block(6007, &[71]);
+    let metrics = decode(Model::Elite200V2.profile(), &registers);
+    let close = |metric, want: f64| {
+        let got = metrics[&metric];
+        assert!((got - want).abs() < 1e-6, "{metric:?}: {got} != {want}");
+    };
+    close(ChargingStatus, 2.0);
+    close(TimeToFull, 249.0);
+    close(TimeToEmpty, 249.0);
+    close(DcOutEnergy, 0.1);
+    close(AcOutEnergy, 195.9);
+    close(PvInEnergy, 0.0);
+    // (1 << 16 | 2238) × 0.1 kWh
+    close(GridInEnergy, 6777.4);
+    close(FeedbackEnergy, 40.4);
+    close(ChargingMode, 3.0);
+    close(PackTemperature, 71.0);
+}
+
+#[test]
+fn a_bad_or_missing_extra_is_dropped_and_never_a_problem() {
+    let mut registers = Registers::default();
+    let mut first = [0u16; 20];
+    first[4..6].copy_from_slice(&[0xFFFF, 120]);
+    registers.insert_block(100, &first);
+    registers.insert_block(140, &[0; 8]);
+    registers.insert_block(1300, &[0; 15]);
+    // 151 (the high word of 150) is missing: the counter is dropped.
+    registers.insert_block(150, &[5]);
+    let profile = Model::Elite200V2.profile();
+    let metrics = decode(profile, &registers);
+    assert_eq!(metrics.get(&TimeToFull), None);
+    assert_eq!(metrics[&TimeToEmpty], 120.0);
+    assert_eq!(metrics.get(&DcOutEnergy), None);
+    assert_eq!(metrics.get(&PackTemperature), None);
+    assert_eq!(problems(profile, &registers), []);
+}
+
+#[test]
 fn decodes_eb3a_block() {
     let mut block = [0u16; 40];
     block[36 - 10] = 0; // DC input
@@ -88,6 +158,16 @@ fn metric_keys_and_units() {
         (DcOutputOn, "dc_output_on", ""),
         (PackVoltage, "pack_voltage", "V"),
         (PackCurrent, "pack_current", "A"),
+        (ChargingStatus, "charging_status", ""),
+        (TimeToFull, "time_to_full", "min"),
+        (TimeToEmpty, "time_to_empty", "min"),
+        (DcOutEnergy, "dc_out_energy", "kWh"),
+        (AcOutEnergy, "ac_out_energy", "kWh"),
+        (PvInEnergy, "pv_in_energy", "kWh"),
+        (GridInEnergy, "grid_in_energy", "kWh"),
+        (FeedbackEnergy, "feedback_energy", "kWh"),
+        (ChargingMode, "charging_mode", ""),
+        (PackTemperature, "pack_temperature", "°F"),
     ];
     assert_eq!(table.len(), Metric::ALL.len());
     for (metric, key, unit) in table {

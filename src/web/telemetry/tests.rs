@@ -42,6 +42,7 @@ fn the_flag_follows_the_matching_field() {
         register: 0,
         scale: 1.0,
         verified,
+        wide: false,
     };
     let fields = [
         field(Metric::BatterySoc, true),

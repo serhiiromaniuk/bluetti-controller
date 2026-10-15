@@ -92,11 +92,21 @@ pub enum Metric {
     DcOutputOn,
     PackVoltage,
     PackCurrent,
+    ChargingStatus,
+    TimeToFull,
+    TimeToEmpty,
+    DcOutEnergy,
+    AcOutEnergy,
+    PvInEnergy,
+    GridInEnergy,
+    FeedbackEnergy,
+    ChargingMode,
+    PackTemperature,
 }
 
 impl Metric {
     /// Every metric, in declaration order.
-    pub const ALL: [Metric; 12] = [
+    pub const ALL: [Metric; 22] = [
         Metric::BatterySoc,
         Metric::AcInputPower,
         Metric::DcInputPower,
@@ -109,6 +119,16 @@ impl Metric {
         Metric::DcOutputOn,
         Metric::PackVoltage,
         Metric::PackCurrent,
+        Metric::ChargingStatus,
+        Metric::TimeToFull,
+        Metric::TimeToEmpty,
+        Metric::DcOutEnergy,
+        Metric::AcOutEnergy,
+        Metric::PvInEnergy,
+        Metric::GridInEnergy,
+        Metric::FeedbackEnergy,
+        Metric::ChargingMode,
+        Metric::PackTemperature,
     ];
 
     /// The metric whose [`Metric::key`] is `key`; `None` for any other string.
@@ -131,6 +151,16 @@ impl Metric {
             Metric::DcOutputOn => "dc_output_on",
             Metric::PackVoltage => "pack_voltage",
             Metric::PackCurrent => "pack_current",
+            Metric::ChargingStatus => "charging_status",
+            Metric::TimeToFull => "time_to_full",
+            Metric::TimeToEmpty => "time_to_empty",
+            Metric::DcOutEnergy => "dc_out_energy",
+            Metric::AcOutEnergy => "ac_out_energy",
+            Metric::PvInEnergy => "pv_in_energy",
+            Metric::GridInEnergy => "grid_in_energy",
+            Metric::FeedbackEnergy => "feedback_energy",
+            Metric::ChargingMode => "charging_mode",
+            Metric::PackTemperature => "pack_temperature",
         }
     }
 
@@ -144,7 +174,18 @@ impl Metric {
             Metric::AcInputVoltage | Metric::DcInputVoltage | Metric::PackVoltage => "V",
             Metric::AcInputFrequency => "Hz",
             Metric::PackCurrent => "A",
-            Metric::AcOutputOn | Metric::DcOutputOn => "",
+            Metric::TimeToFull | Metric::TimeToEmpty => "min",
+            Metric::DcOutEnergy
+            | Metric::AcOutEnergy
+            | Metric::PvInEnergy
+            | Metric::GridInEnergy
+            | Metric::FeedbackEnergy => "kWh",
+            // Read as raw, °F suspected (ROADMAP.md §2.2 R1a).
+            Metric::PackTemperature => "°F",
+            Metric::AcOutputOn
+            | Metric::DcOutputOn
+            | Metric::ChargingStatus
+            | Metric::ChargingMode => "",
         }
     }
 
@@ -173,6 +214,18 @@ impl Metric {
             // 2600 W at a 40 V empty pack ~ 65 A. Unsigned magnitude: the
             // Elite 200 V2 read +11.2 A discharging 445 W at 39.5 V (§4.3).
             Metric::PackCurrent => (0.0, 100.0),
+            // Raw enums of unknown span; 0xFFFF is no state.
+            Metric::ChargingStatus | Metric::ChargingMode => (0.0, 255.0),
+            // Up to ~41 days; 0xFFFF (65535) reads as "no estimate".
+            Metric::TimeToFull | Metric::TimeToEmpty => (0.0, 60_000.0),
+            // Lifetime kWh: 2 kWh a day for 100 years is 73 000.
+            Metric::DcOutEnergy
+            | Metric::AcOutEnergy
+            | Metric::PvInEnergy
+            | Metric::GridInEnergy
+            | Metric::FeedbackEnergy => (0.0, 100_000.0),
+            // °F: 71 at room temperature; 200 °F = 93 °C is far past any cut-off.
+            Metric::PackTemperature => (0.0, 200.0),
         };
         RangeInclusive::new(min, max)
     }
@@ -186,13 +239,27 @@ impl Metric {
     }
 }
 
-/// One register mapped to a metric: `value = raw * scale`.
+/// One register mapped to a metric: `value = raw * scale`. A `wide` field is
+/// a u32 over `register` (low word) and `register + 1` (high word).
 #[derive(Debug, Clone, Copy)]
 pub struct Field {
     pub metric: Metric,
     pub register: u16,
     pub scale: f64,
     pub verified: bool,
+    pub wide: bool,
+}
+
+impl Field {
+    /// The decoded value; `None` when a register of the field is missing.
+    fn value(&self, registers: &Registers) -> Option<f64> {
+        let low = f64::from(registers.get(self.register)?);
+        let high = match self.wide {
+            true => f64::from(registers.get(self.register.checked_add(1)?)?),
+            false => 0.0,
+        };
+        Some((high * 65_536.0 + low) * self.scale)
+    }
 }
 
 const fn field(metric: Metric, register: u16, scale: f64, verified: bool) -> Field {
@@ -201,6 +268,15 @@ const fn field(metric: Metric, register: u16, scale: f64, verified: bool) -> Fie
         register,
         scale,
         verified,
+        wide: false,
+    }
+}
+
+/// An unverified u32 field, low word first.
+const fn wide(metric: Metric, register: u16, scale: f64) -> Field {
+    Field {
+        wide: true,
+        ..field(metric, register, scale, false)
     }
 }
 
@@ -211,11 +287,37 @@ pub struct Profile {
     /// Register blocks read on every poll, as `(start, count)`.
     pub blocks: &'static [(u16, u16)],
     pub fields: &'static [Field],
+    /// Optional fields (ROADMAP.md §2.2 R1a): never a [`Problem`], dropped
+    /// when missing or out of range, so they never fail a sample.
+    pub extras: &'static [Field],
+    /// Blocks read every [`SLOW_EVERY_S`] after `blocks`, one try each; a
+    /// failure only loses the extras they carry.
+    pub slow_blocks: &'static [(u16, u16)],
     /// Nominal battery capacity from the spec sheet, for runtime estimates.
     pub nominal_capacity_wh: f64,
 }
 
 use Metric::*;
+
+/// How often a station's `slow_blocks` are read (ROADMAP.md §2.2 R1a).
+pub const SLOW_EVERY_S: u64 = 600;
+
+/// The R1a extras of both V2 stations (ROADMAP.md §2.2, §4.3 Elite dump).
+const V2_EXTRAS: &[Field] = &[
+    field(ChargingStatus, 103, 1.0, false),
+    field(TimeToFull, 104, 1.0, false),
+    field(TimeToEmpty, 105, 1.0, false),
+    wide(DcOutEnergy, 150, 0.1),
+    wide(AcOutEnergy, 152, 0.1),
+    wide(PvInEnergy, 154, 0.1),
+    wide(GridInEnergy, 156, 0.1),
+    wide(FeedbackEnergy, 158, 0.1),
+    field(ChargingMode, 160, 1.0, false),
+    field(PackTemperature, 6007, 1.0, false),
+];
+
+/// Lifetime counters + charging mode, and the pack temperature.
+const V2_SLOW_BLOCKS: &[(u16, u16)] = &[(150, 11), (6007, 1)];
 
 static EB3A: Profile = Profile {
     model: Model::Eb3a,
@@ -236,6 +338,8 @@ static EB3A: Profile = Profile {
         field(AcInputVoltage, 77, 1.0, false),
         field(DcInputVoltage, 86, 0.01, false),
     ],
+    extras: &[],
+    slow_blocks: &[],
     nominal_capacity_wh: 268.8,
 };
 
@@ -259,6 +363,8 @@ static AC180: Profile = Profile {
         field(AcOutputOn, 2011, 1.0, false),
         field(DcOutputOn, 2012, 1.0, false),
     ],
+    extras: V2_EXTRAS,
+    slow_blocks: V2_SLOW_BLOCKS,
     nominal_capacity_wh: 1152.0,
 };
 
@@ -282,6 +388,8 @@ static ELITE_200_V2: Profile = Profile {
         field(AcInputFrequency, 1300, 0.1, false),
         field(AcInputVoltage, 1314, 0.1, false),
     ],
+    extras: V2_EXTRAS,
+    slow_blocks: V2_SLOW_BLOCKS,
     nominal_capacity_wh: 2073.6,
 };
 
@@ -303,17 +411,22 @@ impl Registers {
     }
 }
 
-/// Decodes all profile fields present in `registers`. Missing registers and
-/// implausible values are skipped, so a partial poll still yields data.
+/// Decodes all profile fields and extras present in `registers`. Missing
+/// registers and implausible values are skipped, so a partial poll still
+/// yields data; an extra must also lie inside its [`Metric::range`].
 pub fn decode(profile: &Profile, registers: &Registers) -> BTreeMap<Metric, f64> {
-    profile
-        .fields
-        .iter()
-        .filter_map(|f| {
-            let value = f64::from(registers.get(f.register)?) * f.scale;
-            f.metric.is_plausible(value).then_some((f.metric, value))
-        })
-        .collect()
+    let fields = profile.fields.iter().filter_map(|f| {
+        let value = f.value(registers)?;
+        f.metric.is_plausible(value).then_some((f.metric, value))
+    });
+    let extras = profile.extras.iter().filter_map(|f| {
+        let value = f.value(registers)?;
+        f.metric
+            .range()
+            .contains(&value)
+            .then_some((f.metric, value))
+    });
+    fields.chain(extras).collect()
 }
 
 /// A profile field that fails the plausibility check of one poll.
@@ -333,10 +446,9 @@ pub fn problems(profile: &Profile, registers: &Registers) -> Vec<Problem> {
         .fields
         .iter()
         .filter_map(|f| {
-            let Some(raw) = registers.get(f.register) else {
+            let Some(value) = f.value(registers) else {
                 return Some(Problem::Missing { metric: f.metric });
             };
-            let value = f64::from(raw) * f.scale;
             (!f.metric.range().contains(&value)).then_some(Problem::OutOfRange {
                 metric: f.metric,
                 value,

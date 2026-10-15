@@ -213,3 +213,23 @@ async fn backoff_doubles_between_retries() {
     // The replay times out at once, so all elapsed time is backoff: 1 s + 2 s.
     assert_eq!(started.elapsed(), Duration::from_secs(3));
 }
+
+#[tokio::test]
+async fn slow_blocks_get_one_try_and_a_failed_one_is_skipped() {
+    let profile = Model::Ac180.profile();
+    assert_eq!(profile.slow_blocks, [(150, 11), (6007, 1)]);
+    let mut garbled = response(&[0; 11]);
+    *garbled.last_mut().unwrap() ^= 0xFF;
+    // A bad CRC is retryable, yet the next write is already the next block.
+    let mut gatt = replay(&[
+        write(150, 11),
+        notify(&garbled),
+        write(6007, 1),
+        notify(&response(&[71])),
+    ]);
+    let mut registers = Registers::default();
+    read_slow(&mut gatt, profile, &policy(3), &mut registers).await;
+    assert_eq!(registers.get(150), None);
+    assert_eq!(registers.get(6007), Some(71));
+    assert_exhausted(&mut gatt).await;
+}

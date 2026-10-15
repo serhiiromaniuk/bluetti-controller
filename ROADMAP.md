@@ -131,7 +131,7 @@ internet down.
   sample; a value outside its range (a 0xFFFF sentinel) is dropped. Slow blocks
   are read after the core blocks, one try per block (no retry), within half the
   poll deadline counted from the poll start; a failed or cut slow read is
-  logged and retried on the next poll, and the sample is stored without it.
+  logged and retried at the next 10-min slot, and the sample is stored without it.
   Extras land in the existing `sample_extra` table: no migration, so a rollback
   to 1.1.x needs no database restore. They show on `/telemetry` as any extra
   key does.

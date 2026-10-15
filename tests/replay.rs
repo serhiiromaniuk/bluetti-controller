@@ -105,6 +105,10 @@ async fn elite_200_v2_read_session_replays() {
         (Metric::AcInputPower, 0.0),
         (Metric::AcInputFrequency, 0.0),
         (Metric::AcInputVoltage, 0.0),
+        // 103–105: charging status, time to full / to empty (R1a extras).
+        (Metric::ChargingStatus, 2.0),
+        (Metric::TimeToFull, 228.0),
+        (Metric::TimeToEmpty, 228.0),
     ]);
     assert_eq!(
         poll.values.keys().collect::<Vec<_>>(),
@@ -146,6 +150,9 @@ async fn ac180_read_session_replays() {
         (Metric::AcInputVoltage, 2.1),
         (Metric::AcOutputOn, 1.0),
         (Metric::DcOutputOn, 0.0),
+        (Metric::ChargingStatus, 0.0),
+        (Metric::TimeToFull, 6376.0),
+        (Metric::TimeToEmpty, 6376.0),
     ]);
     assert_eq!(
         poll.values.keys().collect::<Vec<_>>(),

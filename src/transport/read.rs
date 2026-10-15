@@ -94,6 +94,28 @@ pub async fn read_profile(
     Ok(registers)
 }
 
+/// Reads every slow block of `profile` into `registers`, one try each (no
+/// retry, ROADMAP.md §2.2 R1a). A failed block is logged and skipped: it only
+/// loses the extras it carries. Takes `registers` by reference, so a caller
+/// that cuts this short keeps the blocks already read.
+pub async fn read_slow(
+    gatt: &mut impl Gatt,
+    profile: &Profile,
+    policy: &ReadPolicy,
+    registers: &mut Registers,
+) {
+    let once = ReadPolicy {
+        attempts: NonZeroU32::MIN,
+        ..policy.clone()
+    };
+    for &(start, count) in profile.slow_blocks {
+        match read_block(gatt, start, count, &once).await {
+            Ok(values) => registers.insert_block(start, &values),
+            Err(err) => tracing::warn!(start, count, error = %err, "slow block read failed"),
+        }
+    }
+}
+
 async fn read_once(
     gatt: &mut impl Gatt,
     start: u16,

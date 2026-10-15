@@ -242,6 +242,9 @@ async fn replayed_rounds_land_samples_failures_and_unreachable() {
                 (Metric::AcInputVoltage, 2.1),
                 (Metric::AcOutputOn, 1.0),
                 (Metric::DcOutputOn, 0.0),
+                (Metric::ChargingStatus, 0.0),
+                (Metric::TimeToFull, 6376.0),
+                (Metric::TimeToEmpty, 6376.0),
             ]),
         ),
         (
@@ -258,6 +261,9 @@ async fn replayed_rounds_land_samples_failures_and_unreachable() {
                 (Metric::AcInputPower, 0.0),
                 (Metric::AcInputFrequency, 0.0),
                 (Metric::AcInputVoltage, 0.0),
+                (Metric::ChargingStatus, 2.0),
+                (Metric::TimeToFull, 228.0),
+                (Metric::TimeToEmpty, 228.0),
             ]),
         ),
     ];
