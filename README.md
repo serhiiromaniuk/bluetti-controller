@@ -74,7 +74,7 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 
 ## Deploy
 
-- **Homelab host** (the production setup): a hardened system service with
+- **Homelab host — production since 2026-10-15** (`http://192.168.0.192:8080/`): a hardened system service with
   versioned releases, a health-checked update and automatic rollback. First
   install, the move from the laptop, every update (`make release VERSION=X.Y.Z`
   then `make deploy HOST=homelab`) and rollback: [`deploy/HOMELAB.md`](deploy/HOMELAB.md).

@@ -188,4 +188,4 @@ ssh -t homelab sudo /opt/bluetti-controller/current/bluetti-update rollback
 | "… is a symlink: refusing" | something replaced a file in `/var/lib/bluetti-controller` with a link: treat the host as compromised, investigate before anything else |
 | Host rebooted during an update | after the switch the new build starts without a health check: run `status`, then `rollback` if needed |
 | Restore a backup by hand | `sudo systemctl stop bluetti-controller`, move `data.db*` aside, `sudo install -o bluetti -g bluetti -m 0640 /var/backups/bluetti-controller/<name>.db /var/lib/bluetti-controller/data.db` (no `-wal`/`-shm` from another set), start |
-| Back to the laptop | stop + disable the host unit first (`sudo systemctl disable --now bluetti-controller`), then `systemctl --user enable --now bluetti-controller` on the laptop |
+| Back to the laptop | stop + disable the host unit first (`sudo systemctl disable --now bluetti-controller`), then reinstall the user unit on the laptop: `deploy/INSTALL.md` (removed from the laptop 2026-10-15; its config and keys stay in `~/.config/bluetti-controller/`) |
