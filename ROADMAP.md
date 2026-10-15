@@ -1217,7 +1217,8 @@ so it is human-only (RULES.md); the agent writes and tests the tooling.
     its `-wal`/`-shm` or the config is one (a compromised service must not
     steer root's copies, installs or deletes).
 - **System unit** `deploy/bluetti-controller.system.service`: `User=bluetti`,
-  `SupplementaryGroups=bluetooth` (Debian's BlueZ D-Bus policy), `ExecStart=
+  `SupplementaryGroups=bluetooth` (BlueZ 5.82's policy already admits every
+  local user, `context="default"`; the group covers stricter ones), `ExecStart=
   /opt/bluetti-controller/current/bluetti-controller --config
   /etc/bluetti-controller/config.toml serve`, `Restart=on-failure`,
   `StateDirectory=bluetti-controller`, `ProtectSystem=strict`,

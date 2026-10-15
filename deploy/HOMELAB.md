@@ -39,9 +39,15 @@ sudo systemd-run --pipe --wait -p User=bluetti -p SupplementaryGroups=bluetooth 
   busctl --system tree org.bluez
 ```
 
-If the last command says "access denied", the BlueZ D-Bus policy on this
-Debian does not grant the `bluetooth` group: stop here and tell the loop
-(ROADMAP §10.6 assumes it does).
+If the last command says "access denied", this BlueZ's D-Bus policy grants
+neither every user (BlueZ 5.82 on Debian 13 does: `context="default"`) nor
+the `bluetooth` group: stop here and tell the loop.
+
+Verified on the ideapad host on 2026-10-15 (Debian 13.7, BlueZ 5.82): all
+three stations in range from the host, `bluetti-controller read` succeeded on
+each. Its Bluetooth had been off by design; the homelab repo
+(`servers/ideapad`) now keeps it on and excludes the adapter from TLP's USB
+autosuspend.
 
 ## 3. Config and keys
 

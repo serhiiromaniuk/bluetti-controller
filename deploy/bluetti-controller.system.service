@@ -11,7 +11,8 @@ After=bluetooth.service network-online.target
 Type=simple
 User=bluetti
 Group=bluetti
-# Debian's BlueZ D-Bus policy lets the `bluetooth` group talk to org.bluez.
+# BlueZ 5.82 (Debian 13) lets any local user talk to org.bluez (policy
+# context="default"); the `bluetooth` group covers stricter policies.
 SupplementaryGroups=bluetooth
 ExecStart=/opt/bluetti-controller/current/bluetti-controller --config /etc/bluetti-controller/config.toml serve
 Restart=on-failure
