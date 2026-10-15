@@ -91,7 +91,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - It sends only after the row commits; a send with no receivers is not an error.
   - TDD: one record of each kind yields exactly one `Update`; a failed insert yields none; a closed or dropped receiver never stops the writer.
   - check: `cargo test store::writer`; `make check` · review: risky
-- [ ] 5. Web state and skeleton (spec §8, spec §5.3).
+- [x] 5. Web state and skeleton (spec §8, spec §5.3).
   - `src/web/state.rs` holds `AppState { reader, control: watch::Sender<Control>, updates: broadcast::Sender<Update>, interval_s, usable_factor, tz, token, shutdown }`.
   - `router(state)` registers every spec §8.2 route plus `/`, `/telemetry` and `/assets/{name}`. Each route not yet built returns `501`, from doc-only stubs in `status.rs`, `history.rs`, `assets.rs`, `api.rs`, `pages.rs`, `sse.rs` and `pause.rs`.
   - `src/cli/serve.rs` passes the control sender, the broadcast sender and the config values; it creates `updates` and gives the writer its clone.

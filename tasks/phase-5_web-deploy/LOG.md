@@ -251,3 +251,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 5 ✓ 2026-10-15 — web state, every route registered as a 501 stub, askama + futures-util locked
+
+**Changed:**
+- `src/web/state.rs` (new) — `AppState { reader, control, updates, interval_s, usable_factor, raw_retention_days, tz, token, shutdown: watch::Sender<bool> }` behind one `Arc` (a `watch::Sender` is not `Clone`); no `Debug` (token). `AppState::new(reader, &Config, control, updates)`; `#[cfg(test)] for_tests(reader)` returns a plain `AppState` so tests can set fields.
+- `raw_retention_days` added beyond the step's field list: §8.4 f caps `/api/energy?days=` with it, and group B must not edit `state.rs`.
+- `src/web/mod.rs` — `router(Arc<AppState>)` registers `/`, `/telemetry`, `/assets/{name}`, the four `/api/*` GETs, `POST /api/polling/pause`, `/events`, `/healthz`; `healthz` reads `state.reader`.
+- Stubs: `status.rs`, `history.rs` (doc only, view models); `assets.rs`, `api.rs`, `pages.rs`, `sse.rs`, `pause.rs` and `telemetry.rs` (handler → `501`). `telemetry.rs` is beyond the list: step 13's route needs a home, and creating it now keeps step 13 out of `mod.rs`.
+- `src/cli/serve.rs` — builds the `Control` channel before the router, `AppState::new(open_reader, config, control, updates)`, the writer gets `updates.clone()`. On exit: `state.shutdown.send_replace(true)` before `Control::Shutdown` (§8.4 g). `send_replace` because `send` does not store with no receiver.
+- `Cargo.toml` — `askama = "0.16.1"`, `futures-util = "0.3.34"` (already in the tree through axum; step 11 needs `Stream` combinators for `Sse`). `Cargo.lock` +79/−0.
+- `src/web/tests.rs` — `request(addr, method, path)` + `start(state)` helpers for groups A/B; `healthz` test moved to `start`.
+
+**Check:** `every_unbuilt_route_answers_501`: 9 routes → `501`, `/healthz` → `200` with `last_poll_age_s: null`. Red first not possible (the old `router` signature does not compile against it). Mutation: `/events` route removed → test FAILED at the 501 assert (404), restored. `cargo test --lib web::` 2/2 ok.
+- New crates' licences (`cargo metadata`): askama*, basic-toml, glob, rustc-hash are all MIT OR Apache-2.0.
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM. It accepted `telemetry.rs` and `raw_retention_days` as in scope, not creep.
+- MEDIUM M1: a pause POST during shutdown can overwrite `Control::Shutdown` and hang `polling.await`. The control sender now lives in `AppState` (`src/cli/serve.rs:116`). This is A2 (step 12: `send_if_modified` never replaces `Shutdown`, with a test), so no new amendment. No live bug while `pause.rs` is a stub.
+
+**Decision:** `AppState` is shared as `Arc<AppState>`; shutdown is a separate `watch::Sender<bool>` that `/events` subscribes to.
+**Carry-forward:** none.
+**Next:** parallel group A, steps 6–8 (status view, history view, assets).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:22:35Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

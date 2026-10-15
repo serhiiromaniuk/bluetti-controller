@@ -4,6 +4,7 @@
 //! order: the collector stops (its open link disconnected), the writer drains
 //! every queued record, the server closes gracefully.
 
+use std::sync::Arc;
 use std::time::Duration;
 
 use anyhow::{Context as _, bail};
@@ -58,9 +59,11 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         stations,
         params,
         config.storage.raw_retention_days,
-        updates,
+        updates.clone(),
     )?;
-    let router = web::router(open_reader(path)?);
+    let (control, control_rx) = watch::channel(Control::Run);
+    let state = web::AppState::new(open_reader(path)?, config, control, updates)?;
+    let router = web::router(Arc::clone(&state));
     let listener = TcpListener::bind(config.web.listen)
         .await
         .with_context(|| format!("listen on {}", config.web.listen))?;
@@ -77,7 +80,6 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     let mut server = tokio::spawn(web::serve(listener, router, async {
         let _ = server_stopped.await;
     }));
-    let (control, control_rx) = watch::channel(Control::Run);
     let collector = Collector {
         connect: BluezConnect {
             ble: config.ble.clone(),
@@ -107,10 +109,12 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
             log_server(result);
         }
     }
-    // The collector ends its current poll with the disconnect and drops the
-    // record sender, so the writer drains the queue and returns. A finished
-    // future is never polled again (it would panic).
-    let _ = control.send(Control::Shutdown);
+    // Ends every `/events` stream first, so the graceful close never waits on
+    // one (§8.4 g). The collector ends its current poll with the disconnect and
+    // drops the record sender, so the writer drains the queue and returns. A
+    // finished future is never polled again (it would panic).
+    state.shutdown.send_replace(true);
+    let _ = state.control.send(Control::Shutdown);
     if !collector_done {
         polling.await;
     }

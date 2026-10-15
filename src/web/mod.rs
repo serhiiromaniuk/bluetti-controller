@@ -1,21 +1,30 @@
-//! The web server (ROADMAP.md §8). M3 serves only `/healthz` (§8.2); the pages
-//! and the JSON API arrive with M4. Handlers read through the read-only
+//! The web server (ROADMAP.md §8): the pages, the JSON API, SSE and the pause
+//! POST, one module each (§8.4 a). Handlers read through the read-only
 //! connection in `spawn_blocking` (§5.3), never through the writer's.
 
 use std::future::Future;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::Context;
 use axum::extract::State;
 use axum::http::StatusCode;
-use axum::routing::get;
+use axum::routing::{get, post};
 use axum::{Json, Router};
-use rusqlite::Connection;
 use serde::Serialize;
 use tokio::net::TcpListener;
 
-type Db = Arc<Mutex<Connection>>;
+pub mod api;
+pub mod assets;
+pub mod history;
+pub mod pages;
+pub mod pause;
+pub mod sse;
+pub mod state;
+pub mod status;
+pub mod telemetry;
+
+pub use state::AppState;
 
 /// The `/healthz` body: always `ok` while the process runs; the age of the
 /// newest sample of any station, `null` before the first successful poll.
@@ -25,11 +34,20 @@ pub struct Health {
     pub last_poll_age_s: Option<i64>,
 }
 
-/// The routes over `reader`, a connection from [`crate::store::open_reader`].
-pub fn router(reader: Connection) -> Router {
+/// Every route of §8.1/§8.2 over `state`.
+pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
+        .route("/", get(pages::status))
+        .route("/telemetry", get(telemetry::page))
+        .route("/assets/{name}", get(assets::asset))
+        .route("/api/status", get(api::status))
+        .route("/api/series", get(api::series))
+        .route("/api/outages", get(api::outages))
+        .route("/api/energy", get(api::energy))
+        .route("/api/polling/pause", post(pause::pause))
+        .route("/events", get(sse::events))
         .route("/healthz", get(healthz))
-        .with_state(Arc::new(Mutex::new(reader)))
+        .with_state(state)
 }
 
 /// Serves `router` on `listener` until `shutdown` resolves, then lets open
@@ -47,7 +65,8 @@ pub async fn serve(
 
 /// 200 while the process runs, also when the DB read fails (§8.2: a slow BLE
 /// round or a busy DB never makes the liveness check restart the process).
-async fn healthz(State(db): State<Db>) -> (StatusCode, Json<Health>) {
+async fn healthz(State(state): State<Arc<AppState>>) -> (StatusCode, Json<Health>) {
+    let db = Arc::clone(&state.reader);
     let newest = tokio::task::spawn_blocking(move || {
         let conn = db
             .lock()
