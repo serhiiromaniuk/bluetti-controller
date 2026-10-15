@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 v1.0 gate PASS 2026-10-15; phase 5 closed, `v1.0-mvp` tagged — MVP done. Next: owner's HUMAN-CHECKLIST rows, homelab install (interactive) |
+| **Gate status** | 🟢 MVP done (`v1.0-mvp`); `v1.1.0` runs on the homelab host (ideapad) since 2026-10-15, laptop unit disabled. Updates: `make release` + `make deploy` (deploy/HOMELAB.md). Next: owner's HUMAN-CHECKLIST rows |
 | **Blocked?** | no — loop DONE; remaining work is the owner's |
 
 ## Carry-forward — obligations that outlive the task that found them
