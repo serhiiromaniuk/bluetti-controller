@@ -166,3 +166,36 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 4 ✓ 2026-10-15 — HOMELAB runbook, CHANGELOG, README; deploy.sh test; release dry-run
+
+**Changed:** `deploy/HOMELAB.md` (rode in be82b60 with `git add deploy`) — host requirements, one-time setup, config/keys, move from the laptop (laptop unit stopped first), first release, every update, rollback, troubleshooting. `CHANGELOG.md` — 1.1.0 and 1.0.0. `README.md` Deploy — homelab vs laptop. `deploy/test/deploy-test.sh` — stub ssh/scp/sudo: 7 checks (remote quoting, flag, exit pass-through, corrupted copy refused before apply), in `test-deploy` and `lint-shell`. `Makefile` `release` undoes the version bump when `check` fails.
+
+**Check:** `make check` green (update-test + deploy-test); `make lint-shell` clean. Release dry-run in a scratch clone: `make release VERSION=1.1.0` → commit `chore(deploy): release 1.1.0` (Cargo.toml + Cargo.lock only), tag `v1.1.0`, `dist/bluetti-controller-v1.1.0-x86_64-linux.tar.gz` with `BUILD` = `v1.1.0`, clean tree; clone deleted. HOMELAB commands cross-checked against `bluetti-update`, `deploy.sh`, the unit and `config.example.toml`.
+
+**Amendment:** A1 — no hand bump; the owner's `make release VERSION=1.1.0` does it.
+**reviewer:** batched (low-risk docs + test) before the push.
+**Next:** close the task; owner questions (host details) in one batch.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T16:45:50Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

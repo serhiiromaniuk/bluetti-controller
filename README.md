@@ -74,10 +74,17 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 
 ## Deploy
 
-`make build` builds the release binary; `make dist` packs it with the user
-unit, `config.example.toml` and the install notes into `dist/`. Install as a
-user-level systemd unit (no `sudo`): see [`deploy/INSTALL.md`](deploy/INSTALL.md).
-The hardened homelab install is ROADMAP.md §10.2 and is done by a human.
+- **Homelab host** (the production setup): a hardened system service with
+  versioned releases, a health-checked update and automatic rollback. First
+  install, the move from the laptop, every update (`make release VERSION=X.Y.Z`
+  then `make deploy HOST=homelab`) and rollback: [`deploy/HOMELAB.md`](deploy/HOMELAB.md).
+  Changes per release: [`CHANGELOG.md`](CHANGELOG.md). Design: ROADMAP.md §10.6.
+- **Dev laptop:** a user-level systemd unit (no `sudo`):
+  [`deploy/INSTALL.md`](deploy/INSTALL.md).
+
+`make dist` packs the release binary (`--version` names its `git describe`
+build), `bluetti-update`, both units, `config.example.toml`, the changelog and
+the install notes into `dist/`.
 
 ## Credits
 

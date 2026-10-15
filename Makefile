@@ -143,8 +143,8 @@ release:                        ## cut release VERSION=X.Y.Z: bump, make check, 
 	@! git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null || { echo "!! tag v$(VERSION) exists" >&2; exit 1; }
 	@grep -q '^## $(VERSION) ' CHANGELOG.md || { echo "!! CHANGELOG.md has no '## $(VERSION) …' section" >&2; exit 1; }
 	sed -i '0,/^version = ".*"/s//version = "$(VERSION)"/' Cargo.toml
-	$(CARGO) update --workspace --offline
-	$(MAKE) --no-print-directory check
+	$(CARGO) update --workspace --offline && $(MAKE) --no-print-directory check \
+		|| { git checkout -- Cargo.toml Cargo.lock; echo "!! release $(VERSION) aborted; version bump undone" >&2; exit 1; }
 	git commit -q -am "chore(deploy): release $(VERSION)"
 	git tag -a "v$(VERSION)" -m "release $(VERSION)"
 	$(MAKE) --no-print-directory dist
@@ -161,11 +161,12 @@ SHELLCHECK_IMAGE ?= koalaman/shellcheck:v0.10.0
 .PHONY: lint-shell
 lint-shell:                     ## shellcheck the deploy scripts (official pinned Docker image)
 	docker run --rm -v "$(CURDIR):/mnt" -w /mnt $(SHELLCHECK_IMAGE) \
-		deploy/bluetti-update deploy/deploy.sh deploy/test/update-test.sh
+		deploy/bluetti-update deploy/deploy.sh deploy/test/update-test.sh deploy/test/deploy-test.sh
 
 .PHONY: test-deploy
-test-deploy:                    ## stubbed test of deploy/bluetti-update (every apply/rollback path)
+test-deploy:                    ## stubbed tests of deploy/bluetti-update (every apply/rollback path) and deploy/deploy.sh
 	@bash deploy/test/update-test.sh
+	@bash deploy/test/deploy-test.sh
 
 CONFIG ?= config.toml
 .PHONY: run
