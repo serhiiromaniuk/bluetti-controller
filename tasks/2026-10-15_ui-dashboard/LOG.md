@@ -84,3 +84,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-10-15 — Grafana-style dashboard: time/refresh pickers, dark theme, cross-station panels
+
+**Changed:**
+- `templates/base.html` — dark by default, "Theme" toggle (localStorage), `.js` class gates JS-only controls, empty inline favicon.
+- `templates/status.html` — tools (range: 1 h…30 d + custom, Refresh, Auto off/1m…1h), `#age`, compact cards without charts, 3 panels (Battery %, Output W, Input W), `#live`/`#tables` swap targets.
+- `assets/app.js` — one `/api/chart` per load/refresh; URL state `from/to/refresh`; drag-zoom → absolute range; house-outage bands; synced cursors; gap breaks > 3 steps; age ticker on the server clock (STALE after 3 intervals); hidden tab skips ticks, catches up once. SSE no longer used by the page.
+- `assets/app.css` — CSS variables, dark + light.
+- `src/web/pages.rs` — `newest_ts/at`, `now`, `stale_s`; a day with no station data is one row, house "no data".
+
+**Check:** `make check` green. Telemetry "no JS" test now means no script file (inline theme only).
+
+**reviewer:** 0 CRITICAL / 1 HIGH / 3 MEDIUM — all fixed:
+- HIGH H1 drag-zoom fired 3 requests (synced charts replay mouseup) → only the chart with `cursor.event` zooms; CDP run: 1 request.
+- MEDIUM M1 refresh error overwritten by `age()` → `broken` flag.
+- MEDIUM M2 `?refresh=30d` overflows setInterval → listed values only.
+- MEDIUM M3 stale chart responses → `seq` guard.
+- Re-check: fixes hold; new MEDIUM — a recorded house outage on a day without samples read "no data" → blank only when no outage; test `a_recorded_outage_shows_on_a_day_without_samples` (fails on the old rule).
+
+**Decision:** auto-refresh minimum 1 m (= poll interval); default off.
+**Next:** step 3 — deploy + Chrome evidence.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T15:30:54Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

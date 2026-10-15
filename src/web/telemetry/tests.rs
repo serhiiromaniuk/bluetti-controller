@@ -113,7 +113,8 @@ async fn the_page_lists_core_and_extra_metrics_with_their_flag() {
         "{row}"
     );
     assert!(!body.contains("ac_input_power"), "no NULL column: {body}");
-    assert!(!body.contains("<script"), "no JS: {body}");
+    // Only the base template's inline theme toggle: no script file, no chart.
+    assert!(!body.contains("<script src"), "no JS file: {body}");
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
 }

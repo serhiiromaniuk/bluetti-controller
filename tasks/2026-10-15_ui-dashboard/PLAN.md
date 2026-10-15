@@ -7,7 +7,7 @@ lowest overhead first).
 
 ## Steps
 - [x] 1. Backend: `GET /api/chart?from=&to=&step=` (per station SOC, in W, out W on one time axis, plus outages in the window), `/` drops `?range`, empty energy days flagged as no data, forecast text for a load below the meter floor — check: `make check` with new tests for the endpoint and the no-data day.
-- [ ] 2. Frontend: templates, `app.css`, `app.js` — dark default + toggle, time and refresh pickers, overview cards, three cross-station panels with outage bands and synced cursors, drag-zoom, data-age ticker — check: `make check` (page tests) + reviewer.
+- [x] 2. Frontend: templates, `app.css`, `app.js` — dark default + toggle, time and refresh pickers, overview cards, three cross-station panels with outage bands and synced cursors, drag-zoom, data-age ticker — check: `make check` (page tests) + reviewer.
 - [ ] 3. Deploy to `~/.local/bin`, restart the user unit, verify in Chrome: default 12 h, zero background requests with refresh off, one chart request per refresh, theme toggle, custom range, zoom — check: Chrome observations + network request list in LOG.
 
 ## Risks / Dependencies

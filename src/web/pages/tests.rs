@@ -97,11 +97,30 @@ fn renders_hand_computed_values() {
         "<tr><td>2026-10-15</td><td>router</td><td>100</td><td>100</td><td>0</td><td>0</td><td>0 s</td></tr>"
     ));
     assert!(html.contains("<tr><td>2026-10-15</td><td>1</td><td>30 min</td><td>30 min</td></tr>"));
-    // Yesterday holds no sample: dashes and "no data", never 0 Wh.
+    // Today office has no sample: its own dashes, never 0 Wh.
     assert!(html.contains(
-        "<tr><td>2026-10-14</td><td>router</td><td>—</td><td>—</td><td>—</td><td>—</td><td>no data</td></tr>"
+        "<tr><td>2026-10-15</td><td>office</td><td>—</td><td>—</td><td>—</td><td>—</td><td>no data</td></tr>"
     ));
-    assert!(html.contains(r#"<div class="chart" data-chart-station="office"></div>"#));
+    // Yesterday no station has one: a single row, and no house "0 s".
+    assert!(html.contains(
+        "<tr><td>2026-10-14</td><td>all stations</td><td>—</td><td>—</td><td>—</td><td>—</td><td>no data</td></tr>"
+    ));
+    assert!(!html.contains("<td>2026-10-14</td><td>router</td>"));
+    assert!(html.contains("<tr><td>2026-10-14</td><td>—</td><td>no data</td><td>—</td></tr>"));
+    for slot in ["c-soc", "c-out_w", "c-in_w"] {
+        assert!(html.contains(&format!(r#"<div class="chart" id="{slot}"></div>"#)));
+    }
+    // Newest sample NOW − 60 = 11:59 local; stale after 3 × 60 s.
+    assert!(html.contains(&format!(
+        r#"<p id="age" class="age" data-ts="{}" data-now="{NOW}" data-stale="180" data-at="Thu 15 Oct 11:59">"#,
+        NOW - 60
+    )));
+    // Manual refresh by default: no live stream, auto-refresh starts off.
+    assert!(
+        !html.contains("EventSource") && html.contains(r#"<option value="">Auto: off</option>"#)
+    );
+    assert!(html.contains(r#"<option value="now-12h" selected>"#));
+    assert!(html.contains(r#"<html lang="en" data-theme="dark">"#));
     assert!(
         html.contains(r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#)
     );
@@ -138,4 +157,22 @@ fn zero_output_says_why_there_is_no_forecast() {
     // An hour later the 0 W is stale (grid unknown): the plain dash again.
     let html = render(&conn, NOW + 3600, &state).unwrap();
     assert!(!html.contains(why) && html.contains("<p>—</p>"), "{html}");
+}
+
+#[test]
+fn a_recorded_outage_shows_on_a_day_without_samples() {
+    // An open house outage since 10-13 12:00 local; no station sample at all.
+    // 10-14 is a whole local day inside it: 1 outage, 24 h without power.
+    let conn = db();
+    event(&conn, "house", NOW - 2 * 86_400, None);
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let html = render(&conn, NOW, &state).unwrap();
+    assert!(
+        html.contains(
+            "<tr><td>2026-10-14</td><td>1</td><td>24 h 00 min</td><td>24 h 00 min</td></tr>"
+        ),
+        "{html}"
+    );
+    // 10-12 lies before the outage and holds no sample: unknown, not 0 s.
+    assert!(html.contains("<tr><td>2026-10-12</td><td>—</td><td>no data</td><td>—</td></tr>"));
 }

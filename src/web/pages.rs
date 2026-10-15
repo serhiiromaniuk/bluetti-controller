@@ -27,6 +27,12 @@ struct Page {
     banner_class: &'static str,
     banner: String,
     paused: Option<String>,
+    /// The newest sample of any station: unix seconds (0 = none) and local
+    /// time; `app.js` ages it against `now` and flags it after `stale_s`.
+    newest_ts: i64,
+    newest_at: String,
+    now: i64,
+    stale_s: i64,
     cards: Vec<CardView>,
     outages: Vec<OutageRow>,
     energy: Vec<EnergyRow>,
@@ -68,7 +74,7 @@ struct EnergyRow {
 
 struct HouseRow {
     day: String,
-    count: usize,
+    count: String,
     without: String,
     longest: String,
 }
@@ -108,6 +114,7 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
         None => what.to_owned(),
     };
     let energy_days = history::energy(conn, DAYS, now, state.interval_s, tz)?;
+    let newest = s.stations.iter().filter_map(|c| c.last_seen).max();
     let page = Page {
         banner_class,
         banner,
@@ -115,6 +122,14 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
             .paused_until
             .map(|ts| local(ts, tz, "%H:%M"))
             .transpose()?,
+        newest_ts: newest.unwrap_or(0),
+        newest_at: match newest {
+            Some(ts) => local(ts, tz, "%a %-d %b %H:%M")?,
+            None => "never".to_owned(),
+        },
+        now,
+        // The staleness rule of the grid vote (§8.4 b, amendment A1).
+        stale_s: 3 * state.interval_s,
         cards: s
             .stations
             .iter()
@@ -127,11 +142,21 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
         energy: energy_days.iter().flat_map(energy_rows).collect(),
         house: energy_days
             .iter()
-            .map(|d| HouseRow {
-                day: d.day.clone(),
-                count: d.house.count,
-                without: duration(d.house.seconds_without_power),
-                longest: duration(d.house.longest_s),
+            // Nothing monitored and no outage recorded: none was ruled out
+            // either. A recorded outage (a long one drains every station) shows.
+            .map(|d| match blind(d) && d.house.count == 0 {
+                true => HouseRow {
+                    day: d.day.clone(),
+                    count: "—".to_owned(),
+                    without: "no data".to_owned(),
+                    longest: "—".to_owned(),
+                },
+                false => HouseRow {
+                    day: d.day.clone(),
+                    count: d.house.count.to_string(),
+                    without: duration(d.house.seconds_without_power),
+                    longest: duration(d.house.longest_s),
+                },
             })
             .collect(),
         token: state.token.is_some(),
@@ -202,16 +227,31 @@ fn outage(o: &Outage, tz: &TimeZone) -> anyhow::Result<OutageRow> {
     })
 }
 
+/// No station has a sample that day.
+fn blind(d: &EnergyDay) -> bool {
+    d.stations.iter().all(|s| s.no_data)
+}
+
 fn energy_rows(d: &EnergyDay) -> Vec<EnergyRow> {
     // `+ 0.0` turns a rounded −0 into 0, so a balanced day never shows "-0".
     let wh = |v: f64| format!("{:.0}", v.round() + 0.0);
+    let dashes = || ["—", "—", "—", "—"].map(String::from);
+    // One row, not one per station, for a day nothing was monitored.
+    if blind(d) {
+        return vec![EnergyRow {
+            day: d.day.clone(),
+            station: "all stations".to_owned(),
+            cells: dashes(),
+            missing: "no data".to_owned(),
+        }];
+    }
     d.stations
         .iter()
         .map(|s| EnergyRow {
             day: d.day.clone(),
             station: s.station.clone(),
             cells: if s.no_data {
-                ["—", "—", "—", "—"].map(String::from)
+                dashes()
             } else {
                 [
                     wh(s.energy_in_wh),

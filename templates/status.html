@@ -1,19 +1,39 @@
 {% extends "base.html" %}
 {% block title %}Bluetti status{% endblock %}
+{% block head %}<link rel="stylesheet" href="/assets/uPlot.min.css">{% endblock %}
+{% block tools %}<div class="tools js-only">
+<select id="range" aria-label="Time range">
+<option value="now-1h">Last 1 hour</option><option value="now-3h">Last 3 hours</option><option value="now-6h">Last 6 hours</option><option value="now-12h" selected>Last 12 hours</option><option value="now-24h">Last 24 hours</option><option value="now-2d">Last 2 days</option><option value="now-7d">Last 7 days</option><option value="now-30d">Last 30 days</option><option value="custom">Custom…</option>
+</select>
+<span id="custom" hidden><input type="datetime-local" id="from" aria-label="From"> – <input type="datetime-local" id="to" aria-label="To"> <button type="button" id="apply">Apply</button></span>
+<button type="button" id="refresh" title="Refresh now">⟳ Refresh</button>
+<select id="every" aria-label="Auto-refresh" title="Auto-refresh">
+<option value="">Auto: off</option><option value="1m">Auto: 1m</option><option value="5m">Auto: 5m</option><option value="15m">Auto: 15m</option><option value="30m">Auto: 30m</option><option value="1h">Auto: 1h</option>
+</select>
+</div>{% endblock %}
 {% block content %}
+<div id="live">
 <div class="banner {{ banner_class }}">{{ banner }}</div>
+<p id="age" class="age" data-ts="{{ newest_ts }}" data-now="{{ now }}" data-stale="{{ stale_s }}" data-at="{{ newest_at }}">Last sample {{ newest_at }}</p>
 {% if let Some(until) = paused %}<p class="muted">Polling paused until {{ until }}</p>{% endif %}
 <div class="cards">
 {% for c in cards %}<section class="card">
 <h2>{{ c.name }} <span class="muted">{{ c.model }}</span>{% if c.unverified %} <span class="badge warn" title="SOC, powers and forecast use registers not yet verified on hardware">unverified</span>{% endif %}</h2>
 <div class="big">{{ c.soc }}</div>
-<meter min="0" max="100" value="{{ c.soc_bar }}"></meter>
+<meter min="0" max="100" low="20" high="50" optimum="100" value="{{ c.soc_bar }}"></meter>
 <p>In {{ c.in_w }} · Out {{ c.out_w }} · Grid <span class="badge {{ c.grid_class }}">{{ c.grid }}</span></p>
 <p>{{ c.forecast }}</p>
 <p class="muted">Last seen {{ c.last_seen }} · <span class="badge {{ c.health_class }}">{{ c.health }}</span> · {{ c.polls }} · encrypted {{ c.encrypted }}</p>
-<div class="chart" data-chart-station="{{ c.name }}"></div>
 </section>
 {% endfor %}</div>
+</div>
+<section class="panels js-only">
+<div class="panel"><h3>Battery %</h3><div class="chart" id="c-soc"></div></div>
+<div class="panel"><h3>Output (load) W</h3><div class="chart" id="c-out_w"></div></div>
+<div class="panel"><h3>Input W</h3><div class="chart" id="c-in_w"></div></div>
+<p class="muted">Red bands: house outages. Drag across a chart to zoom.</p>
+</section>
+<div id="tables">
 <h2>Outages</h2>
 <div class="scroll"><table>
 <tr><th>Scope</th><th>Start</th><th>End</th><th>Duration</th></tr>
@@ -29,6 +49,7 @@
 <tr><th>Day</th><th>House outages</th><th>Without power</th><th>Longest</th></tr>
 {% for h in house %}<tr><td>{{ h.day }}</td><td>{{ h.count }}</td><td>{{ h.without }}</td><td>{{ h.longest }}</td></tr>
 {% endfor %}</table></div>
+</div>
 <h2>Pause polling</h2>
 <p class="muted">Stops BLE polling so the phone app can connect; 0 resumes.</p>
 <form id="pause"><label>Minutes <input name="minutes" type="number" min="0" max="60" value="15" required></label>
@@ -36,3 +57,5 @@
 {% endif %}<button>Pause</button>
 <output id="pause-reply"></output></form>
 {% endblock %}
+{% block scripts %}<script src="/assets/uPlot.iife.min.js"></script>
+<script src="/assets/app.js"></script>{% endblock %}

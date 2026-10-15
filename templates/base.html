@@ -1,16 +1,19 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Bluetti{% endblock %}</title>
-<link rel="stylesheet" href="/assets/uPlot.min.css">
+<link rel="icon" href="data:,">
+<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}document.documentElement.className="js"</script>
+{% block head %}{% endblock %}
 <link rel="stylesheet" href="/assets/app.css">
 </head>
 <body>
-<nav><a href="/">Status</a><a href="/telemetry">Telemetry</a></nav>
+<header class="top"><nav><a href="/">Status</a><a href="/telemetry">Telemetry</a></nav>
+<button type="button" id="theme" class="js-only" title="Light / dark theme" aria-label="Toggle light or dark theme">Theme</button>{% block tools %}{% endblock %}</header>
+<script>document.getElementById("theme").onclick=function(){var r=document.documentElement,t=r.dataset.theme=="light"?"dark":"light";r.dataset.theme=t;try{localStorage.setItem("theme",t)}catch(e){}dispatchEvent(new Event("themechange"))}</script>
 {% block content %}{% endblock %}
-{% block scripts %}<script src="/assets/uPlot.iife.min.js"></script>
-<script src="/assets/app.js"></script>{% endblock %}
+{% block scripts %}{% endblock %}
 </body>
 </html>
