@@ -11,8 +11,8 @@ The MVP is live and monitoring home backup power; the owner requested a review o
 **Out:** changing product code, measuring electrical draw with a wattmeter, or claiming production readiness.
 
 ## Done when
-- [ ] `reports/qa-2026-10-15.md` records reproducible observations, severity, evidence, and prioritized recommendations.
-- [ ] Findings distinguish observed live conditions from implementation risks and unmeasured power consumption.
+- [x] `reports/qa-2026-10-15.md` records reproducible observations, severity, evidence, and prioritized recommendations.
+- [x] Findings distinguish observed live conditions from implementation risks and unmeasured power consumption.
 
 ## References
 - Governing spec: `ROADMAP.md`

@@ -25,3 +25,22 @@ Context loaded from `loop/where.sh --json`, `loop/STATE.md`, and task template; 
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-10-15 — QA report accepted
+
+**Changed:** `BRIEF.md` done-when boxes and `tasks/INDEX.md` status after close review.
+
+**Check:** `make amendments` — 0 deferred findings. Close-reviewer verdict: close; 0 CRITICAL, 0 HIGH, 0 MEDIUM, 0 UNVERIFIED, 0 TREE-CHANGED.
+
+**Evidence:** QA report artifact exists at `reports/qa-2026-10-15.md`; first commit `48fb00f`.
+
+**Next:** owner may prioritize implementation tasks from the report.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `test -s tasks/2026-10-15_qa-report/OUTCOME.md && grep -q 'P1' reports/qa-2026-10-15.md` EXIT=0 · 2026-10-15T14:56:16Z
+
+```text
+
+```
+
+<!-- gate:end -->
