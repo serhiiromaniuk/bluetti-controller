@@ -739,3 +739,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 21 ✓ 2026-10-15 — 1 h run measured: v1.0 gate PASS (polls 100/100/98.3 %, RSS 12.3 MB, max page/API 2.1 ms)
+
+**Scope (A7):** the 1 h run 12:13:12–13:13:12 UTC (`[1792066392, 1792069992)`), measured read-only at 13:15–13:17 UTC. No station command, no unit action.
+**Final probe (13:15:36 UTC):** `ActiveState=active`, `NRestarts=0`, `InvocationID=71d0b93f…` (same since step 18), `MainPID=1387543`; child 1387554 exe `~/.local/bin/bluetti-controller`.
+**Gate numbers vs RULES.md v1.0:**
+- **Polls** (`acceptance_v04.py <db> 1792066392 1792069992 60`, 60 scheduled each): router (EB3A) 60/60 100 %; living-room (Elite 200 V2) 60/60 100 %; mobile (AC180) 59/60 98.33 % (1 connect failure, 12:30:27 UTC "GATT services have not been resolved") — all ≥ 95 % → PASS.
+- **RSS:** `VmHWM` 12604 kB = 12.3 MB (probes: 11472 kB @+3 min, 11624 kB @+8 min) ≤ 50 MB → PASS. One invocation, so this is the run's max.
+- **Latency (20 sequential LAN GETs each, `http://192.168.0.179:8080`), max / median:** `/` 1.50 / 1.20 ms; `/telemetry` 2.10 / 1.61 ms; `/api/status` 0.84 / 0.68 ms; `/api/series?station=router&metric=battery_soc` 0.44 / 0.35 ms; `/api/outages` 0.45 / 0.31 ms; `/api/energy` 0.95 / 0.69 ms; `/healthz` 0.40 / 0.27 ms; assets ≤ 0.31 ms; `/events` TTFB 0.24 ms. All 200, all ≤ 1 s → PASS. `POST /api/polling/pause` not exercised (it changes state; handler tests cover it, H9 the button).
+- **Manual interventions:** 0 (InvocationID unchanged, `NRestarts=0`, H10 has no owner note, the loop did nothing to the unit).
+- `make check` green: gate block below.
+**Informational:**
+- `acceptance_v04.py` exits 1 on DB size only: 17.5 MB per station-day = (45 KB db + 2.1 MB WAL) / 3 / 0.0417 d. The WAL is pre-checkpoint, so 1 h cannot measure a per-day rate; tables total ~70 KB (dbstat). Not the v1.0 gate (step 21 text).
+- Journal: 10 WARN lines, all BLE connect retries (`le-connection-abort-by-local`) bar the one mobile poll failure; no ERROR.
+- Grid events (for H4): a real house outage 12:13:12–12:27:12 UTC (id 2; router/living-room/mobile ids 1/3/4); `ac_in_v` 0 → 214 V on the EB3A at 12:27:12. It started with the run, so its start is the first poll, precision 60 s.
+**Unit:** keeps running (Q7).
+**reviewer:** batched (low-risk), at the task close (step 22), before the push.
+**Next:** step 22 — phase gate, OUTCOME, `v1.0-mvp`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T13:16:34Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

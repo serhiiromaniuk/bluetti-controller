@@ -205,7 +205,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
     - `scripts/acceptance_v04.py` over `[start, now)`, giving the poll ratio per station, the Elite included (the phase-4 OUTCOME follow-up), and MB per station-day.
   - A projected RSS > 50 MB or a crash loop is a miss: plan the fix by amendment. The fix needs a reinstall and **restarts the 7-day clock**.
   - check: the probe and projection numbers in the LOG, with a pass or miss stated · review: low-risk
-- [ ] 21. Soak final measurement (RULES.md v1.0 gate, spec §M5) (needs Q6).
+- [x] 21. Soak final measurement (RULES.md v1.0 gate, spec §M5) (needs Q6).
   - If `now < start + 604800`: log an interim probe line and the ETA the same way as step 20 (`--no-tick`, INDEX `in-progress`, no OUTCOME, not an escape-hatch attempt), then emit `<<LOOP:BLOCKED>>`. The step is not ticked until the 7 days have elapsed and the numbers are in the LOG.
   - Then log:
     - a final probe line;
