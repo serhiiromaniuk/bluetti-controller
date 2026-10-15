@@ -81,3 +81,6 @@ output { display: block; margin-top: 4px; }
   .cards { grid-template-columns: 1fr; }
   th, td { padding: 4px 5px; }
 }
+
+.spark { width: 120px; height: 30px; vertical-align: middle; }
+.spark polyline { fill: none; stroke: #1f5fbf; stroke-width: 1.5; vector-effect: non-scaling-stroke; }

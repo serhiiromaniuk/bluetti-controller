@@ -128,6 +128,21 @@ fn latest_extras_take_each_key_at_its_own_newest_ts() {
 }
 
 #[test]
+fn latest_extras_skip_keys_older_than_a_day_before_the_newest() {
+    let conn = db();
+    extra(&conn, 1, 100_000, "pack_voltage", 26.5);
+    extra(&conn, 1, 100_000 - 86_400, "ac_output_on", 1.0);
+    extra(&conn, 1, 100_000 - 86_401, "dc_output_on", 0.0);
+    assert_eq!(
+        latest_extras(&conn, 1).unwrap(),
+        BTreeMap::from([
+            ("ac_output_on".to_string(), (100_000 - 86_400, 1.0)),
+            ("pack_voltage".to_string(), (100_000, 26.5)),
+        ])
+    );
+}
+
+#[test]
 fn events_by_window_last_n_and_open_scope() {
     let conn = db();
     event(&conn, "house", 100, Some(200)); // id 1

@@ -160,14 +160,18 @@ pub fn last_samples(
 }
 
 /// The newest value of every `sample_extra` key of the station: key → (ts, value).
+/// Only keys stored within a day of the station's newest extra count, so the
+/// scan stays one PK range of ~1 day, not the whole retention (phase-5 A4).
 pub fn latest_extras(
     conn: &Connection,
     station_id: i64,
 ) -> anyhow::Result<BTreeMap<String, (i64, f64)>> {
+    // SQLite takes the bare `value` from the row that holds `max(ts)`.
     let mut stmt = conn.prepare(
-        "SELECT metric, ts, value FROM sample_extra e
-         WHERE station_id = ?1 AND ts = (SELECT max(ts) FROM sample_extra
-                                         WHERE station_id = ?1 AND metric = e.metric)",
+        "SELECT metric, max(ts), value FROM sample_extra
+         WHERE station_id = ?1
+           AND ts >= (SELECT max(ts) FROM sample_extra WHERE station_id = ?1) - 86400
+         GROUP BY metric",
     )?;
     let rows = stmt
         .query_map([station_id], |row| {

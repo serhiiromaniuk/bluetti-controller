@@ -250,10 +250,7 @@ fn card(
 /// Whether every [`BADGED`] field of the model is verified; an unknown model
 /// string is unverified.
 fn verified(model: &str) -> bool {
-    let Some(model) = [Model::Eb3a, Model::Ac180, Model::Elite200V2]
-        .into_iter()
-        .find(|m| m.name() == model)
-    else {
+    let Some(model) = model_named(model) else {
         return false;
     };
     model
@@ -262,6 +259,13 @@ fn verified(model: &str) -> bool {
         .iter()
         .filter(|f| BADGED.contains(&f.metric))
         .all(|f| f.verified)
+}
+
+/// The model stored as `name` in the `station` table; `None` for any other string.
+pub(crate) fn model_named(name: &str) -> Option<Model> {
+    [Model::Eb3a, Model::Ac180, Model::Elite200V2]
+        .into_iter()
+        .find(|m| m.name() == name)
 }
 
 /// `Pause { until }` as unix seconds (§8.4 h); `None` once past or not paused.

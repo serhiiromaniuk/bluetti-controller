@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block title %}Bluetti telemetry{% endblock %}
+{% block content %}
+<h1>Raw telemetry</h1>
+<p class="muted">Every stored metric, latest value and the last 24 h (30-min averages). Unverified registers are not yet confirmed on hardware.</p>
+{% for s in stations %}<h2>{{ s.name }} <span class="muted">{{ s.model }}</span></h2>
+<div class="scroll"><table>
+<tr><th>Metric</th><th>Latest</th><th>At</th><th>Flag</th><th>24 h</th></tr>
+{% for r in s.rows %}<tr><td>{{ r.key }}</td><td>{{ r.value }}</td><td>{{ r.at }}</td><td>{% if r.verified %}<span class="badge ok">verified</span>{% else %}<span class="badge warn">unverified</span>{% endif %}</td><td><svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="{{ r.points }}"/></svg></td></tr>
+{% else %}<tr><td colspan="5">No samples yet</td></tr>
+{% endfor %}</table></div>
+{% else %}<p>No stations configured</p>
+{% endfor %}
+{% endblock %}
+{% block scripts %}{% endblock %}

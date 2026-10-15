@@ -225,7 +225,7 @@ fn energy_rows(d: &EnergyDay) -> Vec<EnergyRow> {
 }
 
 /// `ts` in `tz` with a `strftime` format.
-fn local(ts: i64, tz: &TimeZone, fmt: &str) -> anyhow::Result<String> {
+pub(crate) fn local(ts: i64, tz: &TimeZone, fmt: &str) -> anyhow::Result<String> {
     Ok(Timestamp::from_second(ts)?
         .to_zoned(tz.clone())
         .strftime(fmt)

@@ -103,19 +103,11 @@ async fn healthz_reports_the_newest_sample_age() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn every_unbuilt_route_answers_501() {
+async fn healthz_is_null_before_the_first_poll() {
     let mut reader = rusqlite::Connection::open_in_memory().unwrap();
     crate::store::migrate(&mut reader).unwrap();
     let (addr, stop, server) = start(AppState::for_tests(reader)).await;
 
-    // Group B (steps 9–12) builds the rest; each step tests its own routes.
-    let routes = [("GET", "/telemetry")];
-    for (method, path) in routes {
-        let (status, _) = tokio::task::spawn_blocking(move || request(addr, method, path))
-            .await
-            .unwrap();
-        assert_eq!(status, "HTTP/1.1 501 Not Implemented", "{method} {path}");
-    }
     let (status, body) = tokio::task::spawn_blocking(move || get(addr, "/healthz"))
         .await
         .unwrap();

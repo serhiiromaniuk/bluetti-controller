@@ -434,3 +434,41 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 13 ✓ 2026-10-15 — /telemetry: every stored metric, verified flag, 24 h SVG sparkline, no JS
+
+**Changed:** `src/web/telemetry.rs` (stub → ~145): per station the newest sample's core columns + every recent `sample_extra` key, value `{:.1} unit`, local time, flag from `Field::verified` (unknown model/key → unverified); `window(now)` bucket-aligned start → ≤ 48 × 30-min buckets via `read::series`; pure `sparkline(t, v, from, to)` → `polyline` points in a 120×30 box (flat/single → mid-height); `templates/telemetry.html` (overrides the scripts block: no JS); `assets/app.css` +2 `.spark` rules (2094 → 2261 B).
+**Shared:** `pages::local` and new `status::model_named` → `pub(crate)` (status `verified` reuses it).
+**A4:** `store::read::latest_extras` → one `GROUP BY metric` with `max(ts)` bare column, bounded to `ts ≥ newest extra − 86400`; new test `latest_extras_skip_keys_older_than_a_day_before_the_newest`; the old "key missing from the newest poll" test still passes. Same 3 keys as the old query on a copy of `data/acceptance-24h.db`.
+**Tests:** `web/telemetry/tests.rs` (4): hand-computed 3-point sparkline `0.0,30.0 60.0,0.0 120.0,15.0`; flat + single + empty; a 30 h minute series at the worst alignment → exactly 48 points; `/telemetry` lists `battery_soc 50.0 %`, `ac_input_voltage 230.0 V`, extra `dc_input_voltage 12.5 V` with the `unverified` badge, a `<polyline`, no NULL column, no `<script`. `every_unbuilt_route_answers_501` → `healthz_is_null_before_the_first_poll` (no stub route left).
+
+**Check:** red first — telemetry `0 passed; 4 failed`, `latest_extras_skip…` FAILED. Green: `cargo test --lib web::` 46 passed, `store::read` 10 passed; `make check` green after `make format`.
+
+**reviewer:** risky, before commit — INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM.
+- MEDIUM M1: flag assertion not tied to the extra's row; verified branch never runs → A10 (step 15).
+- A4 → fixed.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 14, UI smoke + page weight + LAN latency.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:51:20Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
