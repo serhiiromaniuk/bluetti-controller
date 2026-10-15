@@ -120,3 +120,49 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 3 ✓ 2026-10-15 — system unit, bluetti-update, stubbed test, release/deploy targets
+
+**Changed:**
+- `deploy/bluetti-controller.system.service` — `User=bluetti`, `bluetooth` group, `/opt/…/current`, `StateDirectory`, hardening, `MemoryMax=128M`.
+- `deploy/bluetti-update` — apply (checksums, preflight `check` as `bluetti`, space, stop, EXIT-trap undo, backup to `/var/backups/bluetti-controller`, switch, unit sync, start, health = version + `samples_since_start` ≥ 1, save healthy config, prune) / rollback (config on check exit 4, DB on exit 2, start always, exit 3) / status.
+- `deploy/deploy.sh` — laptop-side hash, `ssh -t`, root-owned 0755 temp dir, hash re-checked after the copy.
+- `deploy/test/update-test.sh` — temp root, stub systemctl/curl, fake releases; 39 checks over every §10.6 path.
+- `Makefile` — `dist` (BUILD, SHA256SUMS, normalised owner/mode, glibc ≤ 2.36 guard), `release`, `deploy`, `test-deploy` (in `check`), `lint-shell` (shellcheck v0.10.0 via Docker).
+- `src/main.rs`, `src/cli/check.rs` — `check` exit 4 = config rejected.
+- `ROADMAP.md` §10.6 — saved-config restore, backups outside the state dir, exit 4, refusal of an installed build.
+
+**Check:** `make check` green incl. `update-test: all checks passed`; `make lint-shell` clean. Mutations: no EXIT trap → "trap restarted the old build" fails; no `inherit_errexit` → 3 checks of the failed-backup case fail. Laptop binary needs ≤ GLIBC_2.34. Tarball: root/root, 0644/0755, `sha256sum -c` OK, `--version` = BUILD.
+
+**reviewer:** 0 CRITICAL / 2 HIGH / 3 MEDIUM, all fixed:
+- HIGH backup errors inside `$(…)` ignored → `inherit_errexit` + test.
+- HIGH root following symlinks in the service-writable state dir → backups in `/var/backups/bluetti-controller` (root 0700), `no_links` refusal + test.
+- MEDIUM trap stopped at its first failure → `set +e` in `undo_apply`.
+- MEDIUM re-applying `previous` deleted its saved config/BACKUP → refused + test.
+- MEDIUM every check exit 1 treated as config → exit 4 only; other failures start the old build anyway, exit 3.
+
+**Next:** step 4 — HOMELAB.md, CHANGELOG.md, README.
+- Re-check: all five fixed, 0 CRITICAL/HIGH/MEDIUM; 3 wording slips fixed (exit-3 cases in the header and §10.6, test comments).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T16:40:40Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

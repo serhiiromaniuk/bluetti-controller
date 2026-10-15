@@ -6,7 +6,7 @@
 ## Steps
 - [x] 1. ROADMAP: §2.2 + Appendix B record the telemetry extras as postponed (not approved, owner 2026-10-15); §10.2 and a new §10.6 settle the release layout, versioning, update/rollback flow and health criterion — check: sections written with a recommendation; reviewer (decision record).
 - [x] 2. Code: build version (`BLUETTI_BUILD`, else the crate version) in `--version` and `/healthz`; `check` subcommand (config + keys + DB schema vs binary, read-only, no BLE; exit 2 when the DB schema is newer) — check: `make check` with new tests; reviewer.
-- [ ] 3. deploy/: system unit, `bluetti-update` (apply / rollback / status), `deploy/test/update-test.sh` with stub systemctl/curl over a temp root, Makefile `release`, `deploy`, `test-deploy` (in `check`) — check: `make check` incl. the stub test; reviewer.
+- [x] 3. deploy/: system unit, `bluetti-update` (apply / rollback / status), `deploy/test/update-test.sh` with stub systemctl/curl over a temp root, Makefile `release`, `deploy`, `test-deploy` (in `check`) — check: `make check` incl. the stub test; reviewer.
 - [ ] 4. Docs: `deploy/HOMELAB.md` (first install + migration from the laptop + update + rollback + troubleshooting), `CHANGELOG.md`, README pointer, crate version 1.1.0 — check: commands cross-checked against the scripts; batched reviewer.
 
 ## Risks / Dependencies
@@ -19,4 +19,4 @@
 - Anything needing sudo or the homelab host → hand to the owner.
 
 ## Amendments
-None.
+- A1 2026-10-15 — step 4: the crate version is not bumped by hand; `make release VERSION=1.1.0` bumps, tags and builds it (cutting and pushing a release is the owner's, HOMELAB.md §5). Step 4 ships the `## 1.1.0` CHANGELOG section it needs. · disposition: fixed (in the plan)

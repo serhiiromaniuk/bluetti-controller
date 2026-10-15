@@ -1,0 +1,372 @@
+#!/usr/bin/env bash
+# bluetti-update — install, roll back and inspect bluetti-controller releases on
+# the homelab host (ROADMAP.md §10.6). Run as root: `sudo ./bluetti-update …`.
+# Human-only (RULES.md): the owner runs it, directly or through `make deploy`.
+#
+#   apply <release-dir> [--no-poll-check]   install a release, health-check it,
+#                                            roll back on its own on failure
+#   rollback                                 back to the previous release
+#   status                                   releases, backups, unit, /healthz
+#
+# Exit: 0 ok · 1 failed (before the stop: nothing changed; after: rolled back,
+#       the old build runs) · 3 needs a human now: the rolled-back build is
+#       unhealthy or fails its check (started anyway, left to systemd's
+#       restarts), a backup to restore is missing (unit left stopped), or a
+#       symlink was refused (during apply the trap restarted the old build).
+#
+# A release dir holds: bluetti-controller, bluetti-update, BUILD, SHA256SUMS,
+# bluetti-controller.system.service, CHANGELOG.md, HOMELAB.md (`make dist`).
+#
+# Health: within $HEALTH_TIMEOUT s of the start, /healthz reports `version` =
+# the release's build and `samples_since_start` ≥ 1 (this process polled and
+# stored a sample). --no-poll-check and every rollback check the version only.
+#
+# Every path, owner and tool is overridable from the environment, so
+# deploy/test/update-test.sh runs it against a temp root with stubs.
+set -euo pipefail
+# Without it a failing command inside $(…) does not stop the script (backup).
+shopt -s inherit_errexit
+
+PREFIX=${BLUETTI_PREFIX:-/opt/bluetti-controller}
+CONFIG=${BLUETTI_CONFIG:-/etc/bluetti-controller/config.toml}
+UNIT=${BLUETTI_UNIT:-bluetti-controller.service}
+UNIT_DIR=${BLUETTI_UNIT_DIR:-/etc/systemd/system}
+DB_OWNER=${BLUETTI_DB_OWNER:-bluetti:bluetti}
+CONFIG_OWNER=${BLUETTI_CONFIG_OWNER:-root:bluetti}
+# Root-only, outside the service user's writable state dir (no symlink games).
+BACKUPS=${BLUETTI_BACKUPS:-/var/backups/bluetti-controller}
+HEALTH_TIMEOUT=${BLUETTI_HEALTH_TIMEOUT:-300}
+HEALTH_EVERY=${BLUETTI_HEALTH_EVERY:-5}
+KEEP_RELEASES=${BLUETTI_KEEP_RELEASES:-5}
+KEEP_BACKUPS=${BLUETTI_KEEP_BACKUPS:-10}
+SYSTEMCTL=${SYSTEMCTL:-systemctl}
+CURL=${CURL:-curl}
+# `check` runs as the service identity (ROADMAP.md §10.6): root would leave
+# root-owned -wal/-shm files on a stopped database. Empty in the stubbed test.
+RUNAS=${BLUETTI_RUNAS-runuser -u bluetti -g bluetti -G bluetooth --}
+
+RELEASES=$PREFIX/releases
+DB='' HEALTH='' CHECK_CODE=0
+
+say() { printf '>> %s\n' "$*"; }
+die() { printf '!! %s\n' "$*" >&2; exit "${2:-1}"; }
+stamp() { date -u +%Y%m%dT%H%M%S%3NZ; }
+
+# Runs `check` of binary $1 against the live config: sets DB, HEALTH and
+# CHECK_CODE (0 ok, 1 keys/DB unusable, 2 the DB schema is newer than $1,
+# 4 the config is rejected).
+run_check() {
+    local out
+    set +e
+    # shellcheck disable=SC2086 # RUNAS is a word list on purpose
+    out=$($RUNAS "$1" --config "$CONFIG" check 2>&1)
+    CHECK_CODE=$?
+    set -e
+    printf '%s\n' "$out" | sed 's/^/   /'
+    DB=$(printf '%s\n' "$out" | sed -n 's/^database //p')
+    HEALTH=$(printf '%s\n' "$out" | sed -n 's/^health //p')
+}
+
+# The build of a release dir (or a link to one); empty when absent.
+build_of() { if [[ -e $1/BUILD ]]; then cat "$1/BUILD"; fi; }
+
+# Points symlink $1 at $2 atomically (a rename over the old link).
+relink() {
+    ln -sfn "$2" "$1.new"
+    mv -T "$1.new" "$1"
+}
+
+backup_dir() { printf '%s' "$BACKUPS"; }
+
+# Root writes in the service user's directory only through real files: a
+# planted symlink there must never redirect a copy, an install or an rm.
+no_links() {
+    local p
+    for p in "$@"; do
+        [[ ! -L $p ]] || die "$p is a symlink: refusing to touch it (investigate the host)" 3
+    done
+}
+
+# Total bytes of the paths that exist (0 for none).
+size_of() {
+    local p total=0
+    for p in "$@"; do
+        if [[ -e $p ]]; then total=$((total + $(du -sb "$p" | cut -f 1))); fi
+    done
+    echo "$total"
+}
+avail_in() { df --output=avail -B1 "$1" | tail -n 1 | tr -d ' '; }
+
+# Free space for 2 × (DB + WAL) on the state filesystem and the release on
+# the prefix filesystem.
+check_space() {
+    local db need
+    db=$(size_of "$DB" "$DB-wal")
+    need=$((2 * ${db:-0}))
+    install -d -m 0700 "$BACKUPS"
+    (( $(avail_in "$BACKUPS") >= need )) || die "less than $need B free in $BACKUPS: nothing changed"
+    mkdir -p "$RELEASES"
+    (( $(avail_in "$RELEASES") >= $(size_of "$1") )) || die "no room for the release in $RELEASES: nothing changed"
+}
+
+# Copies DB files and the config (service stopped) to backups/<UTC>-<build>.*;
+# prints the base name.
+backup() {
+    local dir base f
+    dir=$(backup_dir)
+    base=$(stamp)-${1:-none}
+    no_links "$dir" "$DB" "$DB-wal" "$DB-shm" "$CONFIG"
+    install -d -m 0700 "$dir"
+    for f in "$DB" "$DB-wal" "$DB-shm"; do
+        if [[ -e $f ]]; then cp -p "$f" "$dir/$base.db${f#"$DB"}"; fi
+    done
+    cp -p "$CONFIG" "$dir/$base.config.toml"
+    printf '%s' "$base"
+}
+
+# Puts DB backup $1 in place (service stopped). The live files are moved
+# aside as <UTC>-pre-rollback.*, never deleted; no stale -wal/-shm survives.
+restore_db() {
+    local dir aside f
+    dir=$(backup_dir)
+    [[ -e $dir/$1.db ]] || die "backup $1.db not found in $dir: restore the database by hand" 3
+    no_links "$(dirname "$DB")" "$DB" "$DB-wal" "$DB-shm"
+    aside=$(stamp)-pre-rollback
+    for f in "$DB" "$DB-wal" "$DB-shm"; do
+        if [[ -e $f ]]; then mv "$f" "$dir/$aside.db${f#"$DB"}"; fi
+    done
+    for f in db db-wal db-shm; do
+        if [[ -e $dir/$1.$f ]]; then
+            install -o "${DB_OWNER%%:*}" -g "${DB_OWNER##*:}" -m 0640 "$dir/$1.$f" "$DB${f#db}"
+        fi
+    done
+    say "database restored from $dir/$1.db; the newer one is kept as $dir/$aside.db"
+    say "samples stored since the update are not in the live database (they are in the kept copy)"
+}
+
+# Saves the config release dir $1 just passed its health check with.
+save_config() {
+    install -m 0600 "$CONFIG" "$1/config.toml"
+}
+
+# Puts back the config release dir $1 last passed its health check with; the
+# live one is kept as backups/<UTC>-pre-rollback.config.toml.
+restore_config() {
+    local dir aside
+    dir=$(backup_dir)
+    [[ -e $1/config.toml ]] || die "$1 has no saved config.toml: restore the config by hand" 3
+    aside=$(stamp)-pre-rollback.config.toml
+    no_links "$CONFIG"
+    install -d -m 0700 "$dir"
+    mv "$CONFIG" "$dir/$aside"
+    install -o "${CONFIG_OWNER%%:*}" -g "${CONFIG_OWNER##*:}" -m 0640 "$1/config.toml" "$CONFIG"
+    say "config restored to the one $(build_of "$1") last ran with; the newer one is kept as $dir/$aside"
+}
+
+# Waits for /healthz to report build $1 and, unless $2 = version, at least one
+# sample stored by this process.
+healthy() {
+    local build=$1 mode=$2 deadline body='' version count
+    deadline=$((SECONDS + HEALTH_TIMEOUT))
+    while (( SECONDS <= deadline )); do
+        if body=$($CURL -fsS --max-time 3 "$HEALTH" 2>/dev/null); then
+            version=$(printf '%s' "$body" | sed -n 's/.*"version":"\([^"]*\)".*/\1/p')
+            count=$(printf '%s' "$body" | sed -n 's/.*"samples_since_start":\([0-9]*\).*/\1/p')
+            if [[ $version == "$build" ]]; then
+                if [[ $mode == version ]]; then say "healthy: $build answers"; return 0; fi
+                if (( ${count:-0} >= 1 )); then
+                    say "healthy: $build stored $count sample(s) since its start"
+                    return 0
+                fi
+            fi
+        fi
+        sleep "$HEALTH_EVERY"
+    done
+    say "not healthy within ${HEALTH_TIMEOUT}s; last /healthz: ${body:-no answer}"
+    return 1
+}
+
+install_unit() {
+    local src=$PREFIX/current/bluetti-controller.system.service dst=$UNIT_DIR/$UNIT
+    [[ -e $src ]] || return 0
+    if ! cmp -s "$src" "$dst"; then
+        install -m 0644 "$src" "$dst"
+        $SYSTEMCTL daemon-reload
+        say "unit file updated from the release"
+    fi
+}
+
+# Backup sets are files sharing a base name: <base>.db[-wal|-shm], <base>.config.toml.
+# Newest first: names start with a UTC stamp (mtimes are the copied files').
+# shellcheck disable=SC2012 # our own stamp-named files
+backup_sets() {
+    ls -1 "$(backup_dir)" 2>/dev/null | sed -E 's/\.(db(-wal|-shm)?|config\.toml)$//' | sort -ru
+}
+
+prune() {
+    local cur prev dir n=0 base
+    cur=$(readlink -f "$PREFIX/current" || true)
+    prev=$(readlink -f "$PREFIX/previous" || true)
+    # shellcheck disable=SC2010 # build ids are [A-Za-z0-9._+-] (checked in apply)
+    while IFS= read -r dir; do
+        [[ -n $dir ]] || continue
+        n=$((n + 1))
+        dir=$(readlink -f "$RELEASES/$dir")
+        (( n <= KEEP_RELEASES )) && continue
+        [[ $dir == "$cur" || $dir == "$prev" ]] && continue
+        rm -rf -- "$dir"
+        say "pruned release $(basename "$dir")"
+    done < <(ls -1t "$RELEASES" 2>/dev/null | grep -v '\.tmp$')
+    n=0
+    while IFS= read -r base; do
+        [[ -n $base ]] || continue
+        n=$((n + 1))
+        (( n <= KEEP_BACKUPS )) && continue
+        rm -f -- "$(backup_dir)/$base".*
+    done < <(backup_sets)
+}
+
+# Back to `previous`. $1 = auto (inside apply) or manual.
+rollback() {
+    local mode=$1 prev failed prev_build base
+    [[ -L $PREFIX/previous ]] || die "no previous release to roll back to"
+    prev=$(readlink "$PREFIX/previous")
+    failed=$(readlink "$PREFIX/current")
+    prev_build=$(build_of "$prev")
+    say "rolling back ($mode): $(build_of "$failed") -> $prev_build"
+    $SYSTEMCTL stop "$UNIT" || true
+    relink "$PREFIX/current" "$prev"
+    relink "$PREFIX/previous" "$failed"
+    base=$(cat "$failed/BACKUP" 2>/dev/null || true)
+    run_check "$PREFIX/current/bluetti-controller"
+    if (( CHECK_CODE == 4 )); then
+        say "$prev_build rejects the current config"
+        restore_config "$prev"
+        run_check "$PREFIX/current/bluetti-controller"
+    fi
+    if (( CHECK_CODE == 2 )); then
+        [[ -n $base ]] || die "the schema moved and $failed has no BACKUP record: restore by hand" 3
+        say "the update migrated the database schema"
+        restore_db "$base"
+        run_check "$PREFIX/current/bluetti-controller"
+    fi
+    install_unit
+    $SYSTEMCTL start "$UNIT"
+    (( CHECK_CODE == 0 )) ||
+        die "$prev_build fails its check (exit $CHECK_CODE, output above); started anyway. See: journalctl -u $UNIT -n 200" 3
+    healthy "$prev_build" version ||
+        die "rolled back to $prev_build, but it is not healthy either; left running. See: journalctl -u $UNIT -n 200" 3
+    say "rolled back to $prev_build"
+}
+
+# The EXIT trap of apply between the stop and the start: puts current,
+# previous and the unit file back and starts the old build.
+undo_apply() {
+    set +e  # every step must run: the start at the end matters most
+    say "failed before the new build started: putting ${old:-nothing} back"
+    if [[ -n $old_dir ]]; then relink "$PREFIX/current" "$old_dir"; fi
+    if [[ -n $old_prev ]]; then relink "$PREFIX/previous" "$old_prev"; else rm -f "$PREFIX/previous"; fi
+    if [[ -s $unit_copy ]] && ! cmp -s "$unit_copy" "$UNIT_DIR/$UNIT"; then
+        cp -p "$unit_copy" "$UNIT_DIR/$UNIT"
+        $SYSTEMCTL daemon-reload || true
+    fi
+    rm -f "$unit_copy"
+    if [[ -n $old_dir ]]; then $SYSTEMCTL start "$UNIT" || true; fi
+}
+
+# Globals shared with undo_apply.
+build='' old='' old_dir='' old_prev='' unit_copy=''
+
+apply() {
+    local src=${1:-} poll=${2:-yes}
+    [[ -n $src && -d $src ]] || die "usage: bluetti-update apply <release-dir> [--no-poll-check]"
+    src=$(cd "$src" && pwd)
+    (cd "$src" && sha256sum --quiet --strict -c SHA256SUMS) || die "checksum mismatch in $src: nothing changed"
+    build=$(cat "$src/BUILD")
+    [[ $build =~ ^[A-Za-z0-9._+-]+$ ]] || die "bad BUILD '$build': nothing changed"
+    old=$(build_of "$PREFIX/current")
+    if [[ $build == "$old" ]]; then say "$build is already current: nothing to do"; return 0; fi
+    # An installed release keeps its saved config and BACKUP record: never overwrite it.
+    if [[ -e $RELEASES/$build ]]; then
+        die "$build is already installed (previous or older): use 'bluetti-update rollback', or remove $RELEASES/$build first"
+    fi
+
+    say "preflight: $build check against $CONFIG"
+    run_check "$src/bluetti-controller"
+    (( CHECK_CODE == 0 )) || die "check exit $CHECK_CODE: nothing changed"
+    [[ -n $DB && -n $HEALTH ]] || die "check printed no database/health line: nothing changed"
+    check_space "$src"
+
+    old_dir=$(readlink "$PREFIX/current" 2>/dev/null || true)
+    old_prev=$(readlink "$PREFIX/previous" 2>/dev/null || true)
+    unit_copy=$(mktemp)
+    cp -p "$UNIT_DIR/$UNIT" "$unit_copy" 2>/dev/null || : > "$unit_copy"
+    say "stopping $UNIT (current: ${old:-none})"
+    $SYSTEMCTL stop "$UNIT" || true
+    # Until the new build starts, any failure (set -e or die) puts the old one back.
+    trap undo_apply EXIT
+
+    local base
+    base=$(backup "$old")
+    say "backed up database and config as $BACKUPS/$base.*"
+    rm -rf -- "${RELEASES:?}/$build.tmp"
+    cp -a "$src" "$RELEASES/$build.tmp"
+    printf '%s\n' "$base" > "$RELEASES/$build.tmp/BACKUP"
+    chown -R root:root "$RELEASES/$build.tmp" 2>/dev/null || true
+    chmod 0755 "$RELEASES/$build.tmp/bluetti-controller" "$RELEASES/$build.tmp/bluetti-update"
+    mv -T "$RELEASES/$build.tmp" "$RELEASES/$build"
+    touch "$RELEASES/$build"  # install time orders the pruning (cp -a kept the source's)
+    if [[ -n $old_dir ]]; then relink "$PREFIX/previous" "$old_dir"; fi
+    relink "$PREFIX/current" "$RELEASES/$build"
+    install_unit
+    say "starting $build"
+    $SYSTEMCTL start "$UNIT"
+    trap - EXIT
+    rm -f "$unit_copy"
+
+    if healthy "$build" "$poll"; then
+        save_config "$RELEASES/$build"
+        prune
+        say "done: $build is current${old:+, $old is previous}"
+        return 0
+    fi
+    [[ -n $old ]] || die "first install $build is not healthy and there is nothing to roll back to: journalctl -u $UNIT -n 200"
+    rollback auto
+    die "update to $build failed; rolled back to $old"
+}
+
+status() {
+    local cur
+    cur=$(build_of "$PREFIX/current")
+    echo "current:  ${cur:-none}"
+    echo "previous: $(build_of "$PREFIX/previous")"
+    echo "releases:"
+    # shellcheck disable=SC2012 # build ids only
+    ls -1t "$RELEASES" 2>/dev/null | sed 's/^/  /'
+    if [[ -n $cur ]]; then
+        run_check "$PREFIX/current/bluetti-controller" >/dev/null
+        echo "backups:"
+        backup_sets | sed 's/^/  /'
+    fi
+    echo "unit:     $($SYSTEMCTL is-active "$UNIT" 2>/dev/null || true)"
+    if [[ -n $HEALTH ]]; then
+        echo "healthz:  $($CURL -fsS --max-time 3 "$HEALTH" 2>/dev/null || echo 'no answer')"
+    fi
+}
+
+cmd=${1:-}
+shift || true
+poll=yes
+args=()
+for a in "$@"; do
+    case $a in
+        --no-poll-check) poll=version ;;
+        *) args+=("$a") ;;
+    esac
+done
+case $cmd in
+    apply) apply "${args[0]:-}" "$poll" ;;
+    rollback) rollback manual ;;
+    status) status ;;
+    *) die "usage: bluetti-update apply <release-dir> [--no-poll-check] | rollback | status" ;;
+esac

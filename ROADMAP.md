@@ -1200,15 +1200,22 @@ so it is human-only (RULES.md); the agent writes and tests the tooling.
 - **`check` subcommand.** Loads and validates the config and the keys file,
   opens the database read-only and compares its schema version with the
   binary's. Never touches BLE, so it runs safely next to the live service.
-  Exit 0 ok · 1 config/keys invalid · 2 the DB schema is newer than this
-  binary (an older binary refuses it: `store::schema::migrate`).
+  Exit 0 ok · 1 keys or DB unusable · 2 the DB schema is newer than this
+  binary (an older binary refuses it: `store::schema::migrate`) · 4 the config
+  is rejected (only then does a rollback restore a config).
 - **Host layout.**
   - `/opt/bluetti-controller/releases/<build>/` — `bluetti-controller`,
     `bluetti-update`, the unit file, `CHANGELOG.md`; `current` and `previous`
     symlinks point at release directories (switched with `mv -T`, atomic).
   - `/etc/bluetti-controller/{config.toml,keys.toml}` — root:bluetti 0640.
-  - `/var/lib/bluetti-controller/` — `data.db` (systemd `StateDirectory`),
-    `backups/<UTC>-<build>.db` (+ `-wal`/`-shm` when present).
+  - `/var/lib/bluetti-controller/data.db` — systemd `StateDirectory`, owned
+    by `bluetti`.
+  - `/var/backups/bluetti-controller/` — root 0700, **outside** the service
+    user's writable tree: `<UTC>-<build>.db` (+ `-wal`/`-shm`),
+    `<UTC>-<build>.config.toml`, `<UTC>-pre-rollback.*`. Root never follows a
+    symlink in the state dir: `bluetti-update` refuses to run when `data.db`,
+    its `-wal`/`-shm` or the config is one (a compromised service must not
+    steer root's copies, installs or deletes).
 - **System unit** `deploy/bluetti-controller.system.service`: `User=bluetti`,
   `SupplementaryGroups=bluetooth` (Debian's BlueZ D-Bus policy), `ExecStart=
   /opt/bluetti-controller/current/bluetti-controller --config
@@ -1237,15 +1244,18 @@ so it is human-only (RULES.md); the agent writes and tests the tooling.
      do;
   2. preflight, nothing changed yet: the new binary's `check` against the live
      config and DB must exit 0 (1 = bad config, 2 = a downgrade below the DB
-     schema → abort); free space on the state and release filesystems ≥
-     2 × (DB + WAL) + the release;
+     schema, 4 = config rejected → abort); free space ≥ 2 × (DB + WAL) for
+     the backups and the release size for `releases/`. A build already in
+     `releases/` (e.g. `previous`) is refused: `rollback` goes back to it
+     without losing its saved config and `BACKUP` record;
   3. stop the unit; from here until the start in step 5 an `EXIT` trap puts
      `current`, `previous` and the old unit file back (`daemon-reload`) and
-     starts the old build if anything fails; it is cleared once the new build
-     is started;
-  4. back up `data.db` (+ `-wal`/`-shm`) and `config.toml` to `backups/<UTC>-
-     <old build>.*` (`cp -p`: owner and mode kept); the release records that
-     base name in `BACKUP`;
+     starts the old build if anything fails (the trap runs every step even
+     when one fails); it is cleared once the new build is started.
+     `shopt -s inherit_errexit`: a failing copy inside `$(…)` aborts too;
+  4. back up `data.db` (+ `-wal`/`-shm`) and `config.toml` to
+     `/var/backups/bluetti-controller/<UTC>-<old build>.*` (`cp -p`: owner and
+     mode kept); the release records that base name in `BACKUP`;
   5. install the release dir; `previous` ← old `current`; `current` ← new;
      install the release's unit file when it differs (`daemon-reload`); start;
   6. **health criterion:** within 300 s `/healthz` answers 200 with `version`
@@ -1256,14 +1266,21 @@ so it is human-only (RULES.md); the agent writes and tests the tooling.
 - **`bluetti-update rollback`** (also the automatic one): stop; `current` ←
   `previous`, `previous` ← the failed release; run the older binary's `check`:
   - exit 2 (the update migrated the schema) → move `data.db{,-wal,-shm}` aside
-    as `backups/<UTC>-pre-rollback.*` (kept: nothing is destroyed), put the
+    as `<backups>/<UTC>-pre-rollback.*` (kept: nothing is destroyed), put the
     update's DB backup in place with `install -o bluetti -g bluetti -m 0640`,
     no stale `-wal`/`-shm` left; samples stored since are lost from the live
     DB (still in the pre-rollback copy), and the command says so;
-  - exit 1 (the older binary rejects the config, e.g. a new key) → restore the
-    update's `config.toml` backup with `install -o root -g bluetti -m 0640`
-    (the newer one kept aside), re-check; still failing → exit 3;
-  - start; health criterion = `version` only (the previous build was healthy
+  - exit 4 (the older binary rejects the config, e.g. a key the owner added
+    for the new build) → put back the config that release last passed its
+    health check with (`<release>/config.toml`, saved root 0600 on every
+    healthy apply) with `install -o root -g bluetti -m 0640`, the live one kept
+    as `<backups>/<UTC>-pre-rollback.config.toml`; re-check. (A backup taken
+    at apply time would already hold the owner's edit.)
+  - start — also when `check` still fails (any other exit): the old build is
+    started anyway and left to systemd's restarts, exit 3 with the check
+    output. Only a missing backup record or file (nothing to restore) stops
+    with exit 3 before the start: starting would only crash-loop;
+  - health criterion = `version` only (the previous build was healthy
     before; when the trigger was "no station polled", it would fail the same
     way). Still unhealthy → leave it running, exit 3 with a loud message and
     the journal command.

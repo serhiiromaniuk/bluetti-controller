@@ -11,6 +11,9 @@ use bluetti_controller::store::{SCHEMA_VERSION, schema_version};
 
 /// The exit code when the database schema is newer than this binary.
 pub const SCHEMA_NEWER: i32 = 2;
+/// The exit code when the config file does not load or validate (`main`);
+/// every other failure (keys, an unreadable database) exits 1.
+pub const CONFIG_REJECTED: i32 = 4;
 
 /// Prints the report and returns the exit code: 0 ok, [`SCHEMA_NEWER`].
 pub fn run(config: &Config, keys: bool) -> anyhow::Result<i32> {

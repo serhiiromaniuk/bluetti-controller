@@ -73,11 +73,11 @@ CHECK_JOBS ?= 3
 OUTPUT_SYNC := $(if $(filter 4.% 5.% 6.%,$(MAKE_VERSION)),--output-sync=target)
 
 .PHONY: check check-gates
-check:                          ## fmt-check + clippy + tests, in parallel (run before committing)
+check:                          ## fmt-check + clippy + tests + deploy test, in parallel (run before committing)
 	@$(MAKE) --no-print-directory --jobs=$(CHECK_JOBS) $(OUTPUT_SYNC) check-gates
 	@echo ">> make check: all gates green"
 
-check-gates: fmt-check lint test
+check-gates: fmt-check lint test test-deploy
 
 .PHONY: clean
 clean:                          ## remove build output
@@ -115,13 +115,57 @@ build:                          ## release binary: target/release/bluetti-contro
 	BLUETTI_BUILD=$(BUILD_ID) $(CARGO) build --release --locked
 
 DIST_NAME = bluetti-controller-$(BUILD_ID)-x86_64-linux
+# The newest glibc symbol version the binary may need: Debian 12 ships 2.36,
+# Debian 13 2.41. A build on a newer laptop that needs more fails `dist`.
+GLIBC_MAX ?= 2.36
+DIST_FILES = target/release/bluetti-controller deploy/bluetti-update \
+	deploy/bluetti-controller.system.service deploy/bluetti-controller.service \
+	deploy/HOMELAB.md deploy/INSTALL.md CHANGELOG.md config.example.toml
 .PHONY: dist
-dist: build                     ## release tarball in dist/: binary, user unit, config.example.toml, INSTALL.md
-	mkdir -p dist
-	tar czf dist/$(DIST_NAME).tar.gz --transform 's,^\(.*/\)\?,$(DIST_NAME)/,' \
-		target/release/bluetti-controller deploy/bluetti-controller.service \
-		deploy/INSTALL.md config.example.toml
+dist: build                     ## release tarball in dist/ (binary, bluetti-update, units, docs, BUILD, SHA256SUMS)
+	@need=$$(objdump -T target/release/bluetti-controller | grep -o 'GLIBC_[0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -n 1); \
+	  [[ $$(printf '%s\n%s\n' "$$need" "$(GLIBC_MAX)" | sort -V | tail -n 1) == "$(GLIBC_MAX)" ]] \
+	  || { echo "!! the binary needs glibc $$need > $(GLIBC_MAX) (the host's): build on an older base" >&2; exit 1; }
+	rm -rf dist/$(DIST_NAME) && mkdir -p dist/$(DIST_NAME)
+	cp $(DIST_FILES) dist/$(DIST_NAME)/
+	echo "$(BUILD_ID)" > dist/$(DIST_NAME)/BUILD
+	cd dist/$(DIST_NAME) && sha256sum $(notdir $(DIST_FILES)) BUILD > SHA256SUMS
+	tar czf dist/$(DIST_NAME).tar.gz --owner=0 --group=0 --mode='u+rwX,go+rX,go-w' --sort=name -C dist $(DIST_NAME)
+	rm -rf dist/$(DIST_NAME)
 	@echo ">> wrote dist/$(DIST_NAME).tar.gz"
+
+# ── Releases and the homelab host (ROADMAP.md §10.6, deploy/HOMELAB.md) ──
+.PHONY: release
+release:                        ## cut release VERSION=X.Y.Z: bump, make check, commit, tag, dist (CHANGELOG section first)
+	@[[ "$(VERSION)" =~ ^[0-9]+\.[0-9]+\.[0-9]+$$ ]] || { echo "!! usage: make release VERSION=X.Y.Z" >&2; exit 1; }
+	@[[ $$(git rev-parse --abbrev-ref HEAD) == main ]] || { echo "!! releases are cut on main" >&2; exit 1; }
+	@[[ -z $$(git status --porcelain) ]] || { echo "!! the tree is not clean" >&2; exit 1; }
+	@! git rev-parse -q --verify "refs/tags/v$(VERSION)" >/dev/null || { echo "!! tag v$(VERSION) exists" >&2; exit 1; }
+	@grep -q '^## $(VERSION) ' CHANGELOG.md || { echo "!! CHANGELOG.md has no '## $(VERSION) …' section" >&2; exit 1; }
+	sed -i '0,/^version = ".*"/s//version = "$(VERSION)"/' Cargo.toml
+	$(CARGO) update --workspace --offline
+	$(MAKE) --no-print-directory check
+	git commit -q -am "chore(deploy): release $(VERSION)"
+	git tag -a "v$(VERSION)" -m "release $(VERSION)"
+	$(MAKE) --no-print-directory dist
+	@echo ">> released v$(VERSION). Push: git push && git push --tags"
+
+.PHONY: deploy
+deploy:                         ## ship the current build to HOST=<ssh name> and apply it (human-only: sudo on the host)
+	@[[ -n "$(HOST)" ]] || { echo "!! usage: make deploy HOST=<ssh name> [NO_POLL_CHECK=1]" >&2; exit 1; }
+	@[[ "$(BUILD_ID)" != *-dirty ]] || { echo "!! the tree is dirty: commit (or cut a release) first" >&2; exit 1; }
+	@test -f dist/$(DIST_NAME).tar.gz || $(MAKE) --no-print-directory dist
+	deploy/deploy.sh "$(HOST)" dist/$(DIST_NAME).tar.gz $(if $(NO_POLL_CHECK),--no-poll-check)
+
+SHELLCHECK_IMAGE ?= koalaman/shellcheck:v0.10.0
+.PHONY: lint-shell
+lint-shell:                     ## shellcheck the deploy scripts (official pinned Docker image)
+	docker run --rm -v "$(CURDIR):/mnt" -w /mnt $(SHELLCHECK_IMAGE) \
+		deploy/bluetti-update deploy/deploy.sh deploy/test/update-test.sh
+
+.PHONY: test-deploy
+test-deploy:                    ## stubbed test of deploy/bluetti-update (every apply/rollback path)
+	@bash deploy/test/update-test.sh
 
 CONFIG ?= config.toml
 .PHONY: run

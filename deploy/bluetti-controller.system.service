@@ -1,0 +1,50 @@
+# System unit for the homelab host (ROADMAP.md §10.6). Installed and updated by
+# `bluetti-update` from the release it ships with; first install: deploy/HOMELAB.md.
+# Human-only: everything that installs or changes it needs sudo.
+[Unit]
+Description=bluetti-controller (Bluetti BLE monitor)
+Documentation=file:///opt/bluetti-controller/current/HOMELAB.md
+Wants=bluetooth.service
+After=bluetooth.service network-online.target
+
+[Service]
+Type=simple
+User=bluetti
+Group=bluetti
+# Debian's BlueZ D-Bus policy lets the `bluetooth` group talk to org.bluez.
+SupplementaryGroups=bluetooth
+ExecStart=/opt/bluetti-controller/current/bluetti-controller --config /etc/bluetti-controller/config.toml serve
+Restart=on-failure
+RestartSec=10
+# /var/lib/bluetti-controller, owned by the service user: data.db and backups/.
+StateDirectory=bluetti-controller
+StateDirectoryMode=0750
+
+# Hardening. BLE goes through BlueZ over the system D-Bus (AF_UNIX), notify
+# sockets arrive as passed fds; no device node is opened directly.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6 AF_BLUETOOTH
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+CapabilityBoundingSet=
+UMask=0027
+# RULES.md v1.0 gate is ≤ 50 MB resident; this only stops a runaway.
+MemoryMax=128M
+
+[Install]
+WantedBy=multi-user.target

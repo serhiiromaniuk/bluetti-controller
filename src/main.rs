@@ -39,11 +39,20 @@ async fn main() -> anyhow::Result<()> {
         .with_writer(std::io::stderr)
         .init();
     let args = Args::parse();
-    let config = args
+    let loaded = args
         .config
         .as_deref()
         .map(bluetti_controller::config::load)
-        .transpose()?;
+        .transpose();
+    // `check` tells a rejected config apart from every other failure, so
+    // `bluetti-update rollback` restores a config only when it is the cause.
+    let config = match loaded {
+        Err(err) if matches!(args.command, cli::Command::Check) => {
+            println!("config: {err:#}");
+            std::process::exit(cli::check::CONFIG_REJECTED);
+        }
+        loaded => loaded?,
+    };
     // Fail fast on a bad keys file, before any station is touched.
     let keys = config
         .as_ref()

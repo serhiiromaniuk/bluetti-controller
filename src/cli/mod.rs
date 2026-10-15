@@ -51,7 +51,8 @@ pub enum Command {
     },
     /// Validate the config and keys file and compare the database schema with
     /// this binary's, read-only and without BLE (`ROADMAP.md` §10.6). Exit 0
-    /// ok, 1 invalid config or keys, 2 the database is newer than this binary.
+    /// ok, 1 keys or database unusable, 2 the database is newer than this
+    /// binary, 4 the config is rejected.
     /// Needs `--config`.
     Check,
     /// Poll every configured station, store the readings and serve
