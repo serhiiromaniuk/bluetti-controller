@@ -1081,7 +1081,7 @@ homelab host arrives; §10.3 holds only the dev-laptop user unit.
 
 ### 10.3 systemd unit (shipped in `deploy/` at M5)
 
-The M5 soak runs on the dev laptop as a user-level unit (owner 2026-10-13,
+The M5 run is on the dev laptop as a user-level unit (owner 2026-10-13,
 §14 Q2): no `sudo`, no system unit. `loginctl enable-linger` keeps it running
 without a login session.
 
@@ -1091,7 +1091,7 @@ without a login session.
 Description=bluetti-controller
 
 [Service]
-ExecStart=%h/.local/bin/bluetti-controller serve --config %h/.config/bluetti-controller/config.toml
+ExecStart=/usr/bin/systemd-inhibit --what=sleep:idle:handle-lid-switch --mode=block --who=bluetti-controller --why=monitoring %h/.local/bin/bluetti-controller serve --config %h/.config/bluetti-controller/config.toml
 Restart=on-failure
 RestartSec=10
 
@@ -1101,14 +1101,14 @@ WantedBy=default.target
 
 **M5 design (phase 5, settled 2026-10-15).**
 
-- **Unit.** The block above, with `ExecStart` wrapped in
-  `/usr/bin/systemd-inhibit --what=sleep:idle:handle-lid-switch --mode=block
-  --who=bluetti-controller --why=soak …`: logind's default
+- **Unit.** The block above is `deploy/bluetti-controller.service` (comments
+  aside). `ExecStart` is wrapped in `systemd-inhibit
+  --what=sleep:idle:handle-lid-switch`: logind's default
   `LidSwitchIgnoreInhibited=yes` ignores a plain `sleep` lock on lid close.
   `MainPID` is then `systemd-inhibit`; the service is its child, and
   `systemd-inhibit` returns the child's exit status, so `Restart=on-failure`
-  still fires (step 18 checks both). Polkit may refuse the lock without a
-  session under linger: then an amendment, never `sudo`.
+  still fires. Under linger polkit granted the lock without a session
+  (phase-5 step 18: `systemd-inhibit --list` shows all three `what`s).
 - **Install paths.** Binary `~/.local/bin/bluetti-controller`; config
   `~/.config/bluetti-controller/config.toml` (mode 600, copied from the local
   `config.toml`) with absolute `storage.path` =
@@ -1119,21 +1119,19 @@ WantedBy=default.target
   `dist/bluetti-controller-$(git describe --tags --always --dirty)-x86_64-linux.tar.gz`
   holding the binary, `deploy/bluetti-controller.service`,
   `config.example.toml` and `deploy/INSTALL.md`; `dist/` is gitignored.
-- **Soak.** Starts at the unit's `ActiveEnterTimestamp` after linger is on;
-  ends 7 × 24 h later. A reinstall or reconfigure restarts the clock. An
-  hourly transient user timer runs `scripts/soak_probe.sh`, appending one line
-  to `~/.local/share/bluetti-controller/soak.log`: time, `NRestarts`, the
-  service PID (the child of `MainPID`), its `VmRSS`/`VmHWM`, and the max
-  `time_total` of 20 sequential `curl` GETs of `/` on the host's LAN address.
-  - **Intervention:** any human or agent action needed to keep it working —
-    restart, reinstall or reconfigure of the unit, `bluetoothctl
-    disconnect`/`remove`, adapter replug, a recovery reboot. *Not:*
-    systemd's own restarts (`NRestarts`), an unrelated reboot it survives, the
-    owner using the app, the pause button, or a station switched off.
-  - **RSS** = max `VmHWM` of the service process over all probes and
-    invocations; **page time** = max probe `time_total`. Gate: ≤ 1
-    intervention, ≤ 50 MB, ≤ 1 s (RULES.md v1.0). The phone look is an H-row.
-  - The unit keeps running after the soak (the MVP in use).
+- **1 h run (owner 2026-10-15, replaces the 7-day soak; phase-5 PLAN A7).**
+  Starts at the unit's `ActiveEnterTimestamp` after linger is on; ends 3600 s
+  later. No probe timer and no `soak_probe.sh`: the run is measured once, at
+  its end.
+  - **Polls** = successful polls per powered station over the hour, from the
+    run's DB (`sample` vs `poll_failure` rows, read-only).
+  - **RSS** = `VmHWM` of the service process (the child of `MainPID`,
+    `pgrep -P`); **latency** = max `time_total` of 20 sequential `curl` GETs
+    of `/` and of each API route on the host's LAN address. Gate (RULES.md
+    v1.0): ≥ 95 % polls per powered station, ≤ 50 MB, ≤ 1 s, `make check`
+    green. The phone look is an H-row (H9).
+  - The unit keeps running after the run (the MVP in use). Long-run stability
+    is proven on the homelab host after v1.0, installed interactively.
 
 ### 10.4 Pre-flight checklist (before any hardware run)
 
@@ -1151,6 +1149,9 @@ WantedBy=default.target
 | Repeated GATT errors on one station | `bluetoothctl remove <mac>`, let discovery re-add it |
 | Adapter stuck | replug the USB dongle (note: may renumber `hci0` → `hci1`) |
 | Station unreachable | check the phone app is closed; move the dongle; pause/resume polling |
+| Service status / logs (user unit) | `systemctl --user status bluetti-controller`; `journalctl --user -u bluetti-controller -f` |
+| Service down after logout | `loginctl show-user "$USER" -p Linger` must be `yes` (`deploy/INSTALL.md` §4) |
+| Laptop suspended during a run | `systemd-inhibit --list` must show `bluetti-controller` with `sleep:idle:handle-lid-switch` |
 | Handshake fails on a station that worked | firmware update? Compare manufacturer data, read §13 R2 |
 
 ---
@@ -1176,8 +1177,8 @@ WantedBy=default.target
 Effort is in focused sessions (~2–4 h). Phases map to RULES.md: Phase 1 = M0,
 Phase 2 = M1 + M2 (merged by the owner 2026-10-13: the EB3A is encrypted; the
 AC180 joined read-only at 14:05 the same day, so M1/M2 cover all three stations),
-Phase 4 = M3, Phase 5 = M4 + M5 (M5 soak on the dev laptop as a user-level
-systemd unit). **Human:** items below that compare with the app or unplug a
+Phase 4 = M3, Phase 5 = M4 + M5 (M5: a 1 h run on the dev laptop as a
+user-level systemd unit, owner 2026-10-15). **Human:** items below that compare with the app or unplug a
 station are deferred to `HUMAN-CHECKLIST.md` and do not block
 (RULES.md "Deferred physical checks"); read-only station access is unattended.
 
@@ -1274,16 +1275,20 @@ the unplug; DB < 10 MB per station-day.
   `HUMAN-CHECKLIST.md` H9.
 - [x] Handler tests against an in-memory DB.
 
-### M5 — Deploy + soak → `v1.0-mvp` (Phase 5)
+### M5 — Deploy + 1 h run → `v1.0-mvp` (Phase 5)
 
-- [ ] `deploy/bluetti-controller.service` (user-level, §10.3), install notes.
-- [ ] `make build` (release) and a `make dist` tarball.
-- [ ] **Human:** install the user-level unit on the dev laptop (§10.3); the
-      homelab host (§10.2) arrives after the MVP (§14 Q2).
-- [ ] **Human:** 7-day unattended soak; record interventions, RSS, page time.
+- [x] `deploy/bluetti-controller.service` (user-level, §10.3), install notes
+      (`deploy/INSTALL.md`; phase-5 step 16).
+- [x] `make build` (release) and a `make dist` tarball (phase-5 step 16).
+- [x] Install the user-level unit on the dev laptop (§10.3), linger on — done
+      by the loop under the standing delegation (phase-5 step 18 LOG); the
+      homelab host (§10.2) is installed interactively after the MVP (§14 Q2).
+- [ ] 1 h functional run of the installed unit (owner 2026-10-15, replaces the
+      7-day soak); record polls, RSS, page and API time.
 - [ ] OUTCOME with measured numbers; tag `v1.0-mvp`.
 
-**Acceptance:** 7 days, ≤ 1 manual intervention, RSS ≤ 50 MB, page ≤ 1 s on LAN.
+**Acceptance (RULES.md v1.0):** 1 h, ≥ 95 % polls per powered station,
+RSS ≤ 50 MB, status page and every API route ≤ 1 s on LAN, `make check` green.
 
 ### R1 — Battery health & telemetry discovery (post-MVP)
 
@@ -1338,7 +1343,7 @@ the unplug; DB < 10 MB per station-day.
 | # | Question | Blocks |
 |---|---|---|
 | Q1 | ~~Confirm or edit the golden rules, phase table and thresholds in RULES.md~~ — approved 2026-10-13 | — |
-| Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP; the M5 soak runs on the dev laptop (owner 2026-10-13) | — |
+| Q2 | Homelab host: model, internal BT or a USB dongle, which station powers it — partly answered 2026-10-13: M1–M4 run on the owner's dev laptop (internal BT); the homelab host arrives after MVP; the M5 run is on the dev laptop (owner 2026-10-13; 1 h, owner 2026-10-15) | — |
 | Q3 | Region and outage queue (черга.підчерга) | R2 |
 | Q4 | ~~Router powered from EB3A AC or DC 12 V?~~ — AC outlet (owner 2026-10-13) | — |
 | Q5 | ~~Station firmware versions and the encryption flag of each~~ — EB3A `BLUETTF`, V1 layout, ARM 2197.02 / DSP 2196.01; Elite 200 V2 `BLUETTF`, V2 layout, BMS 1068.11 (register 6175) (`detect`, 2026-10-13); AC180 `BLUETTF`, V2 layout, BMS 1052.03 (register 6175) (`detect`, 2026-10-13, phase-2 step 18) | — |

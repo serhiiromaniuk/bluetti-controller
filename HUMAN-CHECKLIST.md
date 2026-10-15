@@ -16,7 +16,7 @@ row becomes a fix task.
 | H7 | AC180 (`mobile`) went silent between 17:23:28 and 17:24:29 UTC 2026-10-14, during a grid outage (7 read-only scans to 17:36 did not hear it; EB3A and Elite heard each time). Switch it on and keep it in BLE range: the v0.4 12 h run counts it (phase-4 Q1) and starts only once a scan hears it (PLAN A31) | loop, 2026-10-14 | pending |
 | H8 | Plug the dev laptop's charger into a station outlet (the Elite 200 V2, ADR-008), not the wall: on 2026-10-14 the laptop ran flat in a grid outage and killed the 12 h run | loop, 2026-10-14 | pending |
 | H9 | Phone UI (phase-5 step 14): with `serve` running, open `http://<laptop-ip>:8080/` on the phone over the home Wi-Fi. Check the layout fits the screen, the 24 h and 7 d charts draw, `/telemetry` lists each station, and the page appears in about a second. Press pause, then connect the official app to a station while paused (it must connect), then resume. Note the result here. | loop, 2026-10-15 | pending |
-| H10 | v1.0 1 h run (phase-5 step 18, A7): the user unit started 2026-10-15 12:13:12 UTC and is measured from 13:13:12 UTC. Until then keep the laptop lid open and on AC from the Elite's outlet (H8), don't stop or restart the unit, and note any manual intervention here with its time. | loop, 2026-10-15 | pending |
+| H10 | v1.0 1 h run (phase-5 step 18, A7): the user unit runs 2026-10-15 12:13:12–13:13:12 UTC (measured at step 21 after 13:13:12). Until 13:13:12 keep the laptop lid open and on AC from the Elite's outlet (H8), don't stop or restart the unit, and note any manual intervention here with its time. | loop, 2026-10-15 | pending |
 
 ## Owner observations (for the loop's plausibility checks)
 

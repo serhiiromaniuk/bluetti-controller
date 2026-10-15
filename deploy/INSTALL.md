@@ -9,8 +9,9 @@ Prerequisites: BlueZ ≥ 5.63 running, a BLE adapter (`bluetoothctl show` →
 
 ## 1. Build or unpack
 
-From the repo: `make build` (release binary in `target/release/`) or `make dist`
-(tarball in `dist/`). From a tarball:
+From the repo: `make dist` (tarball in `dist/`), then unpack it. §2–§3 run
+inside the unpacked directory: the bare names below (`bluetti-controller`,
+`config.example.toml`, `bluetti-controller.service`) exist only at its top.
 
 ```bash
 tar xzf bluetti-controller-<version>-x86_64-linux.tar.gz

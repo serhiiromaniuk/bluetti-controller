@@ -638,3 +638,40 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 19 ✓ 2026-10-15 — M5 docs: ROADMAP §10.3/§10.5/§12 M5 match the shipped unit and the 1 h run; README Deploy; A9/A13/A14 fixed
+
+**Scope (A7):** no soak runbook, no `soak_probe.sh` lines; the 1 h run replaces them (A9). No station access, no reinstall; the unit kept running.
+**Changed (docs only):**
+- ROADMAP §10.3: unit block = `deploy/bluetti-controller.service` minus comments (inhibit-wrapped `ExecStart`); polkit granted the lock under linger (step 18); "Soak" bullet → 1 h run (polls, RSS, LAN latency, gate per RULES.md v1.0).
+- ROADMAP §10.5: runbook rows for the user unit (status/logs, linger, inhibit lock).
+- ROADMAP §12 header, M5 (unit, build/dist, install ticked with step 16/18 pointers; "Human:" labels → done by the loop under the standing delegation; run + OUTCOME open; acceptance = RULES.md v1.0), §14 Q2.
+- README: `## Deploy` → `deploy/INSTALL.md`, §10.2 human-only.
+- `deploy/INSTALL.md` §1: `make dist`, §2–§3 run inside the unpacked directory (A13).
+- `HUMAN-CHECKLIST.md` H10: "runs 12:13:12–13:13:12 UTC (measured at step 21 after 13:13:12)" (A14).
+- `tasks/INDEX.md` phase-5 label: "1 h run" (A9). BRIEF stays static.
+**Check:** `diff` of the ROADMAP unit block vs `deploy/` (comments stripped) → identical; `grep -i soak` leaves only the "replaces the 7-day soak" notes; `make loop-hygiene` OK; `git diff --stat` → docs only (6 files).
+**reviewer:** batched (low-risk), before the push. **Next:** step 20 (declined — A7), then step 21 at ≥ 13:13:12 UTC.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:19:31Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

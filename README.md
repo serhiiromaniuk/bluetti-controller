@@ -68,6 +68,13 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 (`/telemetry` lists them). A bad parameter answers `400` with
 `{"error": "…"}`. Details: ROADMAP.md §8.
 
+## Deploy
+
+`make build` builds the release binary; `make dist` packs it with the user
+unit, `config.example.toml` and the install notes into `dist/`. Install as a
+user-level systemd unit (no `sudo`): see [`deploy/INSTALL.md`](deploy/INSTALL.md).
+The hardened homelab install is ROADMAP.md §10.2 and is done by a human.
+
 ## Credits
 
 Protocol knowledge comes from these MIT-licensed community projects:
