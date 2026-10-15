@@ -594,3 +594,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 18 ✓ 2026-10-15 — user unit installed and running; Linger=yes (CF-6 discharged); 1 h run started 12:13:12 UTC
+
+**Scope (A7):** install + start a 1 h run, not a 7-day soak; no probe timer, no `soak.log` (step 17 declined), ETA = start + 3600.
+**Changed (host, user-level only):**
+- `loginctl enable-linger` → exit 0, `loginctl show-user "$USER" -p Linger` → `Linger=yes`.
+- From `dist/bluetti-controller-v0.4-collector-23-gd900065-x86_64-linux.tar.gz` (unpacked in a temp dir, INSTALL.md §2–§3): binary `~/.local/bin/bluetti-controller`; unit `~/.config/systemd/user/bluetti-controller.service`; `~/.config/bluetti-controller/config.toml` (600) = local `config.toml` with absolute `storage.path = /home/serhiiromaniuk/.local/share/bluetti-controller/data.db` (fresh) and `keys_file` → `~/.config/bluetti-controller/keys.toml` (600); `web.listen = 0.0.0.0:8080`, no token, `control.enabled = false`.
+- `systemctl --user daemon-reload && systemctl --user enable --now bluetti-controller`.
+**Repo:** `HUMAN-CHECKLIST.md` H10 (1 h run: lid open, AC from the Elite, no restart, note interventions); `loop/STATE.md` CF-6 struck.
+**Pre-flight (§10.4):** `bluetoothctl show` Powered: yes; `rfkill` hci0 not blocked; `control.enabled = false`; no other bluetti unit or process; app force-quit and firmware are the owner's (H9/H10).
+**Check:**
+- `is-active` → `active`; `is-enabled` → `enabled`; `NRestarts=0`, `InvocationID=71d0b93f…`, `ActiveEnterTimestamp` 15:13:12 EEST = **start 1792066392**, **ETA 1792069992** (13:13:12 UTC).
+- `systemd-inhibit --list` → `bluetti-controller … 1387543 systemd-inhibit sleep:idle:handle-lid-switch monitoring block` (all three `what`s, no polkit refusal under linger).
+- Journal: `serving listen=0.0.0.0:8080 stations=3 interval_s=60`.
+- At start + 180 s (read-only `sqlite3 mode=ro`): router 3, living-room 3, mobile 3 samples; 0 `poll_failure` rows.
+- `curl http://192.168.0.179:8080/healthz` (LAN) → `200`, 1.2 ms.
+- Service PID = child of `MainPID` (`pgrep -P`), `readlink /proc/<pid>/exe` → `~/.local/bin/bluetti-controller`; `VmHWM` 11472 kB, `VmRSS` 11072 kB.
+- Probe timer: n/a (A7). From here to step 21: no station command, no reinstall.
+**reviewer:** risky, before commit — INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM. It confirmed read-only: installed unit byte-identical to `deploy/`, binary sha256 = tarball's, DB fresh, 4 samples/station at ~+190 s, perms 600/700, nothing forbidden staged.
+- MEDIUM M1: H10 "measured from 13:13:12" reads as a later start → A14 (step 19).
+**Next:** step 19 (docs, A9/A13) during the run; step 21 measures at ≥ ETA.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:17:55Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
