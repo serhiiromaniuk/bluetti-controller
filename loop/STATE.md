@@ -6,7 +6,7 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 Phase 4 gate `v0.4-collector` passed (step 19, 2026-10-15; unplug deferred to H4). Next: close `tasks/phase-4_collector/` + tag |
+| **Gate status** | 🟢 `v0.4-collector` tagged 2026-10-15 (phase 4 closed; unplug deferred to H4). Next: open `tasks/phase-5_web-deploy/` (M4+M5, `v1.0-mvp`) |
 | **Blocked?** | no — owner answered everything up front 2026-10-13; physical checks go to `HUMAN-CHECKLIST.md` |
 
 ## Carry-forward — obligations that outlive the task that found them

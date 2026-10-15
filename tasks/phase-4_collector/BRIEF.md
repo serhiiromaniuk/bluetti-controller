@@ -29,24 +29,24 @@ on them; the 12 h acceptance run on the dev laptop (owner, 2026-10-13; was 24 h)
 #2); notifications, Prometheus, cloud (§2); battery-health analytics (R1).
 
 ## Done when
-- [ ] `make check` green with `src/protocol/` and `src/metrics/` ≥ 80% line
+- [x] `make check` green with `src/protocol/` and `src/metrics/` ≥ 80% line
       coverage — check: `make check` output in LOG.md
-- [ ] Migrations create the §6 schema; a restart keeps open outage events and
+- [x] Migrations create the §6 schema; a restart keeps open outage events and
       rollup progress (no lost or double-counted event) — check: store tests
-- [ ] Unit tests for every metric with hand-computed values: flapping input,
+- [x] Unit tests for every metric with hand-computed values: flapping input,
       missing polls / gaps, unknown state, low-load floor — check: tests pass
-- [ ] Collector driven end-to-end from replay fixtures (no hardware): samples,
+- [x] Collector driven end-to-end from replay fixtures (no hardware): samples,
       `poll_failure` rows and `unreachable` state land in the DB — check: test
-- [ ] `bluer` still only under `src/transport/bluer/`; config read only in
+- [x] `bluer` still only under `src/transport/bluer/`; config read only in
       `src/config.rs` — check: grep in LOG.md
-- [ ] CF-5 discharged: grid-on `read` of Elite 200 V2 / AC180 regs 1314 and
+- [x] CF-5 discharged: grid-on `read` of Elite 200 V2 / AC180 regs 1314 and
       1300, values in LOG.md
-- [ ] 12 h `serve` run: ≥ 95% successful polls per configured station
+- [x] 12 h `serve` run: ≥ 95% successful polls per configured station
       (≤ 36 misses of 720), DB < 10 MB per station-day — check: SQL counts
       and file size in LOG.md
-- [ ] Unplug test is a row in `HUMAN-CHECKLIST.md` (H4, deferred; a real grid
+- [x] Unplug test is a row in `HUMAN-CHECKLIST.md` (H4, deferred; a real grid
       outage recorded during the run satisfies it) — check: the row exists
-- [ ] the phase gate passes (`v0.4-collector`) — see RULES.md / AGENTS.md §6
+- [x] the phase gate passes (`v0.4-collector`) — see RULES.md / AGENTS.md §6
 
 ## References
 - Governing spec: `ROADMAP.md`

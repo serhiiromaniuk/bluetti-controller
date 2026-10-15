@@ -1513,3 +1513,39 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-10-15 — close-reviewer `VERDICT: close`; BRIEF done-when ticked; tag `v0.4-collector`
+
+**Changed:** `OUTCOME.md` written; BRIEF done-when boxes ticked; `tasks/INDEX.md` phase 4 done, phase 5 queued; `loop/STATE.md` gate line.
+
+**Check:** `make amendments` → 31 finding(s), all disposed. close-reviewer re-ran `make check` (EXIT 0, protocol 99.82 %, metrics 99.3 %), the boundary greps, `scripts/acceptance_v04.py` on a /tmp DB copy (PASS), and `serve` with zero stations on a /tmp DB copy (`/healthz` 200 in 2.3 ms, clean SIGTERM). No station touched; tree unchanged.
+
+**close-reviewer:** 0 CRITICAL / 0 HIGH / 3 MEDIUM, 0 UNVERIFIED.
+- M1 OUTCOME claimed `serve` derives the forecast and totals; no production caller → fixed in OUTCOME Summary + Pending item for M4.
+- M2 a second grid loss, `grid_event` 7 from 1792055214 (12:06:54 EEST), after the 12 h window but inside the run; EB3A 221.0 → 0.0 V, AC180 228.7 → 2.3 V; written at 1792055274, 120 s after the last grid sample → OUTCOME Pending H4, for the owner. The loop does not mark H4.
+- M3 Deliverables omitted 9 commits → list relabelled "code and key records", owner records added, full range named.
+
+**Decision:** none new · **Carry-forward:** none raised; CF-5 already struck; CF-6 stays open → phase 5.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T10:39:46Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
