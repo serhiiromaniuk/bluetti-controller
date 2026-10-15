@@ -1116,7 +1116,11 @@ v0.3 poll criteria; app comparisons H1–H3.
 - [x] Hourly `register_snapshot` for configured ranges.
 - [x] `serve` subcommand (collector + store, web stub with `/healthz`).
 - [x] Unit tests for every metric (flapping input, gaps, unknown state).
-- [ ] **Human:** 12 h run; unplug a sensor station's AC input once.
+- [x] 12 h run: run 4 (owner, 2026-10-15; switch-off excluded, so the Elite
+      was measured 2 h 31 min, 151/151), phase-4 LOG step 18d.
+- [ ] **Human:** unplug a sensor station's AC input once (`HUMAN-CHECKLIST.md`
+      H4; run 4 recorded a grid-loss event at 02:03:54 for the owner to judge:
+      a real cut or the owner's switch-off).
 
 **Acceptance:** ≥ 95% polls per station over 12 h; outage recorded ≤ 2 min after
 the unplug; DB < 10 MB per station-day.

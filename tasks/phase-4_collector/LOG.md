@@ -1416,3 +1416,54 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
   - living-room (Elite): 152 ok while powered 23:46–02:18; 1 `read` failure at 00:41; 12 `discover` 02:18–02:30, then off by hand.
 - Outside the owner's switch-off: EB3A 712/712, AC180 710/710, Elite 152/153 (99.3 %). Run 3 partial (fresh build, 1 h 48 min): 109/109 each, 0 failures.
 - **Owner decision:** the poll-ratio part of the v0.4 gate is met on this evidence; no new 12 h run. Step 18d measures the rest (DB size per station-day, outage events) from this DB with the switch-off window excluded and records it. The 95 % threshold is unchanged.
+
+## Step 18 ✓ 2026-10-15 — 18d: run 4 measured; owner-excluded switch-off aside, every station PASS; DB 0.341 MB/station-day
+
+**Changed:** ROADMAP.md §12 M3 — 12 h item ticked (run 4), unplug half left open → H4 · PLAN A22, A23 settled.
+
+**Unit:** already stopped by the owner, 13:26:46 EEST: journal `SIGTERM, shutting down` → `stopped`, 27.2 MB peak memory over 13 h 40 min. WAL checkpointed (0 B).
+
+**Check:** `python3 -I scripts/acceptance_v04.py data/acceptance-24h.db <from> <to> 60`, window [1792010814, 1792054014):
+- Full window: router 712/720 PASS, mobile 710/720 PASS, living-room 152/720 FAIL → exit 1. This is the switch-off the owner excluded (decision 13:35), not a collector miss.
+- Before the switch-off, [1792010814, 1792019880): router 152 samples of 151 scheduled (capped 100 %), living-room 151/151 (1 `read` failure, 00:41), mobile 151/151 → **RESULT: PASS, exit 0**.
+- After it, [1792020660, 1792054014): router 555/555, mobile 556/555 (capped 100 %); living-room 0/555 (`discover` 555, switched off by hand: excluded) → exit 1.
+- The excluded window [1792019880, 1792020660): living-room `discover` 12, mobile `discover` 10, router `discover` 7 + `connect` 1. These are the only failures except the 00:41 `read`.
+- DB: `db 512000 B + wal 0 B`, 3 stations, 0.5 days → **0.341 MB per station-day (max 10) PASS**. Largest table `sample_extra` 253952 B, then `poll_failure` 151552 B.
+- CF-5: already discharged (step 1, step 14).
+
+**Real house outage in run 4 (for the owner's H4; the loop does not mark it):**
+- Last grid samples at 1792018974–82 (`ac_in_v` 220.0/216.4/211.8 V). First no-grid samples at 1792019034–45 (0.0/0.0/2.1 V), all three stations.
+- `grid_event` 3 house outage: 1792019039 → ≤ 1792020654, precision 60 s. The end is cut short by the switch-off: router's last no-grid sample is 1792020114, so the grid came back within [1792020114, 1792020654]. Per station: router id 1, 1792019034 → 1792020654; mobile id 4, 1792019045 → 1792020664; living-room id 2, from 1792019039, still open: its one grid sample (1792020658, 216.6 V) is short of `debounce_samples = 2`, and the Elite was then switched off (ROADMAP §7.1).
+- Detection: start backdated to the first no-grid sample; with `debounce_samples = 2` the row is written on the second one (1792019094–98). That is ≤ 124 s after the last grid sample. The actual cut time inside 1792018982–1792019034 is unknown.
+- The onset (02:03:54 EEST) is close to the owner's "around 02:00": real cut or the switch-off is the owner's call in H4.
+- Correction to the 2026-10-15 13:35 entry: the Elite had 151 samples before the switch-off (151/151), not 152/153; its 152nd (1792020658) falls inside the excluded window.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 3 MEDIUM, INTENT satisfied, numbers re-run and matched; batch `@{u}..HEAD` (65c7f56, 6cc1dbf) covered.
+- M1 the tick and A23 hide that the Elite was measured 2 h 31 min only → fixed in this draft (ROADMAP tick, A23).
+- M2 Elite 152/153 vs 151/151; wrong reason for the open event 2 → fixed in this draft (correction line above).
+- M3 outage end/onset stated too firmly → fixed in this draft (end bound, onset caveat, ROADMAP wording).
+
+**Decision:** none new (owner decision 2026-10-15 applied) · **Carry-forward:** none
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T10:32:47Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
