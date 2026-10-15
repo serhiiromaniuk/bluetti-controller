@@ -1,3 +1,267 @@
 //! The status view model (ROADMAP.md §8.1, §8.4 a–c): the house banner, one
 //! card per station with its runtime forecast, and `paused_until`. `/` and
-//! `/api/status` serialise the same struct. Built in phase-5 step 6.
+//! `/api/status` serialise the same struct, so the field names are the API.
+
+use std::time::{SystemTime, UNIX_EPOCH};
+
+use rusqlite::{Connection, OptionalExtension};
+use serde::Serialize;
+use tokio::time::Instant;
+
+use crate::collector::Control;
+use crate::metrics::grid::GridState;
+use crate::metrics::house::{self, HouseState};
+use crate::metrics::localtime::local_hhmm;
+use crate::metrics::runtime::{self, Forecast};
+use crate::protocol::device::{Metric, Model};
+use crate::store::read::{self, StationRow, Values};
+use crate::store::{Health, station_health};
+use crate::web::AppState;
+
+/// How far back the forecast reads samples (§8.4 c).
+const FORECAST_WINDOW_S: i64 = 2 * 3600;
+/// The poll-health window on the card (§8.4 b).
+const HEALTH_WINDOW_S: i64 = 24 * 3600;
+/// The fields behind SOC, the powers and the forecast (the Q2 badge).
+const BADGED: [Metric; 5] = [
+    Metric::BatterySoc,
+    Metric::AcInputPower,
+    Metric::DcInputPower,
+    Metric::AcOutputPower,
+    Metric::DcOutputPower,
+];
+
+/// The whole `/` page and the `/api/status` body.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Status {
+    pub house: Banner,
+    /// One card per station row, by id.
+    pub stations: Vec<Card>,
+    /// Unix seconds the collector is paused until; `None` = polling (§8.4 h).
+    pub paused_until: Option<i64>,
+}
+
+/// The house banner (§7.2, §8.4 b).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+pub struct Banner {
+    /// `"power"`, `"outage"` or `"unknown"`.
+    pub state: &'static str,
+    /// Unix seconds: an outage's `started_at`, or power's newest closed house
+    /// event `ended_at`; `None` when not known.
+    pub since: Option<i64>,
+}
+
+/// One station's card (§8.1, §8.4 b–c).
+#[derive(Debug, Clone, PartialEq, Serialize)]
+pub struct Card {
+    pub name: String,
+    /// The `station.model` string, e.g. `EB3A`.
+    pub model: String,
+    /// Battery % of the newest sample.
+    pub soc: Option<f64>,
+    /// `ac_in_w + dc_in_w` of the newest sample; `None` when both are missing.
+    pub in_w: Option<f64>,
+    /// `ac_out_w + dc_out_w` of the newest sample; `None` when both are missing.
+    pub out_w: Option<f64>,
+    /// `"present"`, `"absent"` or `"unknown"` (§8.4 b, amendment A1).
+    pub grid: &'static str,
+    /// "lasts until HH:MM" (local) / "if the power goes now: N h" (one
+    /// decimal) / "—" (§7.3).
+    pub forecast: String,
+    /// Unix seconds of the newest sample.
+    pub last_seen: Option<i64>,
+    /// `"ok"` or `"unreachable"` (`store::station_health`).
+    pub health: &'static str,
+    /// The first of the trailing failures while unreachable.
+    pub unreachable_since: Option<i64>,
+    /// Samples in the last 24 h.
+    pub samples_24h: i64,
+    /// `poll_failure` rows in the last 24 h.
+    pub failures_24h: i64,
+    /// The newest failure's stage (`discover`, `connect`, …), any age.
+    pub last_failure_stage: Option<String>,
+    /// Whether the newest sample came over an encrypted link.
+    pub encrypted: Option<bool>,
+    /// SOC, powers and forecast rest on `verified: false` fields (Q2 badge).
+    pub unverified: bool,
+}
+
+/// Builds the status view at `now` (unix seconds) from the read connection.
+pub fn status(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<Status> {
+    let mut cards = Vec::new();
+    let mut sensors = Vec::new();
+    for row in read::stations(conn)? {
+        let (card, grid) = card(conn, now, state, &row)?;
+        if row.grid_sensor {
+            sensors.push(grid);
+        }
+        cards.push(card);
+    }
+    Ok(Status {
+        house: banner(conn, &sensors)?,
+        stations: cards,
+        paused_until: paused_until(*state.control.borrow()),
+    })
+}
+
+/// Amendment A1: no sample, or the newest older than 3 intervals → `Unknown`
+/// (checked first, so an unreachable station never votes `Absent`); else an
+/// open station-scope event → `Absent`; else `Present`.
+fn grid_state(
+    conn: &Connection,
+    now: i64,
+    interval_s: i64,
+    name: &str,
+    newest: Option<i64>,
+) -> anyhow::Result<GridState> {
+    Ok(match newest {
+        Some(ts) if now - ts <= 3 * interval_s => match read::open_event(conn, name)? {
+            Some(_) => GridState::Absent,
+            None => GridState::Present,
+        },
+        _ => GridState::Unknown,
+    })
+}
+
+/// An open house event wins (outage since its start); otherwise the vote, with
+/// power "since" the newest closed house event's end.
+fn banner(conn: &Connection, sensors: &[GridState]) -> anyhow::Result<Banner> {
+    if let Some(open) = read::open_event(conn, "house")? {
+        return Ok(Banner {
+            state: "outage",
+            since: Some(open.started_at),
+        });
+    }
+    Ok(match house::vote(sensors) {
+        HouseState::Power => Banner {
+            state: "power",
+            since: conn.query_row(
+                "SELECT max(ended_at) FROM grid_event WHERE scope = 'house'",
+                [],
+                |row| row.get(0),
+            )?,
+        },
+        // No open house event yet: the collector has not confirmed a start.
+        HouseState::Outage => Banner {
+            state: "outage",
+            since: None,
+        },
+        HouseState::Unknown => Banner {
+            state: "unknown",
+            since: None,
+        },
+    })
+}
+
+fn card(
+    conn: &Connection,
+    now: i64,
+    state: &AppState,
+    row: &StationRow,
+) -> anyhow::Result<(Card, GridState)> {
+    let latest = read::latest_sample(conn, row.id)?;
+    let last_seen = latest.as_ref().map(|(ts, _)| *ts);
+    let grid = grid_state(conn, now, state.interval_s, &row.name, last_seen)?;
+
+    let from = now - FORECAST_WINDOW_S;
+    // `read::samples` adds the one sample before `from`; the window is 2 h only.
+    let window: Vec<(i64, Values)> = read::samples(conn, row.id, from, now + 1)?
+        .into_iter()
+        .filter(|(ts, _)| *ts >= from)
+        .collect();
+    let refs: Vec<(i64, &Values)> = window.iter().map(|(ts, v)| (*ts, v)).collect();
+    let forecast = match runtime::forecast(&refs, row.capacity_wh, state.usable_factor, grid) {
+        Forecast::OnBattery { until_ts, .. } => {
+            format!("lasts until {}", local_hhmm(until_ts, &state.tz)?)
+        }
+        Forecast::OnGrid { runtime_h, .. } => format!("if the power goes now: {runtime_h:.1} h"),
+        Forecast::Unknown => "—".to_owned(),
+    };
+
+    let (health, unreachable_since) = match station_health(conn, row.id)? {
+        Health::Ok => ("ok", None),
+        Health::Unreachable { since } => ("unreachable", Some(since)),
+    };
+    let day = now - HEALTH_WINDOW_S;
+    let count = |table: &str| -> rusqlite::Result<i64> {
+        conn.query_row(
+            &format!("SELECT count(*) FROM {table} WHERE station_id = ?1 AND ts > ?2"),
+            (row.id, day),
+            |r| r.get(0),
+        )
+    };
+    let last_failure_stage = conn
+        .query_row(
+            "SELECT stage FROM poll_failure WHERE station_id = ?1 ORDER BY ts DESC LIMIT 1",
+            [row.id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let encrypted = last_seen
+        .map(|ts| {
+            conn.query_row(
+                "SELECT encrypted FROM sample WHERE station_id = ?1 AND ts = ?2",
+                (row.id, ts),
+                |r| r.get(0),
+            )
+        })
+        .transpose()?;
+
+    let values = latest.map(|(_, v)| v).unwrap_or_default();
+    let sum = |a, b| match (values.get(&a), values.get(&b)) {
+        (None, None) => None,
+        (x, y) => Some(x.unwrap_or(&0.0) + y.unwrap_or(&0.0)),
+    };
+    let card = Card {
+        name: row.name.clone(),
+        model: row.model.clone(),
+        soc: values.get(&Metric::BatterySoc).copied(),
+        in_w: sum(Metric::AcInputPower, Metric::DcInputPower),
+        out_w: sum(Metric::AcOutputPower, Metric::DcOutputPower),
+        grid: match grid {
+            GridState::Present => "present",
+            GridState::Absent => "absent",
+            GridState::Unknown => "unknown",
+        },
+        forecast,
+        last_seen,
+        health,
+        unreachable_since,
+        samples_24h: count("sample")?,
+        failures_24h: count("poll_failure")?,
+        last_failure_stage,
+        encrypted,
+        unverified: !verified(&row.model),
+    };
+    Ok((card, grid))
+}
+
+/// Whether every [`BADGED`] field of the model is verified; an unknown model
+/// string is unverified.
+fn verified(model: &str) -> bool {
+    let Some(model) = [Model::Eb3a, Model::Ac180, Model::Elite200V2]
+        .into_iter()
+        .find(|m| m.name() == model)
+    else {
+        return false;
+    };
+    model
+        .profile()
+        .fields
+        .iter()
+        .filter(|f| BADGED.contains(&f.metric))
+        .all(|f| f.verified)
+}
+
+/// `Pause { until }` as unix seconds (§8.4 h); `None` once past or not paused.
+fn paused_until(control: Control) -> Option<i64> {
+    let Control::Pause { until } = control else {
+        return None;
+    };
+    let left = until.checked_duration_since(Instant::now())?;
+    let at = (SystemTime::now() + left).duration_since(UNIX_EPOCH).ok()?;
+    i64::try_from(at.as_secs()).ok()
+}
+
+#[cfg(test)]
+mod tests;
