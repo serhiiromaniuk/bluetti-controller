@@ -76,7 +76,7 @@ fn on_battery_lasts_until_local_hh_mm() {
     assert_eq!(card.in_w, None);
     assert_eq!(card.last_seen, Some(NOW));
     assert_eq!(card.encrypted, Some(true));
-    assert!(card.unverified, "every EB3A field is verified: false");
+    assert!(card.unverified, "the EB3A powers are still verified: false");
     assert_eq!(card.health, "ok");
     assert_eq!(card.samples_24h, 2);
 }

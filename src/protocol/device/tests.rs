@@ -108,6 +108,26 @@ fn field_maps_register_to_metric() {
     );
 }
 
+/// Only what the owner compared with the official app at a non-zero value
+/// (HUMAN-CHECKLIST H1–H3, 2026-10-15) is verified; a 0 W match proves nothing.
+#[test]
+fn verified_fields_are_the_owner_checked_ones() {
+    let verified = |model: Model| -> Vec<Metric> {
+        let mut v: Vec<_> = model
+            .profile()
+            .fields
+            .iter()
+            .filter(|f| f.verified)
+            .map(|f| f.metric)
+            .collect();
+        v.sort();
+        v
+    };
+    assert_eq!(verified(Model::Eb3a), [BatterySoc]);
+    assert_eq!(verified(Model::Elite200V2), [BatterySoc]);
+    assert_eq!(verified(Model::Ac180), [BatterySoc, AcOutputPower]);
+}
+
 #[test]
 fn drops_implausible_output_flag() {
     assert!(AcOutputOn.is_plausible(1.0));

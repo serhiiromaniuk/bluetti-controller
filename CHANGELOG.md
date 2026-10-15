@@ -5,6 +5,14 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.1.1 — 2026-10-15
+
+- Battery % is verified against the official app on all three stations, and
+  the AC180's AC output too (HUMAN-CHECKLIST H1–H3, partial): `/telemetry`
+  shows them as verified. The other powers read 0 W during the check (grid
+  outage) and stay unverified until compared at a non-zero value, so the
+  cards keep their "unverified" badge.
+
 ## 1.1.0 — 2026-10-15
 
 First release for the homelab host.

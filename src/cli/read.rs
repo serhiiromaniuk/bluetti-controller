@@ -91,8 +91,9 @@ mod tests {
         }]);
         let lines = report(Model::Eb3a.profile(), &poll);
         assert_eq!(lines.len(), Model::Eb3a.profile().fields.len() + 1);
+        // EB3A battery_soc is verified (HUMAN-CHECKLIST H1, 2026-10-15).
         assert!(lines.contains(&format!(
-            "{:<20} {:>9} {:<2}  verified=false",
+            "{:<20} {:>9} {:<2}  verified=true",
             "battery_soc", "87.00", "%"
         )));
         assert!(lines.contains(&format!(

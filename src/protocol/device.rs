@@ -228,7 +228,8 @@ static EB3A: Profile = Profile {
         // (ROADMAP.md §4.3, CF-4).
         field(AcOutputPower, 38, 1.0, false),
         field(DcOutputPower, 39, 1.0, false),
-        field(BatterySoc, 43, 1.0, false),
+        // Verified 2026-10-15 against the official app (HUMAN-CHECKLIST H1).
+        field(BatterySoc, 43, 1.0, true),
         field(AcOutputOn, 48, 1.0, false),
         field(DcOutputOn, 49, 1.0, false),
         // Whole volts: raw 220–222 with the grid on (ROADMAP.md §4.3).
@@ -245,9 +246,11 @@ static AC180: Profile = Profile {
     fields: &[
         field(PackVoltage, 100, 0.01, false),
         field(PackCurrent, 101, 0.1, false),
-        field(BatterySoc, 102, 1.0, false),
+        // Verified 2026-10-15 against the official app (HUMAN-CHECKLIST H3):
+        // SOC at 92 %, AC output at ~70 W. The other powers read 0 W then.
+        field(BatterySoc, 102, 1.0, true),
         field(DcOutputPower, 140, 1.0, false),
-        field(AcOutputPower, 142, 1.0, false),
+        field(AcOutputPower, 142, 1.0, true),
         field(DcInputPower, 144, 1.0, false),
         field(AcInputPower, 146, 1.0, false),
         field(DcInputVoltage, 1213, 0.1, false),
@@ -268,7 +271,10 @@ static ELITE_200_V2: Profile = Profile {
     fields: &[
         field(PackVoltage, 100, 0.01, false),
         field(PackCurrent, 101, 0.1, false),
-        field(BatterySoc, 102, 1.0, false),
+        // Verified 2026-10-15 against the official app (HUMAN-CHECKLIST H2), at
+        // 100 % (saturated, weak alone); the same V2 register 102 matched at
+        // 92 % on the AC180 (H3).
+        field(BatterySoc, 102, 1.0, true),
         field(DcOutputPower, 140, 1.0, false),
         field(AcOutputPower, 142, 1.0, false),
         field(DcInputPower, 144, 1.0, false),
