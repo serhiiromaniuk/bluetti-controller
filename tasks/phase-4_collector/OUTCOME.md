@@ -16,8 +16,10 @@ collector miss outside the owner's manual switch-off. The DB grows 0.341 MB per
 station-day (max 10). The unplug test is deferred to `HUMAN-CHECKLIST.md` H4.
 
 **Gate evidence scope (owner decision 2026-10-15 13:35, `loop/STATE.md`).** Run 4
-counts with the owner's 02:18–02:31 switch-off excluded: EB3A 712/712, AC180
-710/710, Elite 200 V2 151/151. The Elite was off after the switch-off, so its
+counts with the owner's 02:18–02:31 switch-off excluded. Full window: EB3A
+712/720, AC180 710/720, every failure inside the switch-off. Outside it (LOG step
+18d, scheduled polls, capped at 100 %): EB3A 152/151 before + 555/555 after,
+AC180 151/151 + 556/555, Elite 200 V2 151/151 before. The Elite was off after the switch-off, so its
 ratio covers 2 h 31 min, not 12 h. The 95 % threshold is unchanged; the owner
 accepted this evidence instead of a new 12 h run.
 

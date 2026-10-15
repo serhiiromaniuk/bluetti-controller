@@ -1549,3 +1549,9 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close addendum 2026-10-15 — batched reviewer over cdf4116..d8d834c
+
+**reviewer:** INTENT satisfied (step 19 + close) · 0 CRITICAL / 0 HIGH / 2 MEDIUM. Both doc corrections, fixed here (task closed, no open amendment left behind):
+- M1 `grid_event` 7 reached only the OUTCOME, not where the owner decides H4 → fixed: H4 row in `HUMAN-CHECKLIST.md` names events 7 and 3.
+- M2 OUTCOME gate counts mixed full-window and pre-switch-off bases (712/712) → fixed: full-window and step-18d split counts stated separately. Verdict unchanged (100 % on either basis).
