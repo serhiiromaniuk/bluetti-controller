@@ -112,20 +112,41 @@ internet down.
   observed discharges, SOH/temperature on V2 stations, register sweeps on EB3A.
 - **R2 Outage schedules** — YASNO (Kyiv, Dnipro) or the svitlo proxy for other
   regions: next planned outage, "will this station last through it?".
-- **R1a Telemetry extras — postponed, not approved** (owner 2026-10-15: "we
-  decided to postpone, because i not approved"). Read-only candidates found in
-  §4.3, kept here so nobody re-derives them; build nothing until the owner
-  approves:
-  - in blocks already polled on the V2 stations (no extra BLE traffic): 103
-    charging status, 104 / 105 the station's own time to full / to empty (min;
-    the Elite dump matched our estimate, 249 vs 246 min);
-  - one extra read every ~10 min per V2 station: 150–159 lifetime energy
-    counters (u32, low word first, 0.1 kWh: DC out, AC out, PV, grid charge,
-    feedback), 160 charging mode, 6003–6007 pack block (6007 temperature,
-    °F suspected: 71 = 21.7 °C);
+- **R1a Telemetry extras — approved** (owner 2026-10-15, recorded at the
+  owner's request: "do R1 and R1a fast, in parallel"; it was postponed earlier
+  that day). Read-only, V2 stations only (AC180, Elite 200 V2), every field
+  `verified: false`:
+  - in blocks already polled (no extra BLE traffic): 103 `charging_status`
+    (raw enum), 104 / 105 `time_to_full` / `time_to_empty` (min; the Elite dump
+    matched our estimate, 249 vs 246 min);
+  - slow blocks, read every 10 min per station: (150, 11) = lifetime energy
+    counters u32 low word first, 0.1 kWh, stored in kWh (`dc_out_energy`,
+    `ac_out_energy`, `pv_in_energy`, `grid_in_energy`, `feedback_energy`) +
+    160 `charging_mode` (raw enum); (6007, 1) `pack_temperature`, stored as
+    read in °F (71 = 21.7 °C room; the unit stays a guess until compared);
   - EB3A: nothing known beyond today's fields (§4.3 dump); an R1 sweep.
-  A slow block must never fail the core poll (today one failed block fails the
-  whole read, `transport::read::read_profile`).
+
+  **Decision (2026-10-15).** Extras are a separate list in the profile
+  (`Profile::extras`): an extra never produces a `Problem`, so it never fails a
+  sample; a value outside its range (a 0xFFFF sentinel) is dropped. Slow blocks
+  are read after the core blocks, one try per block (no retry), within half the
+  poll deadline counted from the poll start; a failed or cut slow read is
+  logged and retried on the next poll, and the sample is stored without it.
+  Extras land in the existing `sample_extra` table: no migration, so a rollback
+  to 1.1.x needs no database restore. They show on `/telemetry` as any extra
+  key does.
+- **R1 decision (2026-10-15): usable capacity from observed discharges.**
+  Computed on read from `rollup_5m` (kept forever), nothing stored. A discharge
+  segment is a run of consecutive 5-min buckets with `energy_in_wh = 0`,
+  `energy_out_wh > 0` in every bucket (so the EB3A's unmetered low loads, §4.3
+  CF-4, never count) and a SOC drop of at least 10 points between the first
+  and the last bucket's `soc_avg`. Estimate = energy between the two bucket
+  midpoints (sum minus half of each end bucket) ÷ SOC drop × 100, in Wh. The
+  page shows each station's segments (newest first), the median of the newest
+  5 and that median ÷ nominal as the suggested `usable_capacity_factor`; the
+  config is never changed automatically. Precision: SOC has 1-point steps, so a
+  10-point segment is ±10 %, a 50-point one ±2 %. SOH and a capacity trend
+  page wait for a known SOH register and months of data.
 - **R3 Device control** — AC/DC on/off, charging mode; schedule-aware charging
   (Turbo before a planned outage, Silent otherwise); staggered charging when the
   grid returns so the breaker does not trip. Needs auth on the UI.
@@ -1601,7 +1622,7 @@ From the planning session (sources S33, S34). Useful for forecasts and alerts.
 | Extra telemetry + raw register snapshots | MVP | owner asked for "any useful data" |
 | Pause-polling button | MVP | the phone app needs the single BLE connection |
 | Battery health / capacity trend | R1 | owner's pick |
-| Telemetry extras: V2 time to full/empty, energy counters, pack temperature | R1a, postponed | owner did not approve yet (2026-10-15) |
+| Telemetry extras: V2 time to full/empty, energy counters, pack temperature | R1a | approved 2026-10-15, building (§2.2) |
 | Outage schedules (YASNO / svitlo proxy) | R2 | owner's pick |
 | Control, schedule-aware and staggered charging | R3 | owner's pick |
 | Load recognition on the AC180 (fridge / boiler / PC by power signature) | idea | fun, not needed |
