@@ -820,3 +820,35 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 22 · review fix 2026-10-15 13:39 UTC — `POST /api/polling/pause` timed (reviewer HIGH H1)
+
+**Finding:** batched reviewer (steps 21–22), HIGH H1 — RULES.md v1.0 says "every API route ≤ 1 s"; step 21 skipped the POST. Verified against source: true.
+**Measured (unit running, read-only to the stations):** 20 × `POST http://192.168.0.179:8080/api/polling/pause?minutes=0` → 20× `200`, max 0.36 ms, median 0.26 ms ≤ 1 s → PASS.
+- Harmless: `minutes=0` sets `Control::Run` over `Run` (`src/web/pause.rs:38`); the collector only borrows the value per tick (`src/collector/mod.rs:121`). No token set. Journal: 20 `polling control set from the web` lines; `/api/status` `paused_until: null`, `last_seen` within the last poll interval.
+- The v1.0 latency gate now covers every route: max over all routes stays 2.1 ms (`/telemetry`).
+**reviewer dispositions:** H1 fixed (this entry); 0 MEDIUM. Second pass not needed: no logic changed.
+**Next:** the close.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T13:19:22Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
