@@ -128,3 +128,44 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 3 ✓ 2026-10-15 — deployed to the user unit, verified in headless Chrome
+
+**Changed:** `~/.local/bin/bluetti-controller` ← release build of 66c597e; `systemctl --user restart bluetti-controller` → active. v1.0 binary kept in the session scratchpad for rollback.
+
+**Check:** Chrome 155 headless over raw CDP (Claude-in-Chrome extension not connected), live server, network log per action:
+- load: `/` + 4 assets + ONE `/api/chart` (12 h); dark, "Last 12 hours", auto off; 3 charts × 3 stations; cards end at y=388 px (all 3 above the fold at 1280×900).
+- idle 70 s, refresh off: 0 requests. Refresh click: `/` + `/api/chart`.
+- theme toggle → light, persists across reload; telemetry page themed.
+- range 7 d: 1 request, URL `?from=now-7d&to=now`. Drag-zoom: 1 request, select → Custom, absolute ms in URL. Custom apply: 1 request.
+- auto 1m: 2 requests per minute visible; 0 in 65 s hidden; 1 catch-up refresh on visible.
+- 390 px: scrollWidth 390 (no horizontal scroll). No-JS: tools/charts hidden, cards + tables render.
+- console errors: none (favicon 404 gone).
+
+**Evidence:** server side, curl on the live unit: `/` 7078 B in 1.4 ms; `/api/chart` 12 h 16 354 B in 1.9 ms, 7 d 1831 B, 30 d 1118 B (< 1 ms); RSS 12.1 MB.
+
+**reviewer:** n/a (no code change; verification only).
+**Next:** close the task.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T15:35:19Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
