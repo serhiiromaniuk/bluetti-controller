@@ -33,7 +33,8 @@
 - 2026-10-13: standing delegation + deferred physical checks (RULES.md); the loop never stops to ask what it can answer (owner).
 - 2026-10-13: static keys from the MIT sources may go into a gitignored local keys file (owner).
 - 2026-10-13 14:05: AC180 (`mobile`) is on and in range; its MAC is in `config.toml`. Read-only access is allowed like the others: scan, detect, read, dump, acceptance run. Add it to phase 2 by a PLAN amendment before the close; only the app comparison stays in `HUMAN-CHECKLIST.md` H3 (owner).
-- 2026-10-13: v0.4 acceptance run is 12 h, not 24 h (owner; RULES.md, phase-4 PLAN A17). Current run started 1792010814, ETA 1792054014 — see LOG.
+- 2026-10-13: v0.4 acceptance run is 12 h, not 24 h (owner; RULES.md, phase-4 PLAN A17).
+- 2026-10-15: run 4 (start 1792010814) is the v0.4 evidence; the owner's manual switch-off 02:18–02:31 (Elite off after) is excluded, not a collector miss; no new 12 h run (owner, see phase-4 LOG).
 - 2026-10-14: a failed hard gate stops the loop only on its third attempt (`GATE_FAILED`); attempts 1–2 log, amend and continue (owner; loop/PROMPT.md §7).
 - 2026-10-14: goal is ~100% poll success, not just the 95% gate; grid outages happen ~2×/day. Fix the approach, not only the timeout: study how community tools (bluetti_mqtt, bluetti-bt-lib, HA) keep BLE reliable. Rework freely, decide yourself, never block on the owner (owner).
 - 2026-10-13: Q4 router on EB3A AC · Q7 poll 60 s · Q8 LAN only · M5 soak on the dev laptop, user-level systemd (owner).

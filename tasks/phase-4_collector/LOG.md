@@ -1407,3 +1407,12 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 - Run 3 partial evidence (1792000851–1792007340, 1 h 48 min): router 109, living-room 109, mobile 109 samples; `poll_failure` 0. DB kept as `data/acceptance-24h-run3-partial.db*` (not measured for the gate).
 - Restarted on the same binary and config, fresh `data/acceptance-24h.db`. **New window for step 18d: start 1792010814, ETA 1792054014** (2026-10-15 08:46:54 UTC). Supersedes 1792000851. Run 3 never finished, so it does not count as a gate attempt.
 - Host power is now a reliability risk: the dev laptop must charge from a station (ROADMAP ADR-008), not the grid, or an outage kills the run (`HUMAN-CHECKLIST.md` H8).
+
+## Owner decision 2026-10-15 13:35 — run 4 counts; the owner's 02:18–02:31 switch-off is excluded
+- Owner: around 02:00 they switched the stations off by hand to sleep (fan noise); the Elite stayed off. Not a collector fault.
+- Run 4 window [1792010814, 1792054014), every failure by station:
+  - router (EB3A): 712/720; all 8 failures 02:22–02:29 (the switch-off).
+  - mobile (AC180): 710/720; all 10 failures 02:21–02:30 (the switch-off).
+  - living-room (Elite): 152 ok while powered 23:46–02:18; 1 `read` failure at 00:41; 12 `discover` 02:18–02:30, then off by hand.
+- Outside the owner's switch-off: EB3A 712/712, AC180 710/710, Elite 152/153 (99.3 %). Run 3 partial (fresh build, 1 h 48 min): 109/109 each, 0 failures.
+- **Owner decision:** the poll-ratio part of the v0.4 gate is met on this evidence; no new 12 h run. Step 18d measures the rest (DB size per station-day, outage events) from this DB with the switch-off window excluded and records it. The 95 % threshold is unchanged.
