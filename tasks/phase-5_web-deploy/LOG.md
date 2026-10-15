@@ -295,3 +295,71 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-10-15 — status view: banner, station cards, forecast, paused_until (A1 applied)
+
+**Changed:** `src/web/status.rs` — `status(conn, now, &AppState) -> Status { house: Banner, stations: Vec<Card>, paused_until }`, all `Serialize`; `src/web/status/tests.rs` (new, 12 tests).
+- A1: staleness first (> 3 intervals or no sample → `unknown`), then open station event → `absent`; banner: open house event → `outage` since its start, else `house::vote`; `power` since the newest closed house `ended_at`.
+- Forecast: last 2 h strictly; "lasts until HH:MM" / "if the power goes now: N.N h" / "—"; `unverified` unless every SOC/power field is verified.
+- Health: `station_health` + 24 h sample/failure counts + newest failure stage, inline SQL.
+
+**Check:** red first — `status()` stub returned an error, 0/12 passed. Green 12/12. Hand-computed: EB3A 268.8 Wh × 50 % × 0.9 / 100 W = 4355 s from 09:00Z → "lasts until 13:12" (Kyiv).
+**Parallel:** branch `p5-step6`, `loop/merge-gate.sh p5-step6 p5-step7 p5-step8` → MERGE GATE OK (make check green on the merged tree), cherry-picked as 0e37f2a.
+
+**reviewer (batched, steps 6–8):** INTENT satisfied; 0 CRITICAL / 0 HIGH / 3 MEDIUM.
+- MEDIUM M2: "lasts until HH:MM" drops the date for > 24 h runtimes → A5 (step 10).
+
+**Decision:** banner `outage` with `since: null` when the vote says outage but no house event is open.
+**Carry-forward:** none.
+
+## Step 7 ✓ 2026-10-15 — history view: 7-day energy table and outage log
+
+**Changed:** `src/web/history.rs` — `energy(conn, days, now, interval_s, tz) -> Vec<EnergyDay>` (newest day first, today partial), `outages(conn, n, now)`, `outages_between(conn, from, to, now)` → `Vec<Outage>`; `src/web/history/tests.rs` (new, 6 tests).
+- Extra args beyond the step text: `interval_s` (gap rule of `energy::totals`), `now` (ongoing duration).
+- House hours without power returned in seconds; template converts.
+
+**Check:** red first against `todo!()` stubs, 0/6; green 6/6. Hand-computed (Kyiv, D0 = 1_782_853_200 = 2026-07-01 00:00 local): 1 h at 100 W in / 50 W out, SOC 50→55 on 500 Wh → 100 / 50 / Δ25 / losses 25 Wh; local-midnight split 2 Wh + 1 Wh (UTC would give 3 Wh on one day); gap → missing 540 s; open outage clipped → 3600 s; 21 events → newest 20.
+**Parallel:** cherry-picked as b369238 after the merge gate.
+
+**reviewer:** batched (above); `missing_s` counting only inter-sample gaps is the §7.4 integrate rule, not a defect.
+**Carry-forward:** none.
+
+## Step 8 ✓ 2026-10-15 — assets: uPlot 1.6.32 vendored, app.js/app.css, /assets route
+
+**Changed:** `assets/{uPlot.iife.min.js,uPlot.min.css,uPlot.LICENSE,app.js,app.css}`; `src/web/assets.rs` static table + `Cache-Control: max-age=86400`, unknown → 404; `src/web/tests.rs` (`raw_request` helper, asset test, `/assets/app.js` out of the 501 list); `README.md` Credits line.
+- Source: `raw.githubusercontent.com/leeoniya/uPlot/1.6.32/…`; tag `1.6.32` = commit `e995b061`; LICENSE MIT (Leon Sorokin).
+- `wc -c assets/*`: app.css 2094 · app.js 4203 · uPlot.iife.min.js 51081 · uPlot.LICENSE 1078 · uPlot.min.css 1857 (spec §8.4 i sizes match, budgets held).
+- app.js DOM contract (step 10 follows it): `[data-chart-station]`, `a[data-range]`, `form#pause` with `minutes` [+ `token`], `output#pause-reply`.
+
+**Check:** red first — `uPlot.iife.min.js` answered 501. Green: `cargo test --lib web::tests::every_asset` → `every_asset_is_served_with_its_type_and_bytes ... ok` (status, type, cache header, exact bytes, 404). `cargo test --lib web::` 21 passed. `grep -nE 'https?://' assets/app.*` → none. `grep -c uPlot README.md` → 2.
+
+**reviewer:** batched (above).
+- MEDIUM M1: `cargo test web::assets` runs 0 tests (test lives in `web::tests`) → addressed here: the real filter and its pass line are the evidence above.
+- MEDIUM M3: nothing parses `Metric::key()` names yet; stub test uses `metric=soc` → A6 (step 9).
+
+**Decision:** none.
+**Carry-forward:** none.
+**Next:** parallel group B, steps 9–12 (JSON API, status page, SSE, pause).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:33:08Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

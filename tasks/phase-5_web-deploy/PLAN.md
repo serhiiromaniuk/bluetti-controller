@@ -98,19 +98,19 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - Add every other M4 dependency now (askama, plus `futures-util` only if the SSE stream needs it), so groups A and B touch no Cargo file.
   - `/healthz` keeps its test.
   - check: `make check`; a test where every new route answers `501` and `/healthz` answers `200`; the `Cargo.lock` diff has insertions only · review: risky
-- [ ] 6. [parallel: A] Status view (spec §8.1, spec §7.2, spec §7.3) (needs Q2, Q3) in `src/web/status.rs`.
+- [x] 6. [parallel: A] Status view (spec §8.1, spec §7.2, spec §7.3) (needs Q2, Q3) in `src/web/status.rs`.
   - `status(conn, now, &AppState) -> Status`:
     - the house banner (step 1 b, `house::vote`);
     - one card per station: name, model, SOC, in/out W, grid state, the `runtime::forecast` text ("lasts until HH:MM" in local time / "if the power goes now: N h" / unknown), last seen, health from `station_health`, encrypted, the unverified badge;
     - `paused_until`.
   - TDD on an in-memory DB with hand-computed values: an EB3A at 50 % with a 100 W load and an open station event → on battery until the hand-computed HH:MM (Europe/Kyiv); grid present → "if the power goes now"; a stale sample → unknown; 3 failures → unreachable; both sensors absent → house outage since the open event.
   - check: `cargo test web::status` · review: risky
-- [ ] 7. [parallel: A] History view (spec §7.2, spec §7.4, spec §8.1) (needs Q3) in `src/web/history.rs`.
+- [x] 7. [parallel: A] History view (spec §7.2, spec §7.4, spec §8.1) (needs Q3) in `src/web/history.rs`.
   - `energy(conn, days, now, tz)`: per station and local day, `energy::totals` over the raw samples plus the sample before the day; per day, `house::totals` (step 1 d).
   - `outages(conn, n)` and `outages_between(conn, from, to)` (step 1 e).
   - TDD with hand-computed values: 100 W in / 50 W out for 1 h on one local day → 100/50 Wh, with the hand-computed Δstored and losses estimate; a day boundary at local midnight, not UTC; a gap shown as missing coverage; an open outage clipped to `now`; 21 events → the newest 20.
   - check: `cargo test web::history` · review: risky
-- [ ] 8. [parallel: A] Assets (spec §8.3) in `assets/` and `src/web/assets.rs`.
+- [x] 8. [parallel: A] Assets (spec §8.3) in `assets/` and `src/web/assets.rs`.
   - Download the uPlot release step 1 i names (`uPlot.iife.min.js`, `uPlot.min.css`) at dev time, and confirm its MIT license and byte sizes.
   - Write `assets/app.{js,css}` to the step 1 f/h/j contract (charts from `/api/series`, the range toggle, SSE-triggered reload, pause form, one-column CSS), within the step 1 i size budget.
   - Keep its license as `assets/uPlot.LICENSE`, and add a `README.md` Credits line.
@@ -258,7 +258,9 @@ Every question below is covered by the standing owner delegation (RULES.md); non
 - Gate failures — coverage < 80 %, page weight ≥ 100 KB, or a soak with > 1 manual intervention, RSS > 50 MB or a page > 1 s. Attempts 1–2 log the miss, amend, fix and re-run; the third is `<<LOOP:GATE_FAILED>>`. Fix the work, never the threshold. A wrong metric goes only through the falsified-metric path (AGENTS.md §6).
 
 ## Amendments
-- A1 · 2026-10-15 · MEDIUM `ROADMAP.md:916` — §8.4 b puts an open station event before staleness, but the writer keeps it open through `Unknown` (`src/store/writer.rs:202`): an unreachable station shows `Absent`, gets a stale forecast and votes in the UI's `house::vote` while the collector's does not. Fix at step 6: staleness first (→ `Unknown`); banner from the open house `grid_event` before the vote · disposition: open
+- A1 · 2026-10-15 · MEDIUM `ROADMAP.md:916` — §8.4 b puts an open station event before staleness, but the writer keeps it open through `Unknown` (`src/store/writer.rs:202`): an unreachable station shows `Absent`, gets a stale forecast and votes in the UI's `house::vote` while the collector's does not. Fix at step 6: staleness first (→ `Unknown`); banner from the open house `grid_event` before the vote · disposition: fixed — step 6 (`stale_station_with_open_event_is_unknown_not_absent`, `open_house_event_wins_over_the_vote`)
 - A2 · 2026-10-15 · MEDIUM `ROADMAP.md:959` — §8.4 h sends `Pause`/`Run` unconditionally, but `src/cli/serve.rs:104` sends `Shutdown` while the server is still up; a POST in that window overwrites it and `polling.await` hangs. Fix at step 12: `send_if_modified` that never replaces `Shutdown`, with a test · disposition: open
 - A3 · 2026-10-15 · MEDIUM `ROADMAP.md:1111` — §10.3 M5 writes `storage.path` as `~/.local/share/…`, but the loader does not expand `~` (§9 note). Fix at step 16/18: `INSTALL.md` and the installed config use the expanded `/home/<user>/…` path for `storage.path` and `crypto.keys_file` · disposition: open
 - A4 · 2026-10-15 · MEDIUM `src/store/read.rs:168` — `latest_extras` runs a correlated `max(ts)` per `sample_extra` row, so it scans every retained row of the station (~1.45 s on 30 d × 20 keys, sqlite3 CLI); `/telemetry` calls it per station. Fix at step 13: bound the scan to the last 24 h before the station's newest extra, test that a key missing from the newest poll still appears · disposition: open
+- A5 · 2026-10-15 · MEDIUM `src/web/status.rs:175` — "lasts until HH:MM" drops the date: a ~59 h Elite runtime reads as "until 23:12" tonight. Fix at step 10: add the local weekday when the end falls on another local day than `now`, with a > 24 h test · disposition: open
+- A6 · 2026-10-15 · MEDIUM `assets/app.js:20` — app.js sends `Metric::key()` names (`battery_soc`, …), but nothing parses a metric name yet and the step-5 stub test uses `metric=soc`. Fix at step 9: parse `metric` by `Metric::key()` only (unknown → 400), with a handler test for `metric=battery_soc` · disposition: open
