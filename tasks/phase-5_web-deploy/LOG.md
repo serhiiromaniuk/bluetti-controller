@@ -852,3 +852,36 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-10-15 — phase 5 closed, `v1.0-mvp`
+
+- `make amendments` → 14 findings, all disposed (A7 owner decision applied).
+- `OUTCOME.md` written: measured v1.0 numbers, 30 commits, Pending (H1–H10, homelab install, energy coverage).
+- **close-reviewer:** `VERDICT: close` — 0 CRITICAL / 0 HIGH / 1 MEDIUM; re-ran `make check` (281 lib tests, 99.82 % / 99.4 %), `make build` + `make dist`, boundary greps, live GETs ≤ 2.2 ms, `Linger=yes`, unit `NRestarts=0`. TREE-CHANGED: none.
+  - M1 `src/web/history.rs:73` — empty days / pre-first-sample hours show `missing 0 s` (documented shortcut). Verified in source: true → OUTCOME `## Pending`; calibration line proposed for `reviewer` (step 7 passed it).
+- Ticked: BRIEF done-when (9/9), ROADMAP §12 M5 OUTCOME/tag item; INDEX row → done; STATE gate → MVP done. CF-6 already struck.
+- **reviewer:** batched over `@{u}..HEAD` (the close commit), before the push.
+- **Next:** tag `v1.0-mvp`, push; `<<LOOP:DONE>>`. Remaining work is the owner's (HUMAN-CHECKLIST, homelab install).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T13:25:03Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

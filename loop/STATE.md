@@ -6,8 +6,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 v1.0 gate PASS 2026-10-15 (phase-5 step 22: `make check` green, 1 h run 100/100/98.3 %, RSS 12.3 MB, ≤ 2.1 ms). Next: close phase 5 (close-reviewer), tag `v1.0-mvp` |
-| **Blocked?** | no — phase-5 close next |
+| **Gate status** | 🟢 v1.0 gate PASS 2026-10-15; phase 5 closed, `v1.0-mvp` tagged — MVP done. Next: owner's HUMAN-CHECKLIST rows, homelab install (interactive) |
+| **Blocked?** | no — loop DONE; remaining work is the owner's |
 
 ## Carry-forward — obligations that outlive the task that found them
 

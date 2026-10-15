@@ -34,27 +34,27 @@ stops polling, it never writes to a station); notifications, Prometheus, cloud
 optional bearer token.
 
 ## Done when
-- [ ] `make check` green with `src/protocol/` and `src/metrics/` ≥ 80% line
+- [x] `make check` green with `src/protocol/` and `src/metrics/` ≥ 80% line
       coverage — check: `make check` output in LOG.md
-- [ ] Every §8.2 endpoint and both §8.1 pages answer from an in-memory DB with
+- [x] Every §8.2 endpoint and both §8.1 pages answer from an in-memory DB with
       the expected shape; the POST honours `web.token` and the 60-min cap, and
       pausing stops polls — check: handler + collector tests
-- [ ] Status page shows the house banner, station cards with runtime forecast,
+- [x] Status page shows the house banner, station cards with runtime forecast,
       outage log and 7-day energy table from `metrics` (no stub values) —
       check: handler test asserting rendered values
-- [ ] Page weight < 100 KB, assets embedded, no JS build step — check: byte
+- [x] Page weight < 100 KB, assets embedded, no JS build step — check: byte
       count of `/` plus its assets in LOG.md
-- [ ] `bluer` still only under `src/transport/bluer/`; config read only in
+- [x] `bluer` still only under `src/transport/bluer/`; config read only in
       `src/config.rs`; no route sends a write frame — check: grep in LOG.md
-- [ ] `deploy/bluetti-controller.service` + install notes, `make build` and
+- [x] `deploy/bluetti-controller.service` + install notes, `make build` and
       `make dist` produce the binary and tarball — check: commands in LOG.md
-- [ ] User unit running on the dev laptop; CF-6 discharged (`loginctl
+- [x] User unit running on the dev laptop; CF-6 discharged (`loginctl
       show-user` shows `Linger=yes`) or an H-row records the refusal
-- [ ] 1 h functional run (owner 2026-10-15, replaces the 7-day soak): ≥ 95% polls
+- [x] 1 h functional run (owner 2026-10-15, replaces the 7-day soak): ≥ 95% polls
       per powered station, RSS ≤ 50 MB, status page and API ≤ 1 s on
       the LAN — check: measured numbers in LOG.md; the phone-browser look is a
       `HUMAN-CHECKLIST.md` row
-- [ ] the phase gate passes (`v1.0-mvp`) — see RULES.md / AGENTS.md §6
+- [x] the phase gate passes (`v1.0-mvp`) — see RULES.md / AGENTS.md §6
 
 ## References
 - Governing spec: `ROADMAP.md`
