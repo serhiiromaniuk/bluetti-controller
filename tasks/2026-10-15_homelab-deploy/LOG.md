@@ -1,0 +1,85 @@
+# Log
+
+> Append-only. Never edit a previous entry. Newest at bottom. Keep it factual —
+> commands run, evidence, decisions. This is the loop's memory.
+>
+> **This is the ONE place per-step detail is written.** `loop/STATE.md` and
+> `tasks/INDEX.md` are pointers and change only when the gate verdict changes, a
+> decision is made, a carry-forward moves, or a task opens/closes. `loop/where.sh`
+> computes step position from `PLAN.md` and the last result from this file's newest
+> `## ` heading — so restating an entry in a pointer file is prose every later
+> iteration pays to re-read.
+>
+> **Budget: ≤40 lines per entry** (`make loop-hygiene` warns). Bullets, not
+> narrative. Cite a spec/doc section, never re-quote it. Record the decision and
+> the evidence, not the reasoning that produced them. The shape below is the shape.
+
+## 2026-10-15 19:00 — Session start
+Context loaded per `loop/where.sh --json`. Starting at step 1.
+
+<!-- Entry template — copy, fill, keep it under 40 lines:
+
+## Step <N> <✓|blocked> YYYY-MM-DD — <the headline result, one line>
+
+**Changed:** <file/module — what, one line each>
+
+**Check:** <the check that proves this step> — failed first for <the intended
+reason>, then passed. <or, when it is green-on-arrival: the mutation that proves
+the assertion has teeth, in one line>
+
+**Evidence:** written below this entry by `loop/step-done.sh` (the gate tail,
+fenced in `gate:begin/gate:end`). Add by hand only what no script captures: a
+smoke result, measured acceptance numbers — the decisive lines.
+
+**reviewer:** <n> CRITICAL / <n> HIGH / <n> MEDIUM · or `batched` (low-risk,
+reviewed with the next batch before the push)
+- CRITICAL|HIGH <id>: <finding> → fixed in <where>.
+- MEDIUM <id>: <finding> → deferred to PLAN `## Amendments` A<n>.
+
+**Decision:** <a choice the next iteration must not relitigate · none>
+**Carry-forward:** <raised/discharged in loop/STATE.md · none>
+**Next:** step <N+1> — <title>.
+
+Commit: via `loop/step-done.sh --commit "<type>(<scope>): <subject>"`   ·   Marker: <<LOOP:CONTINUE>>
+-->
+
+## Step 1 ✓ 2026-10-15 — ROADMAP: extras postponed, release/rollout design settled
+
+**Changed:** `ROADMAP.md` — §2.2 R1a + Appendix B: telemetry extras postponed, not approved (owner); §10.2 rewritten as a pointer (root:bluetti 0640, `bluetooth` group, D-Bus check via `systemd-run`); new §10.6: version/`check`/layout/system unit/ship/apply/rollback/status/retention/test.
+
+**Check:** sections written with a recommendation; reviewer, two rounds.
+
+**reviewer:** round 1 — 0 CRITICAL / 3 HIGH / 3 MEDIUM; round 2 — 2 HIGH / 2 MEDIUM; all fixed in the text:
+- HIGH stale/future samples pass a DB-age criterion → `/healthz` `samples_since_start` (in-process count) ≥ 1.
+- HIGH failure after the stop leaves monitoring dark → EXIT trap from the stop to the start restores current, previous, unit file, starts the old build; free-space preflight.
+- HIGH DB restore (stale WAL, root owner, data loss) → live DB moved aside as pre-rollback, backup installed bluetti 0640.
+- HIGH root `check` leaves root-owned -wal/-shm → `check` runs as the service identity (`runuser`).
+- MEDIUM rollback outcomes (unhealthy, config rejected) → version-only check, config restore root:bluetti, exit 3.
+- MEDIUM §10.2 contradicted §10.6 → pointer; MEDIUM `ssh -t`, root-owned temp dir, laptop-side hash.
+- MEDIUM backup size arithmetic → bounded by 30-day raw retention (~27 MB DB).
+
+**Decision:** §10.6 as written (owner request 2026-10-15; no CI/CD per 2026-10-13).
+**Next:** step 2 — `--version`, `/healthz` fields, `check`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T16:26:00Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

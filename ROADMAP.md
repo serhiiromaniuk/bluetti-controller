@@ -112,6 +112,20 @@ internet down.
   observed discharges, SOH/temperature on V2 stations, register sweeps on EB3A.
 - **R2 Outage schedules** — YASNO (Kyiv, Dnipro) or the svitlo proxy for other
   regions: next planned outage, "will this station last through it?".
+- **R1a Telemetry extras — postponed, not approved** (owner 2026-10-15: "we
+  decided to postpone, because i not approved"). Read-only candidates found in
+  §4.3, kept here so nobody re-derives them; build nothing until the owner
+  approves:
+  - in blocks already polled on the V2 stations (no extra BLE traffic): 103
+    charging status, 104 / 105 the station's own time to full / to empty (min;
+    the Elite dump matched our estimate, 249 vs 246 min);
+  - one extra read every ~10 min per V2 station: 150–159 lifetime energy
+    counters (u32, low word first, 0.1 kWh: DC out, AC out, PV, grid charge,
+    feedback), 160 charging mode, 6003–6007 pack block (6007 temperature,
+    °F suspected: 71 = 21.7 °C);
+  - EB3A: nothing known beyond today's fields (§4.3 dump); an R1 sweep.
+  A slow block must never fail the core poll (today one failed block fails the
+  whole read, `transport::read::read_profile`).
 - **R3 Device control** — AC/DC on/off, charging mode; schedule-aware charging
   (Turbo before a planned outage, Silent otherwise); staggered charging when the
   grid returns so the breaker does not trip. Needs auth on the UI.
@@ -1086,17 +1100,15 @@ loader does not expand `~` or `%h`.
 
 ### 10.2 Install on the homelab host (human-only, after the MVP)
 
-```bash
-sudo apt install bluez libdbus-1-0      # runtime; build host also needs libdbus-1-dev pkg-config
-sudo useradd --system --home /var/lib/bluetti-controller bluetti
-sudo install -m 0755 target/release/bluetti-controller /usr/local/bin/
-sudo install -d -m 0750 -o bluetti /etc/bluetti-controller
-sudo install -m 0640 -o bluetti config.toml keys.toml /etc/bluetti-controller/
-busctl --system introspect org.bluez /org/bluez   # as the service user: D-Bus access works
-```
-
-The hardened system unit for this user is still to be written, when the
-homelab host arrives; §10.3 holds only the dev-laptop user unit.
+The first install, the migration from the dev laptop, every update and the
+rollback are `deploy/HOMELAB.md`; the layout, the unit and the update flow
+are §10.6. In short (all with sudo, the owner only): `apt install bluez curl`;
+a system user `bluetti` in the `bluetooth` group; `/etc/bluetti-controller/`
+root:bluetti 0750 with `config.toml` and `keys.toml` root:bluetti 0640;
+`storage.path = "/var/lib/bluetti-controller/data.db"`. The D-Bus check runs
+with the unit's identity: `systemd-run --pipe --wait -p User=bluetti -p
+SupplementaryGroups=bluetooth busctl --system introspect org.bluez /org/bluez`.
+The first release then goes in with `bluetti-update apply`, like every later one.
 
 ### 10.3 systemd unit (shipped in `deploy/` at M5)
 
@@ -1172,6 +1184,112 @@ WantedBy=default.target
 | Service down after logout | `loginctl show-user "$USER" -p Linger` must be `yes` (`deploy/INSTALL.md` §4) |
 | Laptop suspended during a run | `systemd-inhibit --list` must show `bluetti-controller` with `sleep:idle:handle-lid-switch` |
 | Handshake fails on a station that worked | firmware update? Compare manufacturer data, read §13 R2 |
+
+### 10.6 Releases and rollout on the homelab host (settled 2026-10-15)
+
+Owner, 2026-10-15: move to the homelab host and have "a detailed and
+sustainable mechanism of rolling out updates". No CI/CD (owner 2026-10-13):
+the owner runs every step from the dev laptop. Every host command needs sudo,
+so it is human-only (RULES.md); the agent writes and tests the tooling.
+
+- **Version.** SemVer in `Cargo.toml`; a release is a `vX.Y.Z` tag on `main`
+  with a `## X.Y.Z` section in `CHANGELOG.md`. The binary carries its build
+  (`BLUETTI_BUILD` = `git describe --tags --always --dirty`, set by the
+  Makefile; the crate version otherwise) in `--version` and `/healthz`
+  `version`, so every running instance names the commit it came from.
+- **`check` subcommand.** Loads and validates the config and the keys file,
+  opens the database read-only and compares its schema version with the
+  binary's. Never touches BLE, so it runs safely next to the live service.
+  Exit 0 ok · 1 config/keys invalid · 2 the DB schema is newer than this
+  binary (an older binary refuses it: `store::schema::migrate`).
+- **Host layout.**
+  - `/opt/bluetti-controller/releases/<build>/` — `bluetti-controller`,
+    `bluetti-update`, the unit file, `CHANGELOG.md`; `current` and `previous`
+    symlinks point at release directories (switched with `mv -T`, atomic).
+  - `/etc/bluetti-controller/{config.toml,keys.toml}` — root:bluetti 0640.
+  - `/var/lib/bluetti-controller/` — `data.db` (systemd `StateDirectory`),
+    `backups/<UTC>-<build>.db` (+ `-wal`/`-shm` when present).
+- **System unit** `deploy/bluetti-controller.system.service`: `User=bluetti`,
+  `SupplementaryGroups=bluetooth` (Debian's BlueZ D-Bus policy), `ExecStart=
+  /opt/bluetti-controller/current/bluetti-controller --config
+  /etc/bluetti-controller/config.toml serve`, `Restart=on-failure`,
+  `StateDirectory=bluetti-controller`, `ProtectSystem=strict`,
+  `ProtectHome=yes`, `PrivateTmp=yes`, `PrivateDevices=yes`,
+  `NoNewPrivileges=yes`, `RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+  AF_BLUETOOTH`, `MemoryMax=128M`. No `systemd-inhibit`: the host never sleeps.
+- **Ship.** `make release VERSION=X.Y.Z` (clean `main`, changelog section
+  present → bump, `make check`, commit, tag, `make dist`). `make deploy
+  HOST=<ssh name>` (`deploy/deploy.sh`) computes the tarball's sha256 on the
+  laptop, copies it, and over `ssh -t` (the sudo prompt needs a tty) unpacks it
+  under sudo into a root-owned `mktemp -d`, checks the hash against the
+  laptop's value, and runs `./bluetti-update apply` from there — the newest
+  update logic always runs, and nothing a non-root user can write is executed
+  as root. `SHA256SUMS` inside the tarball proves the files, the laptop's hash
+  proves the tarball.
+- **`/healthz`** adds `version` (the build) and `samples_since_start` (samples
+  this process stored, counted in memory from the writer's updates; at least,
+  never fewer). The DB-wide `last_poll_age_s` cannot prove the new build
+  polled: an older sample can land in the start's second, and a future-dated
+  sample reads age 0.
+- **`bluetti-update apply <dir>`** (root, `set -euo pipefail`, every path
+  overridable for the stubbed test):
+  1. verify `SHA256SUMS`; the release's build equal to `current` → nothing to
+     do;
+  2. preflight, nothing changed yet: the new binary's `check` against the live
+     config and DB must exit 0 (1 = bad config, 2 = a downgrade below the DB
+     schema → abort); free space on the state and release filesystems ≥
+     2 × (DB + WAL) + the release;
+  3. stop the unit; from here until the start in step 5 an `EXIT` trap puts
+     `current`, `previous` and the old unit file back (`daemon-reload`) and
+     starts the old build if anything fails; it is cleared once the new build
+     is started;
+  4. back up `data.db` (+ `-wal`/`-shm`) and `config.toml` to `backups/<UTC>-
+     <old build>.*` (`cp -p`: owner and mode kept); the release records that
+     base name in `BACKUP`;
+  5. install the release dir; `previous` ← old `current`; `current` ← new;
+     install the release's unit file when it differs (`daemon-reload`); start;
+  6. **health criterion:** within 300 s `/healthz` answers 200 with `version`
+     = the new build **and** `samples_since_start` ≥ 1;
+  7. pass → prune, summary, exit 0; fail → automatic rollback, exit 1.
+  `--no-poll-check` drops the sample half of step 6 for a window when every
+  station is off on purpose.
+- **`bluetti-update rollback`** (also the automatic one): stop; `current` ←
+  `previous`, `previous` ← the failed release; run the older binary's `check`:
+  - exit 2 (the update migrated the schema) → move `data.db{,-wal,-shm}` aside
+    as `backups/<UTC>-pre-rollback.*` (kept: nothing is destroyed), put the
+    update's DB backup in place with `install -o bluetti -g bluetti -m 0640`,
+    no stale `-wal`/`-shm` left; samples stored since are lost from the live
+    DB (still in the pre-rollback copy), and the command says so;
+  - exit 1 (the older binary rejects the config, e.g. a new key) → restore the
+    update's `config.toml` backup with `install -o root -g bluetti -m 0640`
+    (the newer one kept aside), re-check; still failing → exit 3;
+  - start; health criterion = `version` only (the previous build was healthy
+    before; when the trigger was "no station polled", it would fail the same
+    way). Still unhealthy → leave it running, exit 3 with a loud message and
+    the journal command.
+- **`check` runs as the service identity** (`runuser -u bluetti -g bluetti
+  -G bluetooth`), in the preflight and in the rollback: a read-only open of a
+  stopped WAL database creates `-wal`/`-shm`, and as root they would be
+  root-owned and unwritable for the service; it also proves the service user
+  can read the config and the keys. `deploy.sh`'s temp dir is root-owned 0755
+  for that reason (readable, not writable, by others).
+- **`status`**: current, previous, releases, backups, unit state, `/healthz`.
+- **Reboot mid-update.** After the `current` switch, a reboot starts the new
+  build without a health check; `status` shows it, and `rollback` works as
+  usual. Before the switch, the old build simply starts again.
+- **Retention:** the 5 newest releases and the 10 newest backup sets
+  (including pre-rollback ones); `current` and `previous` are never pruned.
+  The DB is bounded: ~0.3 MB/day per station (RULES.md v0.4) × 3 stations ×
+  30 days of raw retention (`storage.raw_retention_days`) ≈ 27 MB plus the
+  small 5-min rollups, so 10 sets stay ≲ 0.3–0.5 GB; the free-space preflight
+  catches the rest.
+- **Tested** by `deploy/test/update-test.sh` in `make check`: a temp root,
+  stub `systemctl`/`curl`, fake builds; it proves apply-pass, a first install,
+  apply-fail → rollback (with and without a schema move, and with a config
+  the older build rejects), a failure after the stop (trap), manual rollback,
+  a bad checksum, a failed preflight, and pruning.
+- **One poller (golden rule #5).** The laptop's user unit is disabled before
+  the homelab unit first starts; `deploy/HOMELAB.md` orders it so.
 
 ---
 
@@ -1460,6 +1578,7 @@ From the planning session (sources S33, S34). Useful for forecasts and alerts.
 | Extra telemetry + raw register snapshots | MVP | owner asked for "any useful data" |
 | Pause-polling button | MVP | the phone app needs the single BLE connection |
 | Battery health / capacity trend | R1 | owner's pick |
+| Telemetry extras: V2 time to full/empty, energy counters, pack temperature | R1a, postponed | owner did not approve yet (2026-10-15) |
 | Outage schedules (YASNO / svitlo proxy) | R2 | owner's pick |
 | Control, schedule-aware and staggered charging | R3 | owner's pick |
 | Load recognition on the AC180 (fridge / boiler / PC by power signature) | idea | fun, not needed |
