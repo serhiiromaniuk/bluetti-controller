@@ -18,10 +18,10 @@ None: the owner approved R1 + R1a and one deploy on 2026-10-15.
       check: `make check` with hand-computed tests.
 - [x] 4. Merge, reviewer pass on the whole diff, fix CRITICAL/HIGH — check:
       `make check` on the merged tree.
-- [ ] 5. Live read-only check: pause production polling, `read` the AC180 and
+- [x] 5. Live read-only check: pause production polling, `read` the AC180 and
       the Elite from the dev laptop, resume — check: extras printed, no problem
       lines.
-- [ ] 6. CHANGELOG 1.2.0, `make release VERSION=1.2.0`, `make deploy
+- [x] 6. CHANGELOG 1.2.0, `make release VERSION=1.2.0`, `make deploy
       HOST=debian@192.168.0.192` — check: `bluetti-update status`, `/healthz`.
 
 ## Risks / Dependencies

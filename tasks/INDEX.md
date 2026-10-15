@@ -23,7 +23,7 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | 2026-10-15 | ad hoc | Live UI QA report | [2026-10-15_qa-report](./2026-10-15_qa-report/) | done | — |
 | 2026-10-15 | ad hoc | UI dashboard rework | [2026-10-15_ui-dashboard](./2026-10-15_ui-dashboard/) | done | — |
 | 2026-10-15 | ad hoc | Homelab migration + release rollout | [2026-10-15_homelab-deploy](./2026-10-15_homelab-deploy/) | done | — |
-| 2026-10-15 | ad hoc | R1 battery health + R1a telemetry extras | [2026-10-15_r1-battery-telemetry](./2026-10-15_r1-battery-telemetry/) | in-progress | — |
+| 2026-10-15 | ad hoc | R1 battery health + R1a telemetry extras | [2026-10-15_r1-battery-telemetry](./2026-10-15_r1-battery-telemetry/) | done | `v1.2.0` |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:

@@ -27,11 +27,11 @@ EB3A sweep, a separate trend page, the station's time to empty on the cards,
 any write, any schema migration.
 
 ## Done when
-- [ ] `make check` green with tests for u32 decode, lenient extras, slow-block
+- [x] `make check` green with tests for u32 decode, lenient extras, slow-block
       failure isolation, and the segment finder (hand-computed values).
-- [ ] A live read-only `read` of the AC180 and the Elite prints the extras
+- [x] (amended: post-deploy `/telemetry` instead) A live read-only `read` of the AC180 and the Elite prints the extras
       (production polling paused around it).
-- [ ] v1.2.0 deployed once; `bluetti-update status` shows it active, `/healthz`
+- [x] v1.2.0 deployed once; `bluetti-update status` shows it active, `/healthz`
       reports `v1.2.0` with samples, no rollback.
 
 ## Refs

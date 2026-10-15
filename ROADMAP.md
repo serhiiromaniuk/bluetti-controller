@@ -1630,7 +1630,7 @@ From the planning session (sources S33, S34). Useful for forecasts and alerts.
 | Extra telemetry + raw register snapshots | MVP | owner asked for "any useful data" |
 | Pause-polling button | MVP | the phone app needs the single BLE connection |
 | Battery health / capacity trend | R1 | owner's pick |
-| Telemetry extras: V2 time to full/empty, energy counters, pack temperature | R1a | approved 2026-10-15, building (§2.2) |
+| Telemetry extras: V2 time to full/empty, energy counters, pack temperature | R1a | shipped in 1.2.0 (§2.2) |
 | Outage schedules (YASNO / svitlo proxy) | R2 | owner's pick |
 | Control, schedule-aware and staggered charging | R3 | owner's pick |
 | Load recognition on the AC180 (fridge / boiler / PC by power signature) | idea | fun, not needed |

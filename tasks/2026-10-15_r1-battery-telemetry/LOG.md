@@ -22,3 +22,11 @@
 - MEDIUM: a bucket with a long poll gap undercounts energy. Fixed: `discharge_buckets` requires `n ≥ 300/interval − 1`. The page test now has a gappy run that splits.
 - Dropped MEDIUM: device.rs is 461 lines. Logged as A1, declined.
 - No write frames, rollback safe (no migration), no 500 path found. `make check` green.
+
+## 2026-10-15 23:55 host time — steps 5 + 6, release and deploy
+- `make release VERSION=1.2.0` (ef605a2, tag v1.2.0), pushed.
+- `make deploy HOST=debian@192.168.0.192`: preflight ok (schema v1 = v1), backup, "healthy: v1.2.0 stored 1 sample(s)"; v1.1.1 is now the rollback target. Gap: a restart of about 1 s, so no poll tick was missed.
+- 11 rounds watched (to `samples_since_start` = 33): 33 of 34 polls ok. The 1 failure is the EB3A `le-connection-abort-by-local`, also seen on v1.1.1 at 20:29–20:40 UTC. 0 slow-block warnings. RSS 12.4 MB.
+- `/telemetry`, Elite: 198.4 kWh AC out, 227.5 kWh grid in, 40.4 kWh feedback, 69 °F, time 5994 min.
+- `/telemetry`, AC180: both slow blocks read (6007 = 69 °F; the AC out counter reads 0.0 kWh, unverified, H12).
+- Battery health, AC180: ≈ 477 Wh of 1152, factor 0.41, from 1 segment (tonight's ~20 W outage load). The inverter's own draw dominates at a load this low. Not used to change config.
