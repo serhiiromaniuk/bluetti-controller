@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Bluetti status{% endblock %}
+{% block content %}
+<div class="banner {{ banner_class }}">{{ banner }}</div>
+{% if let Some(until) = paused %}<p class="muted">Polling paused until {{ until }}</p>{% endif %}
+<div class="cards">
+{% for c in cards %}<section class="card">
+<h2>{{ c.name }} <span class="muted">{{ c.model }}</span>{% if c.unverified %} <span class="badge warn" title="SOC, powers and forecast use registers not yet verified on hardware">unverified</span>{% endif %}</h2>
+<div class="big">{{ c.soc }}</div>
+<meter min="0" max="100" value="{{ c.soc_bar }}"></meter>
+<p>In {{ c.in_w }} · Out {{ c.out_w }} · Grid <span class="badge {{ c.grid_class }}">{{ c.grid }}</span></p>
+<p>{{ c.forecast }}</p>
+<p class="muted">Last seen {{ c.last_seen }} · <span class="badge {{ c.health_class }}">{{ c.health }}</span> · {{ c.polls }} · encrypted {{ c.encrypted }}</p>
+<div class="chart" data-chart-station="{{ c.name }}"></div>
+</section>
+{% endfor %}</div>
+<nav>Charts: <a href="?range=24h" data-range="24h"{% if !week %} class="on"{% endif %}>24 h</a><a href="?range=7d" data-range="7d"{% if week %} class="on"{% endif %}>7 d</a></nav>
+<h2>Outages</h2>
+<div class="scroll"><table>
+<tr><th>Scope</th><th>Start</th><th>End</th><th>Duration</th></tr>
+{% for o in outages %}<tr><td>{{ o.scope }}</td><td>{{ o.start }}</td><td>{{ o.end }}</td><td>{{ o.duration }}</td></tr>
+{% else %}<tr><td colspan="4">No outages recorded</td></tr>
+{% endfor %}</table></div>
+<h2>Energy, last 7 days</h2>
+<div class="scroll"><table>
+<tr><th>Day</th><th>Station</th><th>In Wh</th><th>Out Wh</th><th>Δ stored Wh</th><th>Losses Wh (estimate)</th><th>Missing</th></tr>
+{% for e in energy %}<tr><td>{{ e.day }}</td><td>{{ e.station }}</td>{% for v in e.cells %}<td>{{ v }}</td>{% endfor %}<td>{{ e.missing }}</td></tr>
+{% endfor %}</table>
+<table>
+<tr><th>Day</th><th>House outages</th><th>Without power</th><th>Longest</th></tr>
+{% for h in house %}<tr><td>{{ h.day }}</td><td>{{ h.count }}</td><td>{{ h.without }}</td><td>{{ h.longest }}</td></tr>
+{% endfor %}</table></div>
+<h2>Pause polling</h2>
+<p class="muted">Stops BLE polling so the phone app can connect; 0 resumes.</p>
+<form id="pause"><label>Minutes <input name="minutes" type="number" min="0" max="60" value="15" required></label>
+{% if token %}<label>Token <input name="token" type="password" autocomplete="off"></label>
+{% endif %}<button>Pause</button>
+<output id="pause-reply"></output></form>
+{% endblock %}

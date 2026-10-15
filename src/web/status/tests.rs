@@ -225,3 +225,16 @@ fn paused_until_follows_control() {
     state.control.send_replace(Control::Pause { until: past });
     assert_eq!(status(&conn, NOW, &state).unwrap().paused_until, None);
 }
+
+#[test]
+fn a_runtime_past_midnight_names_the_day() {
+    // Amendment A5. office: 2073.6 × 50 / 100 × 0.9 = 933.12 Wh; / 20 W =
+    // 46.656 h = 167 961.6 s → 167 962 s. NOW (Thu 12:00 Kyiv) + 46:39:22 =
+    // Sat 10:39:22 Kyiv.
+    let conn = db();
+    sample(&conn, 2, NOW - 60, 50.0, 20.0, 0.0);
+    sample(&conn, 2, NOW, 50.0, 20.0, 0.0);
+    event(&conn, "office", NOW - 120, None);
+    let card = &view(conn, NOW).stations[1];
+    assert_eq!(card.forecast, "lasts until Sat 17 Oct 10:39");
+}

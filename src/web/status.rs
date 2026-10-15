@@ -4,6 +4,7 @@
 
 use std::time::{SystemTime, UNIX_EPOCH};
 
+use jiff::Timestamp;
 use rusqlite::{Connection, OptionalExtension};
 use serde::Serialize;
 use tokio::time::Instant;
@@ -11,7 +12,7 @@ use tokio::time::Instant;
 use crate::collector::Control;
 use crate::metrics::grid::GridState;
 use crate::metrics::house::{self, HouseState};
-use crate::metrics::localtime::local_hhmm;
+use crate::metrics::localtime::{local_day_bounds, local_hhmm};
 use crate::metrics::runtime::{self, Forecast};
 use crate::protocol::device::{Metric, Model};
 use crate::store::read::{self, StationRow, Values};
@@ -65,7 +66,7 @@ pub struct Card {
     pub out_w: Option<f64>,
     /// `"present"`, `"absent"` or `"unknown"` (§8.4 b, amendment A1).
     pub grid: &'static str,
-    /// "lasts until HH:MM" (local) / "if the power goes now: N h" (one
+    /// "lasts until HH:MM" (local; "Sat 17 Oct HH:MM" on another day) / "if the power goes now: N h" (one
     /// decimal) / "—" (§7.3).
     pub forecast: String,
     /// Unix seconds of the newest sample.
@@ -172,7 +173,17 @@ fn card(
     let refs: Vec<(i64, &Values)> = window.iter().map(|(ts, v)| (*ts, v)).collect();
     let forecast = match runtime::forecast(&refs, row.capacity_wh, state.usable_factor, grid) {
         Forecast::OnBattery { until_ts, .. } => {
-            format!("lasts until {}", local_hhmm(until_ts, &state.tz)?)
+            let at = local_hhmm(until_ts, &state.tz)?;
+            // A5: past local midnight the time alone would read as today.
+            if local_day_bounds(until_ts, &state.tz)? == local_day_bounds(now, &state.tz)? {
+                format!("lasts until {at}")
+            } else {
+                let day = Timestamp::from_second(until_ts)?
+                    .to_zoned(state.tz.clone())
+                    .strftime("%a %-d %b")
+                    .to_string();
+                format!("lasts until {day} {at}")
+            }
         }
         Forecast::OnGrid { runtime_h, .. } => format!("if the power goes now: {runtime_h:.1} h"),
         Forecast::Unknown => "—".to_owned(),

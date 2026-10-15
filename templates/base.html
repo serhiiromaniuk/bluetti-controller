@@ -1,0 +1,16 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}Bluetti{% endblock %}</title>
+<link rel="stylesheet" href="/assets/uPlot.min.css">
+<link rel="stylesheet" href="/assets/app.css">
+</head>
+<body>
+<nav><a href="/">Status</a><a href="/telemetry">Telemetry</a></nav>
+{% block content %}{% endblock %}
+{% block scripts %}<script src="/assets/uPlot.iife.min.js"></script>
+<script src="/assets/app.js"></script>{% endblock %}
+</body>
+</html>
