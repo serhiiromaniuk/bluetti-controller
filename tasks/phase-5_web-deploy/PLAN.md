@@ -117,17 +117,17 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - `assets.rs` serves a static table (name → bytes and content type) with `Cache-Control`; an unknown name → `404`.
   - Test: each asset answers `200` with its content type and exact byte length; `/assets/nope` → `404`.
   - check: `cargo test web::assets`; `grep -c uPlot README.md` ≥ 1; `wc -c assets/*` in the LOG · review: low-risk
-- [ ] 9. [parallel: B] JSON API (spec §8.2) (needs Q4) in `src/web/api.rs`.
+- [x] 9. [parallel: B] JSON API (spec §8.2) (needs Q4) in `src/web/api.rs`.
   - Routes: `/api/status` (step 6's struct), `/api/outages?from=&to=`, `/api/energy?days=` (`1..=min(30, raw_retention_days)`, default 7; spec §8.4 f), `/api/series?station=&metric=&from=&to=&step=`. Reads run in `spawn_blocking`.
   - Handler tests on an in-memory DB (Q4) assert each body's shape and values. A bad station, metric or range → `400` with a JSON error. Series over > 48 h comes from `rollup_5m`.
   - check: `cargo test web::api`; `make check` · review: risky
-- [ ] 10. [parallel: B] Status page (spec §8.1, spec §8.3) (needs Q2).
+- [x] 10. [parallel: B] Status page (spec §8.1, spec §8.3) (needs Q2).
   - Files: `templates/{base,status}.html` and `/` in `src/web/pages.rs` (`app.{js,css}` come from step 8).
   - The page shows the banner, the cards, the outage log (last 20), the 7-day energy table, and the uPlot SOC and power charts with the 24 h / 7 d toggle.
   - It has the pause form and the SSE-triggered reload (step 1 j), with a viewport meta tag and one-column CSS.
   - Handler test: `/` renders hand-computed values from the in-memory DB — the banner state, a card's SOC and forecast text, an outage row and an energy cell. No stub value is left: grep the template for `TODO` and for placeholder text.
   - check: `cargo test web::pages`; `make check` · review: risky
-- [ ] 11. [parallel: B] SSE `/events` (spec §8.2, spec §5.3) in `src/web/sse.rs`.
+- [x] 11. [parallel: B] SSE `/events` (spec §8.2, spec §5.3) in `src/web/sse.rs`.
   - Subscribe to `updates` and map each `Update` to a named event (`sample`, `grid_event`, `poll_failure`) with a JSON payload.
   - A lagged client skips the missed messages; keep-alive every 15 s; the stream ends when `state.shutdown` fires.
   - Tests:
@@ -135,7 +135,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
     - a lagged client gets the next update;
     - **a server with an open `/events` client stops within 2 s of shutdown**.
   - check: `cargo test web::sse`; `make check` · review: risky
-- [ ] 12. [parallel: B] Pause polling (spec §8.1, spec §8.2, spec §8.3) (needs Q1) in `src/web/pause.rs` and `src/collector/tests.rs`.
+- [x] 12. [parallel: B] Pause polling (spec §8.1, spec §8.2, spec §8.3) (needs Q1) in `src/web/pause.rs` and `src/collector/tests.rs`.
   - `POST /api/polling/pause?minutes=N` sets `Control::Pause { until }` for `1..=60` and `Control::Run` for `0`; `61`, a negative value or a missing `N` → `400`.
   - With a token configured: `401` without a token or with a wrong one, `200` with the right one. With no token: `200`.
   - The handler sends only on the `watch` channel, never a frame.
@@ -259,9 +259,11 @@ Every question below is covered by the standing owner delegation (RULES.md); non
 
 ## Amendments
 - A1 · 2026-10-15 · MEDIUM `ROADMAP.md:916` — §8.4 b puts an open station event before staleness, but the writer keeps it open through `Unknown` (`src/store/writer.rs:202`): an unreachable station shows `Absent`, gets a stale forecast and votes in the UI's `house::vote` while the collector's does not. Fix at step 6: staleness first (→ `Unknown`); banner from the open house `grid_event` before the vote · disposition: fixed — step 6 (`stale_station_with_open_event_is_unknown_not_absent`, `open_house_event_wins_over_the_vote`)
-- A2 · 2026-10-15 · MEDIUM `ROADMAP.md:959` — §8.4 h sends `Pause`/`Run` unconditionally, but `src/cli/serve.rs:104` sends `Shutdown` while the server is still up; a POST in that window overwrites it and `polling.await` hangs. Fix at step 12: `send_if_modified` that never replaces `Shutdown`, with a test · disposition: open
+- A2 · 2026-10-15 · MEDIUM `ROADMAP.md:959` — §8.4 h sends `Pause`/`Run` unconditionally, but `src/cli/serve.rs:104` sends `Shutdown` while the server is still up; a POST in that window overwrites it and `polling.await` hangs. Fix at step 12: `send_if_modified` that never replaces `Shutdown`, with a test · disposition: fixed — step 12 (`send_if_modified` keeps `Shutdown`, 503; `a_post_never_replaces_shutdown`)
 - A3 · 2026-10-15 · MEDIUM `ROADMAP.md:1111` — §10.3 M5 writes `storage.path` as `~/.local/share/…`, but the loader does not expand `~` (§9 note). Fix at step 16/18: `INSTALL.md` and the installed config use the expanded `/home/<user>/…` path for `storage.path` and `crypto.keys_file` · disposition: open
 - A4 · 2026-10-15 · MEDIUM `src/store/read.rs:168` — `latest_extras` runs a correlated `max(ts)` per `sample_extra` row, so it scans every retained row of the station (~1.45 s on 30 d × 20 keys, sqlite3 CLI); `/telemetry` calls it per station. Fix at step 13: bound the scan to the last 24 h before the station's newest extra, test that a key missing from the newest poll still appears · disposition: open
-- A5 · 2026-10-15 · MEDIUM `src/web/status.rs:175` — "lasts until HH:MM" drops the date: a ~59 h Elite runtime reads as "until 23:12" tonight. Fix at step 10: add the local weekday when the end falls on another local day than `now`, with a > 24 h test · disposition: open
-- A6 · 2026-10-15 · MEDIUM `assets/app.js:20` — app.js sends `Metric::key()` names (`battery_soc`, …), but nothing parses a metric name yet and the step-5 stub test uses `metric=soc`. Fix at step 9: parse `metric` by `Metric::key()` only (unknown → 400), with a handler test for `metric=battery_soc` · disposition: open
+- A5 · 2026-10-15 · MEDIUM `src/web/status.rs:175` — "lasts until HH:MM" drops the date: a ~59 h Elite runtime reads as "until 23:12" tonight. Fix at step 10: add the local weekday when the end falls on another local day than `now`, with a > 24 h test · disposition: fixed — step 10 ("lasts until Sat 17 Oct 10:39"; `a_runtime_past_midnight_names_the_day`)
+- A6 · 2026-10-15 · MEDIUM `assets/app.js:20` — app.js sends `Metric::key()` names (`battery_soc`, …), but nothing parses a metric name yet and the step-5 stub test uses `metric=soc`. Fix at step 9: parse `metric` by `Metric::key()` only (unknown → 400), with a handler test for `metric=battery_soc` · disposition: fixed — step 9 (`Metric::from_key`; `series_within_48_h_reads_raw_rows_by_metric_key`, `soc` → 400)
 - A7 · 2026-10-15 · owner decision (relayed by the interactive session at the owner's request) — **no 7-day soak**; RULES.md v1.0 is now a 1 h functional run. Steps change as follows: 17 → declined (no soak probe; reuse step 18's measurement); 18 → install the user unit and run it for 1 h (not a soak start); 19 → docs as written; 20 → declined (no day-1 checkpoint); 21 → measure the 1 h run against the new v1.0 gate (polls per powered station, RSS, page and API latency); 22 → phase gate and `v1.0-mvp` as written, then `<<LOOP:DONE>>`. Tick a declined step with `(declined — A7)` in its LOG line. The homelab install comes after v1.0 in an interactive session, not in the loop. · disposition: open
+- A8 · 2026-10-15 · MEDIUM `src/web/api.rs:47` — §8.4 f says "every error is 400" and energy "default 7", but the API answers 500 `{"error":"database read failed"}` on a read failure and defaults to `min(7, cap)`; the code is right, the spec is silent. Fix at step 15: one line in ROADMAP.md §8.4 f · disposition: open
+- A9 · 2026-10-15 · MEDIUM `ROADMAP.md:1274` — after A7 (1 h run), ROADMAP §10.3/§12 M5, the BRIEF title/What and the INDEX row still say "7-day soak", and step 19 would add soak runbook lines. Fix at step 19: §10.3/§12 M5 describe the 1 h run, no soak runbook; INDEX row label updated (BRIEF stays static, its done-when already says 1 h) · disposition: open

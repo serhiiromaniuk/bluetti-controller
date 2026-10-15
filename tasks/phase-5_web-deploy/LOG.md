@@ -363,3 +363,74 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 9 ✓ 2026-10-15 — JSON API: status, series, outages, energy
+
+**Changed:** `src/web/api.rs` (180 lines): four handlers, JSON error type, `spawn_blocking` read helper, hand-parsed query (every bad input → JSON 400); `src/web/api/tests.rs` (new, 9 tests); `src/protocol/device.rs` `Metric::ALL` + `Metric::from_key` (A6) with round-trip test.
+- Read failure → 500 `{"error":"database read failed"}`; `/api/energy` default `min(7, cap)` → spec line deferred to A8.
+- Unknown station detected inside the read, still 400.
+
+**Check:** red first — `0 passed; 9 failed` (stubs 501). Green: `cargo test --lib web::api` 9 passed (raw ≤ 48 h incl. exactly 48 h, `rollup_5m` > 48 h, `metric=battery_soc` + `step=120` average, 12 bad-input cases, outages window/defaults, energy default/cap/30-day cap).
+**Parallel:** branch `grpB-api`, cherry-picked as 0a84c78 after the merge gate.
+
+**reviewer:** batched (group B, below this group's last entry).
+**Carry-forward:** none.
+
+## Step 10 ✓ 2026-10-15 — status page: banner, cards, outage log, energy tables, charts
+
+**Changed:** `src/web/pages.rs` (248): `GET /` with `?range=24h|7d`, `render(conn, now, state, week)` over `status::status`, `history::energy(7)`, `history::outages(20)`; `templates/{base,status}.html`; `src/web/pages/tests.rs` (new, 3 tests); `src/web/status.rs` A5 fix.
+- A5 format "lasts until Sat 17 Oct 10:39" (weekday alone repeats after 7 days; low-load Elite can exceed it).
+- Banner `power/outage` → CSS classes `present/absent` (what `app.css` defines); `app.{js,css}` untouched.
+
+**Check:** red first — `/` 501; A5 test `left: "lasts until 10:39"`. Green: `cargo test --lib web::` 25 passed on branch. Hand-computed at 2026-10-15 12:00 Kyiv: banner "Grid power since Thu 15 Oct 10:00", SOC "50 %", "if the power goes now: 1.2 h", ongoing outage 10 min above closed 30 min, router energy row, unverified badge, token field only with a token (value never in HTML).
+- `grep -nE 'TODO|placeholder|lorem|https?://' templates/*` → none. Fixture `/` = 4 454 B (budget 25 000 B, asserted).
+**Parallel:** branch `grpB-pages`, cherry-picked as 77c262c.
+
+**reviewer:** batched (below). **Carry-forward:** none.
+
+## Step 11 ✓ 2026-10-15 — SSE /events: named events, lag skip, ends on shutdown
+
+**Changed:** `src/web/sse.rs` (77): `futures_util::stream::unfold` over `broadcast::Receiver` + `watch` shutdown, `Lagged` → skip, `Closed`/shutdown → end, keep-alive 15 s; payload via `serde_json::json!` with column keys (`Update` not `Serialize`, store untouched); `src/web/sse/tests.rs` (new, 3 tests, own `start` keeping the `Arc<AppState>`).
+
+**Check:** red first — `0 passed; 3 failed` (501). Green ×3: `3 passed`. Stop with an open client after shutdown: ~0.2 ms (2 s bound); mutation: shutdown signal disabled → test fails at the 2 s timeout. Keep-alive not tested (15 s wait).
+**Parallel:** branch `grpB-sse`, cherry-picked as ca63187.
+
+**reviewer:** batched (below). **Carry-forward:** none.
+
+## Step 12 ✓ 2026-10-15 — pause POST: 0..=60 min, bearer token, never replaces Shutdown
+
+**Changed:** `src/web/pause.rs` (79): hand-parsed `minutes`, XOR-fold constant-time token compare (length first), `send_if_modified` keeps `Shutdown` → 503 `{"error":"shutting down"}` (A2), reply `{"paused_until"}`; order token 401 → minutes 400 → shutdown 503; `src/web/pause/tests.rs` (new, 5 tests); `src/collector/tests.rs` +14 (`a_pause_sent_while_running_skips_polls_until_it_ends`: 90 s pause at t=70 → opens [0, 60, 180, 240]); `status::paused_until` → `pub(crate)`.
+
+**Check:** red first — 5 pause tests `501`. Green: `cargo test --lib web::` 26, `collector::` 25 passed on branch. `grep -rnE '0x06|0x10|write_single|write_multiple' src/web src/collector` → none.
+**Parallel:** branch `grpB-pause`, cherry-picked as ec58752.
+
+**Group B:** prep ddd4a8a/ad98405 (shared `pub(super)` test helpers, 501 test → `/telemetry` only, rustfmt). `loop/merge-gate.sh grpB-api grpB-pages grpB-sse grpB-pause` → MERGE GATE OK (protocol 99.82 %, metrics 99.4 %).
+**reviewer:** batched over `@{u}..HEAD` — INTENT satisfied ×4, no creep; 0 CRITICAL / 0 HIGH / 2 MEDIUM. app.js ↔ markup, `/api/series` body and pause form verified consistent.
+- MEDIUM M1: 500 on read failure + energy default `min(7, cap)` not in §8.4 f → A8 (step 15).
+- MEDIUM M2: after owner A7 (1 h run) ROADMAP §10.3/§12 M5 and INDEX still say 7-day soak → A9 (step 19).
+- A2, A5, A6 → fixed.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 13, telemetry page (A4).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:45:24Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
