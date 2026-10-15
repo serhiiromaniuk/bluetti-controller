@@ -46,11 +46,14 @@ writer flushes, open `/events` streams close.
 Server-rendered, no JS build step, assets embedded in the binary, no external
 URL (it works offline during an outage). LAN only: GET has no auth.
 
-- `/` — house grid banner, one card per station (SOC, in/out W, grid state,
-  runtime forecast, last seen, poll health), the last 20 outages, a 7-day
-  energy table, and SOC/power charts with a 24 h / 7 d toggle. A "pause
-  polling" form stops BLE polling for up to 60 min so the official app can
-  connect; the page reloads on live updates.
+- `/` — a Grafana-style dashboard: house grid banner, a data-age line (STALE
+  after 3 missed polls), one card per station (SOC, in/out W, grid state,
+  runtime forecast, last seen, poll health), Battery % / Output W / Input W
+  charts across stations with outage bands, the last 20 outages and a 7-day
+  energy table. Time picker (last 12 h by default, custom, drag to zoom),
+  manual refresh by default with optional auto-refresh, dark theme with a
+  toggle. A "pause polling" form stops BLE polling for up to 60 min so the
+  official app can connect.
 - `/telemetry` — every stored metric per station, its latest value, its
   `verified` flag and a 24 h sparkline.
 
@@ -58,6 +61,7 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 |---|---|---|
 | GET | `/api/status` | stations + house, the same view as `/` |
 | GET | `/api/series?station=&metric=&from=&to=&step=` | `{source, t:[…], v:[…]}`; raw ≤ 48 h, 5-min rollup beyond |
+| GET | `/api/chart?from=&to=&step=` | `{from, to, step, stations:[{name, t, soc, in_w, out_w}], outages}`; one request draws every chart |
 | GET | `/api/outages?from=&to=` | grid events, newest first (default last 7 days) |
 | GET | `/api/energy?days=7` | daily energy per station and house outage totals |
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |

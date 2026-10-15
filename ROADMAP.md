@@ -877,7 +877,8 @@ runtime_h   = remaining_wh / max(load_w, 1)
 - **`/` status:** house grid banner (state + since when); one card per station
   (name, model, SOC bar, in/out W, grid state, runtime forecast, last seen, poll
   health, encrypted yes/no); outage log (last 20); energy table (last 7 days);
-  charts: SOC and power per station, 24 h with a 7 d toggle (uPlot).
+  charts: SOC, output and input power across stations (uPlot), with a
+  Grafana-style time picker and manual refresh (§8.4 j, 2026-10-15).
 - **`/telemetry`:** every stored metric per station, verified and unverified,
   latest value and sparkline.
 - **"Pause polling" button:** stops BLE polling for N minutes (max 60) so the
@@ -889,6 +890,7 @@ runtime_h   = remaining_wh / max(load_w, 1)
 |---|---|---|
 | GET | `/api/status` | current state of all stations + house |
 | GET | `/api/series?station=&metric=&from=&to=&step=` | time series (raw or rollup by range) |
+| GET | `/api/chart?from=&to=&step=` | every station's SOC, in W, out W on one axis per station, plus the window's outages (§8.4 j) |
 | GET | `/api/outages?from=&to=` | grid events |
 | GET | `/api/energy?days=7` | daily energy per station |
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |
@@ -974,15 +976,31 @@ recommendation the code follows.
   (51 081 B) and `assets/uPlot.min.css` (1 857 B), its MIT `LICENSE` beside
   them, credited in `README.md`. No CDN, no external URL anywhere: the page
   works offline in an outage (golden rule #1). *Page weight* (uncompressed,
-  100 KB = 100 000 B): 51 081 + 1 857 + `app.js` ≤ 6 000 + `app.css` ≤ 4 000 +
-  HTML ≤ 25 000 = 87 938 B < 100 000 B. Over budget → trim HTML/JS, never the
+  100 KB = 100 000 B): 51 081 + 1 857 + `app.js` ≤ 12 000 + `app.css` ≤ 5 000 +
+  HTML ≤ 18 000 = 87 938 B < 100 000 B. Over budget → trim HTML/JS, never the
   threshold; compression would add `tower-http` and needs an amendment here.
-- **(j) Front end.** `app.js` draws one uPlot chart per station (SOC on the
-  right axis; the four powers on the left) from `/api/series`; the 24 h / 7 d
-  toggle is `?range=24h|7d` (anything else → 24 h). An SSE event triggers a
-  page reload debounced to 2 s instead of client-side templating. The pause
-  form shows a token field only when `web.token` is set. A viewport meta tag
-  and one-column CSS below 600 px make it phone-friendly.
+  *Rebalanced 2026-10-15 (owner):* was JS 6 000 / CSS 4 000 / HTML 25 000; the
+  dashboard (j) needs ~11 KB of JS while `/` renders ~7 KB of HTML. Same sum,
+  same 100 KB limit; `web::tests` enforces each per-file cap.
+- **(j) Front end** (reworked 2026-10-15 at the owner's request, task
+  `2026-10-15_ui-dashboard`; lowest overhead first). Grafana-style:
+  - Time picker: last 1 h … 30 d (default **12 h**), custom from/to, drag across
+    a chart to zoom. URL state `?from=now-12h&to=now` (or ms epochs)
+    `&refresh=5m`.
+  - Refresh: **manual by default** (button); optional auto 1 m / 5 m / 15 m /
+    30 m / 1 h, skipped while the tab is hidden, one catch-up when it shows
+    again. A refresh is `GET /` (its `#live` and `#tables` swapped in) plus ONE
+    `GET /api/chart`; nothing else goes over the network. The page no longer
+    uses `/events` (the endpoint stays for API clients).
+  - Three panels across stations — Battery %, Output W, Input W — with synced
+    cursors, house-outage bands and a line break after a gap of > 3 steps.
+    `/api/chart` raises `step` to ≤ 1000 buckets (a multiple of 300 s over
+    48 h) and rounds values to 0.1.
+  - Data age: "Last sample N ago" on the server clock; after 3 poll intervals
+    it becomes a STALE banner. Days without samples read "no data", never 0.
+  - Dark theme by default, a toggle kept in `localStorage`; no-JS shows cards
+    and tables only. The pause form shows a token field only when `web.token`
+    is set. One-column CSS below 600 px.
 - **(k) `/telemetry`.** Every stored metric per station (the `sample`
   columns and the `sample_extra` keys), its latest value and its `verified`
   flag from the model's profile (`Field::verified`; unknown → unverified). A

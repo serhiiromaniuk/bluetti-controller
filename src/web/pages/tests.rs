@@ -128,7 +128,7 @@ fn renders_hand_computed_values() {
     assert!(!html.contains(r#"name="token""#));
     assert!(!html.contains("http://") && !html.contains("https://"));
     // §8.4 i: the HTML's share of the 100 KB page weight.
-    assert!(html.len() <= 25_000, "{} B", html.len());
+    assert!(html.len() <= 18_000, "{} B", html.len());
 }
 
 #[test]

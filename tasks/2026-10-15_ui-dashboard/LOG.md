@@ -169,3 +169,14 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-10-15 — real-Chrome check, close review fixed, budget rebalanced by the owner
+
+**Chrome (owner's browser, Claude-in-Chrome, live unit):** load = `/` + 4 assets + ONE `/api/chart`; 0 localhost requests in 30 s idle; Refresh = `/` + `/api/chart`; hover legend synced across 3 panels; Theme toggles dark/light with no request; Last 3 hours → 1 request, URL `?from=now-3h&to=now`; drag-zoom 4:00–4:40 → 1 request, picker shows Custom with both times; Auto 1m → exactly 1 refresh in 63 s; forced old `data-ts` → red "STALE — no new sample for 11 min" within one 30 s tick; telemetry themed; 420 px window: no horizontal scroll; console errors: none. Pause not pressed (it would stop polling).
+
+**close-reviewer:** hold — 1 HIGH / 2 MEDIUM, fixed:
+- HIGH spec/README described the old UI; app.js 10 914 B > §8.4 i's 6 000 B. Owner chose to rebalance (same 87 938 B sum, 100 KB limit unchanged): JS 12 000 / CSS 5 000 / HTML 18 000, now enforced by `web::tests::assets_stay_within_the_page_weight_budget` and the HTML test (25 000 → 18 000). §8.1, §8.2, §8.4 i–j and README updated, `/api/chart` in both route tables.
+- MEDIUM H9 described the 24 h / 7 d toggle → rewritten for the new UI and the look check; OUTCOME points to it.
+- MEDIUM OUTCOME's "45 requests/min" stated as fact → marked as an estimate with its basis.
+
+**Decision:** page-weight split JS 12 000 / CSS 5 000 / HTML 18 000 (owner, 2026-10-15, ROADMAP §8.4 i).

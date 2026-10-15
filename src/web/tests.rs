@@ -118,6 +118,23 @@ async fn healthz_is_null_before_the_first_poll() {
     server.await.unwrap().unwrap();
 }
 
+/// §8.4 i: each file's share of the 100 KB page weight (rebalanced
+/// 2026-10-15). Over budget → trim the file, never the cap.
+#[test]
+fn assets_stay_within_the_page_weight_budget() {
+    for (name, cap) in [
+        ("app.js", 12_000),
+        ("app.css", 5_000),
+        ("uPlot.iife.min.js", 51_081),
+        ("uPlot.min.css", 1_857),
+    ] {
+        let len = std::fs::metadata(format!("{}/assets/{name}", env!("CARGO_MANIFEST_DIR")))
+            .unwrap()
+            .len();
+        assert!(len <= cap, "{name}: {len} B > {cap} B");
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn every_asset_is_served_with_its_type_and_bytes() {
     let mut reader = rusqlite::Connection::open_in_memory().unwrap();
