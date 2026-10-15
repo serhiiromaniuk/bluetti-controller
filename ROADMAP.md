@@ -188,6 +188,17 @@ Committed fixtures are anonymised. This keeps the repo publishable later.
 from ~27 h to ~16 h runtime (§10.1). Place the host (or a USB BLE dongle on an
 extension) within BLE range of all three stations.
 
+**ADR-009 — Local time via `jiff` and the host tzdb.** *Context:* the energy
+table needs local-day bounds and the forecast "lasts until HH:MM" needs local
+time, both from `general.timezone` (§9); the server renders both (§8.4 d), so
+browser-side `Intl` cannot do it. *Decision:* the `jiff` crate (0.2.38, Unlicense
+OR MIT, pure Rust, default features) reads the host's tzdb (`/usr/share/zoneinfo`,
+Debian `tzdata`) — offline, golden rule #1. `src/config.rs` parses the zone at
+startup and fails fast on an unknown name. *Rejected:* `chrono-tz` (bundles the
+whole tzdb into the binary); a fixed UTC offset (wrong across DST).
+*Consequences:* one new runtime dependency; a host without `tzdata` fails at
+startup with a clear error instead of rendering wrong days.
+
 ---
 
 ## 4. Research findings
@@ -528,6 +539,7 @@ None covers all three of our stations. [S16][S24]
 | anyhow / thiserror | 1.0.104 / 2.0.21 | |
 | p256 / aes / cbc / md-5 | 0.14.0 / 0.9.3 / 0.2.1 / 0.11.0 | locked in `Cargo.lock` (phase 2 step 6); RustCrypto, MIT OR Apache-2.0; p256 features `ecdh`, `ecdsa`; AES-128 temp + AES-256 session CBC, md5 IVs (§4.4); aes needs Rust ≥ 1.89 [S38] |
 | uPlot (vendored JS) | 1.6.32 | 21.9 KB gzipped vs Chart.js 68.4 KB |
+| jiff | 0.2.38 | Unlicense OR MIT; host tzdb, ADR-009 |
 
 Toolchain: rustup with Rust 1.99.0 pinned in `rust-toolchain.toml` (rustfmt +
 clippy included); the distro `rustc` 1.93.1 is shadowed by `~/.cargo/bin`. [S25]
@@ -890,6 +902,91 @@ runtime_h   = remaining_wh / max(load_w, 1)
 - Binds to `web.listen`; LAN only; the host firewall blocks other networks.
 - No auth for GET in the MVP; optional bearer `web.token` for the POST.
 
+### 8.4 M4 design (phase 5, settled 2026-10-15)
+
+Settles what §8.1–§8.3 leave open (RULES.md decision process). Each item is the
+recommendation the code follows.
+
+- **(a) Module layout.** `src/web/{mod,state,status,history,api,pages,telemetry,
+  sse,pause,assets}.rs`, one responsibility each, ≤ ~400 lines; askama
+  templates in `templates/`. `state.rs` holds `AppState` (reader, config view,
+  `Control` sender, SSE sender, shutdown). One view model per page: `/` and
+  `/api/status` serialise the same `Status` struct, so the page and the API
+  never disagree.
+- **(b) Grid state per station** (UI-derived, no new storage): an open
+  station-scope `grid_event` → `Absent`; else no sample, or the newest sample
+  older than 3 poll intervals → `Unknown`; else `Present`. House banner:
+  `metrics::house::vote` over the `grid_sensor` stations' states; "since" =
+  the open house event's `started_at`, else the newest closed house event's
+  `ended_at`, else omitted. **Poll health** on the card: samples and
+  `poll_failure` rows of the last 24 h, plus the newest failure's stage.
+- **(c) Runtime forecast.** `metrics::runtime::forecast` over the station's
+  last 2 h of `sample` rows, with `station.capacity_wh` (DB) and
+  `metrics.usable_capacity_factor`, and the state from (b). `OnBattery` shows
+  "lasts until HH:MM" (local, ADR-009), `OnGrid` "if the power goes now: N h",
+  `Unknown` "—". SOC, powers and forecast carry an "unverified" badge while
+  their fields are `verified: false` (H1–H3); no alert or gate uses them.
+- **(d) Energy table.** The last 7 local days, today included as a partial
+  day. Per station and day: `metrics::energy::totals` over the day's raw
+  samples plus the one sample before the day, with `from`/`to` from
+  `local_day_bounds`. Columns from `energy::Totals`: in, out, Δstored, losses
+  (labelled "estimate", §7.4 — the UPS-mode self-consumption of §2.1 #5),
+  missing coverage. Per day also `metrics::house::totals` over the house
+  events: count, hours without power, longest. The helpers
+  `local_day_bounds(ts, tz)` and `local_hhmm(ts, tz)` live in
+  `src/metrics/localtime.rs` (DST days are 23/25 h), unit-tested.
+- **(e) Outage log.** The newest 20 `grid_event` rows of every scope, newest
+  `started_at` first; `ended_at NULL` shows as "ongoing" with its duration so far.
+- **(f) API** (§8.2). Every error is `400` with `{"error": "<message>"}`.
+  - `/api/status` → the `Status` of (a).
+  - `/api/series`: `station` and `metric` required (unknown → 400); `from`
+    default `to − 24 h`, `to` default now, `from < to`. Ranges ≤ 48 h read raw
+    rows (`sample` columns, or `sample_extra` by `Metric::key()`). Beyond 48 h,
+    metrics with a `rollup_5m` column (`soc` → `soc_avg`, the four powers →
+    `*_avg`) read the rollup; others stay raw (extras exist only within their
+    30-day retention). `step` (seconds, optional, ≥ 1) averages into
+    `ts / step` buckets. Body is columnar: `{"source":"raw"|"rollup_5m",
+    "t":[…],"v":[…]}`.
+  - `/api/outages`: `from` default `to − 7 d`, `to` default now; events
+    overlapping the window, newest first.
+  - `/api/energy?days=N`: `1..=min(30, raw_retention_days)`, default 7; the
+    rows of (d). Beyond → 400: (d) reads raw rows only, and older days are gone.
+- **(g) SSE `/events`.** The writer task publishes `sample`, `grid_event` and
+  `poll_failure` (the row as JSON) on a `tokio::sync::broadcast` channel after
+  each commit. A lagged client skips the missed messages (no close); keep-alive
+  every 15 s; every stream ends when `state.shutdown` fires, so axum's graceful
+  close never waits on an open `/events` client (`serve` fires it first).
+- **(h) Pause** `POST /api/polling/pause?minutes=N`.
+  - `N` in `1..=60` → `Control::Pause { until: now + N min }`; `0` →
+    `Control::Run` (resume, §10.5); missing or other → `400`.
+  - `web.token` set → `Authorization: Bearer <token>` required, else `401`;
+    constant-time compare (fold XOR over the bytes, length checked first), no
+    new crate. Token unset → open (§9, Q1): a pause only stops polling ≤ 60 min.
+  - Reply `{"paused_until": <unix s|null>}`. Views read `paused_until` from
+    `state.control.borrow()`: `Pause { until }` → `SystemTime::now() + (until −
+    Instant::now())`, `null` once past.
+  - No frame is ever sent to a station (golden rule #2).
+- **(i) Assets.** Embedded with `include_bytes!`, served at `/assets/<name>`
+  with `Cache-Control: max-age=86400`; unknown name → 404. uPlot **1.6.32**
+  (git tag `1.6.32`, commit `e995b061`) vendored as `assets/uPlot.iife.min.js`
+  (51 081 B) and `assets/uPlot.min.css` (1 857 B), its MIT `LICENSE` beside
+  them, credited in `README.md`. No CDN, no external URL anywhere: the page
+  works offline in an outage (golden rule #1). *Page weight* (uncompressed,
+  100 KB = 100 000 B): 51 081 + 1 857 + `app.js` ≤ 6 000 + `app.css` ≤ 4 000 +
+  HTML ≤ 25 000 = 87 938 B < 100 000 B. Over budget → trim HTML/JS, never the
+  threshold; compression would add `tower-http` and needs an amendment here.
+- **(j) Front end.** `app.js` draws one uPlot chart per station (SOC on the
+  right axis; the four powers on the left) from `/api/series`; the 24 h / 7 d
+  toggle is `?range=24h|7d` (anything else → 24 h). An SSE event triggers a
+  page reload debounced to 2 s instead of client-side templating. The pause
+  form shows a token field only when `web.token` is set. A viewport meta tag
+  and one-column CSS below 600 px make it phone-friendly.
+- **(k) `/telemetry`.** Every stored metric per station (the `sample`
+  columns and the `sample_extra` keys), its latest value and its `verified`
+  flag from the model's profile (`Field::verified`; unknown → unverified). A
+  server-side inline-SVG sparkline over 24 h, averaged into ≤ 48 buckets
+  (30 min), so the page needs no JS.
+
 ---
 
 ## 9. Configuration
@@ -947,6 +1044,11 @@ address = "AA:BB:CC:DD:EE:03"
 grid_sensor = true
 ```
 
+*Phase 5 (2026-10-15):* `web.token` unset leaves the pause POST **open**
+(§8.4 h); set, it requires the bearer. `general.timezone` is parsed with `jiff`
+at startup and an unknown zone fails fast (ADR-009). Paths are absolute: the
+loader does not expand `~` or `%h`.
+
 ---
 
 ## 10. Deployment and operations
@@ -994,6 +1096,42 @@ RestartSec=10
 [Install]
 WantedBy=default.target
 ```
+
+**M5 design (phase 5, settled 2026-10-15).**
+
+- **Unit.** The block above, with `ExecStart` wrapped in
+  `/usr/bin/systemd-inhibit --what=sleep:idle:handle-lid-switch --mode=block
+  --who=bluetti-controller --why=soak …`: logind's default
+  `LidSwitchIgnoreInhibited=yes` ignores a plain `sleep` lock on lid close.
+  `MainPID` is then `systemd-inhibit`; the service is its child, and
+  `systemd-inhibit` returns the child's exit status, so `Restart=on-failure`
+  still fires (step 18 checks both). Polkit may refuse the lock without a
+  session under linger: then an amendment, never `sudo`.
+- **Install paths.** Binary `~/.local/bin/bluetti-controller`; config
+  `~/.config/bluetti-controller/config.toml` (mode 600, copied from the local
+  `config.toml`) with absolute `storage.path` =
+  `~/.local/share/bluetti-controller/data.db` (a fresh DB) and absolute
+  `crypto.keys_file`; `web.listen = "0.0.0.0:8080"`, no `web.token`.
+  `loginctl enable-linger` (CF-6), or an H-row if polkit refuses.
+- **Build.** `make build` = `cargo build --release --locked`. `make dist` →
+  `dist/bluetti-controller-$(git describe --tags --always --dirty)-x86_64-linux.tar.gz`
+  holding the binary, `deploy/bluetti-controller.service`,
+  `config.example.toml` and `deploy/INSTALL.md`; `dist/` is gitignored.
+- **Soak.** Starts at the unit's `ActiveEnterTimestamp` after linger is on;
+  ends 7 × 24 h later. A reinstall or reconfigure restarts the clock. An
+  hourly transient user timer runs `scripts/soak_probe.sh`, appending one line
+  to `~/.local/share/bluetti-controller/soak.log`: time, `NRestarts`, the
+  service PID (the child of `MainPID`), its `VmRSS`/`VmHWM`, and the max
+  `time_total` of 20 sequential `curl` GETs of `/` on the host's LAN address.
+  - **Intervention:** any human or agent action needed to keep it working —
+    restart, reinstall or reconfigure of the unit, `bluetoothctl
+    disconnect`/`remove`, adapter replug, a recovery reboot. *Not:*
+    systemd's own restarts (`NRestarts`), an unrelated reboot it survives, the
+    owner using the app, the pause button, or a station switched off.
+  - **RSS** = max `VmHWM` of the service process over all probes and
+    invocations; **page time** = max probe `time_total`. Gate: ≤ 1
+    intervention, ≤ 50 MB, ≤ 1 s (RULES.md v1.0). The phone look is an H-row.
+  - The unit keeps running after the soak (the MVP in use).
 
 ### 10.4 Pre-flight checklist (before any hardware run)
 

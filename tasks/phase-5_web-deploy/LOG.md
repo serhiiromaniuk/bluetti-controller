@@ -79,3 +79,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 1 ✓ 2026-10-15 — M4/M5 design record in ROADMAP.md
+
+**Changed:**
+- ROADMAP.md §3 — ADR-009 `jiff` + host tzdb (Q3); §4.9 jiff 0.2.38 row.
+- ROADMAP.md §8.4 — items a–k (module layout, grid state + poll health, forecast, energy table, outage log, API shapes, SSE, pause, assets, front end, telemetry).
+- ROADMAP.md §9 — phase-5 note: token unset = open POST (Q1), tz fail-fast, no `~` expansion.
+- ROADMAP.md §10.3 — M5 design (l): inhibit-wrapped unit, install paths, `make build`/`make dist`, soak + intervention/RSS/page-time definitions (Q5, Q6).
+
+**Check:** §8/§9/§10.3 hold a–l, each a recommendation; §3 has ADR-009; `make loop-hygiene` OK.
+- Facts checked: uPlot tag `1.6.32` = `e995b061`; unpkg `uPlot.iife.min.js` 51 081 B, `uPlot.min.css` 1 857 B, MIT; page weight 87 938 B < 100 000 B; `cargo info jiff` 0.2.38 Unlicense OR MIT; `man systemd-inhibit`: returns the program's exit status.
+
+**reviewer:** 0 CRITICAL / 2 HIGH / 3 MEDIUM (risky step + the BRIEF/PLAN batch `@{u}..HEAD`)
+- HIGH H1: `/api/energy` `1..=31` passes raw retention and contradicts step 9 → fixed: `1..=min(30, raw_retention_days)`, beyond → 400 (§8.4 f); step 9 text matches.
+- HIGH H2: step 17/Q6 read `MainPID` = `systemd-inhibit`, so RSS gate measured the wrapper → fixed in PLAN before the freeze: Q6 + step 17 read the `bluetti-controller` child; step 17 check asserts `/proc/<pid>/exe`.
+- MEDIUM M1: open station event before staleness (writer keeps it through `Unknown`) → A1 (step 6).
+- MEDIUM M2: pause POST can overwrite `Control::Shutdown` → A2 (step 12).
+- MEDIUM M3: `~` path in §10.3 install → A3 (steps 16/18).
+
+**Decision:** M4/M5 design = ROADMAP.md §8.4, §10.3 "M5 design", ADR-009.
+**Carry-forward:** none.
+**Next:** step 2 — config (tz, token comment) + `src/metrics/localtime.rs`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:03:34Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-ceece4274e26e53a)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.3% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

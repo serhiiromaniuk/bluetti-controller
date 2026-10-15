@@ -20,12 +20,12 @@ Every question below is covered by the standing owner delegation (RULES.md); non
 - Q6 — What counts as a "manual intervention", and how are RSS and page time measured? · blocks: 1, 17, 20, 21 · answer: delegated 2026-10-15 —
   - **Intervention:** any human or agent action needed to keep the service working: a restart, reinstall or reconfigure of the unit, `bluetoothctl disconnect`/`remove`, an adapter replug, or a reboot done to recover it.
   - **Not interventions:** systemd's own `Restart=on-failure` (logged as `NRestarts`), an unrelated reboot the unit survives by itself, and the owner using the app, the pause button or switching a station off.
-  - **RSS:** the maximum `VmHWM` of the unit's `MainPID` across all probes and invocations.
+  - **RSS:** the maximum `VmHWM` of the service process across all probes and invocations. Under the inhibit wrapper `MainPID` is `systemd-inhibit`, so the service is its `bluetti-controller` child (spec §10.3 M5).
   - **Page time:** the maximum `time_total` over 20 sequential `curl` GETs of `/`, sent to the host's LAN address (not loopback). The phone measurement is a `HUMAN-CHECKLIST.md` row.
 - Q7 — Does the unit keep running after the soak? · blocks: 22 · answer: delegated 2026-10-15 — yes. It is the MVP in use; nothing in the gate needs it stopped. The homelab system unit (spec §10.2) stays human-only and comes after the MVP.
 
 ## Steps
-- [ ] 1. M4/M5 design record (spec §8, spec §9, spec §10.3, spec §M4, spec §M5, spec §3) (needs Q1, Q2, Q3, Q5, Q6). This step is doc-only: it settles in ROADMAP.md what §8/§10.3 leave open (RULES.md decision process). Each item gets a recommendation.
+- [x] 1. M4/M5 design record (spec §8, spec §9, spec §10.3, spec §M4, spec §M5, spec §3) (needs Q1, Q2, Q3, Q5, Q6). This step is doc-only: it settles in ROADMAP.md what §8/§10.3 leave open (RULES.md decision process). Each item gets a recommendation.
   - (a) Web module layout, one file per responsibility, each ≤ ~400 lines: `src/web/{mod,state,status,history,api,pages,telemetry,sse,pause,assets}.rs`, with templates in `templates/`. One view model per page: `/` and `/api/status` serialise the same `Status` struct.
   - (b) A station's grid state, as the UI derives it:
     - an open station-scope `grid_event` → `Absent`;
@@ -118,7 +118,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - Test: each asset answers `200` with its content type and exact byte length; `/assets/nope` → `404`.
   - check: `cargo test web::assets`; `grep -c uPlot README.md` ≥ 1; `wc -c assets/*` in the LOG · review: low-risk
 - [ ] 9. [parallel: B] JSON API (spec §8.2) (needs Q4) in `src/web/api.rs`.
-  - Routes: `/api/status` (step 6's struct), `/api/outages?from=&to=`, `/api/energy?days=` (1–30, default 7), `/api/series?station=&metric=&from=&to=&step=`. Reads run in `spawn_blocking`.
+  - Routes: `/api/status` (step 6's struct), `/api/outages?from=&to=`, `/api/energy?days=` (`1..=min(30, raw_retention_days)`, default 7; spec §8.4 f), `/api/series?station=&metric=&from=&to=&step=`. Reads run in `spawn_blocking`.
   - Handler tests on an in-memory DB (Q4) assert each body's shape and values. A bad station, metric or range → `400` with a JSON error. Series over > 48 h comes from `rollup_5m`.
   - check: `cargo test web::api`; `make check` · review: risky
 - [ ] 10. [parallel: B] Status page (spec §8.1, spec §8.3) (needs Q2).
@@ -175,11 +175,11 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - `make dist` builds the step 1 l tarball from `make build`; `dist/` goes into `.gitignore`.
   - check: `make build && make dist` and `tar tzf dist/*.tar.gz` in the LOG; `systemd-analyze --user verify deploy/bluetti-controller.service` is clean; `make check` · review: risky (deploy config, Makefile)
 - [ ] 17. [parallel: C] Soak probe script (spec §11, RULES.md v1.0 gate) (needs Q6): `scripts/soak_probe.sh` (bash, read-only, touches no station).
-  - It prints one line per run: UTC ts, `is-active`, `InvocationID`, `NRestarts`, `ActiveEnterTimestamp`, `VmRSS`/`VmHWM` of `MainPID`, `/healthz` age, and the max and median `time_total` of 20 GETs of `/` to a given LAN address.
+  - It prints one line per run: UTC ts, `is-active`, `InvocationID`, `NRestarts`, `ActiveEnterTimestamp`, `VmRSS`/`VmHWM` of the service process (the child of `MainPID`, `pgrep -P`; spec §10.3 M5), `/healthz` age, and the max and median `time_total` of 20 GETs of `/` to a given LAN address.
   - Usage: `scripts/soak_probe.sh <unit> <lan-addr:port>`.
   - It exits non-zero when the unit is inactive or a GET fails.
   - `deploy/INSTALL.md` (step 16) gets the hourly-timer line (Q5) only after the merge; this step writes the script alone.
-  - check: run against a scratch `systemd-run --user` unit of the step 14 binary and config, then stop it; the output line is in the LOG; against a stopped unit it exits non-zero · review: risky (script)
+  - check: run against a scratch `systemd-run --user` unit of the step 14 binary and config, then stop it; the output line is in the LOG; the PID it reads has `readlink /proc/<pid>/exe` ending in `bluetti-controller`; against a stopped unit it exits non-zero · review: risky (script)
 - [ ] 18. Install the user unit, CF-6, start the soak (spec §10.3, spec §M5, `loop/STATE.md` CF-6) (needs Q5, Q6). Host-changing, user-level only.
   - Pre-flight (spec §10.4).
   - `loginctl enable-linger`, then `loginctl show-user "$USER" -p Linger`.
@@ -258,3 +258,6 @@ Every question below is covered by the standing owner delegation (RULES.md); non
 - Gate failures — coverage < 80 %, page weight ≥ 100 KB, or a soak with > 1 manual intervention, RSS > 50 MB or a page > 1 s. Attempts 1–2 log the miss, amend, fix and re-run; the third is `<<LOOP:GATE_FAILED>>`. Fix the work, never the threshold. A wrong metric goes only through the falsified-metric path (AGENTS.md §6).
 
 ## Amendments
+- A1 · 2026-10-15 · MEDIUM `ROADMAP.md:916` — §8.4 b puts an open station event before staleness, but the writer keeps it open through `Unknown` (`src/store/writer.rs:202`): an unreachable station shows `Absent`, gets a stale forecast and votes in the UI's `house::vote` while the collector's does not. Fix at step 6: staleness first (→ `Unknown`); banner from the open house `grid_event` before the vote · disposition: open
+- A2 · 2026-10-15 · MEDIUM `ROADMAP.md:959` — §8.4 h sends `Pause`/`Run` unconditionally, but `src/cli/serve.rs:104` sends `Shutdown` while the server is still up; a POST in that window overwrites it and `polling.await` hangs. Fix at step 12: `send_if_modified` that never replaces `Shutdown`, with a test · disposition: open
+- A3 · 2026-10-15 · MEDIUM `ROADMAP.md:1111` — §10.3 M5 writes `storage.path` as `~/.local/share/…`, but the loader does not expand `~` (§9 note). Fix at step 16/18: `INSTALL.md` and the installed config use the expanded `/home/<user>/…` path for `storage.path` and `crypto.keys_file` · disposition: open
