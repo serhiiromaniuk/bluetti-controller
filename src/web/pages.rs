@@ -6,13 +6,12 @@
 use std::sync::Arc;
 
 use askama::Template;
-use axum::extract::{Query, State};
+use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{Html, IntoResponse, Response};
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
 use rusqlite::Connection;
-use serde::Deserialize;
 
 use crate::web::history::{self, EnergyDay, Outage};
 use crate::web::status::{self, Card};
@@ -22,12 +21,6 @@ use crate::web::{AppState, unix_now};
 const DAYS: u32 = 7;
 const OUTAGES: u32 = 20;
 
-/// `?range=24h|7d` of `/` (§8.4 j); anything else is 24 h.
-#[derive(Debug, Deserialize)]
-pub struct RangeQuery {
-    pub range: Option<String>,
-}
-
 #[derive(Template)]
 #[template(path = "status.html")]
 struct Page {
@@ -35,7 +28,6 @@ struct Page {
     banner: String,
     paused: Option<String>,
     cards: Vec<CardView>,
-    week: bool,
     outages: Vec<OutageRow>,
     energy: Vec<EnergyRow>,
     house: Vec<HouseRow>,
@@ -82,14 +74,13 @@ struct HouseRow {
 }
 
 /// `GET /`: the status page, or 500 when the read fails.
-pub async fn status(State(state): State<Arc<AppState>>, Query(q): Query<RangeQuery>) -> Response {
-    let week = q.range.as_deref() == Some("7d");
+pub async fn status(State(state): State<Arc<AppState>>) -> Response {
     let html = tokio::task::spawn_blocking(move || {
         let conn = state
             .reader
             .lock()
             .map_err(|_| anyhow::anyhow!("reader lock poisoned"))?;
-        render(&conn, unix_now(), &state, week)
+        render(&conn, unix_now(), &state)
     })
     .await
     .map_err(anyhow::Error::from)
@@ -103,8 +94,8 @@ pub async fn status(State(state): State<Arc<AppState>>, Query(q): Query<RangeQue
     }
 }
 
-/// Renders `/` at `now` (unix seconds); `week` = the 7 d chart range.
-pub fn render(conn: &Connection, now: i64, state: &AppState, week: bool) -> anyhow::Result<String> {
+/// Renders `/` at `now` (unix seconds).
+pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<String> {
     let tz = &state.tz;
     let s = status::status(conn, now, state)?;
     let (banner_class, what) = match s.house.state {
@@ -129,7 +120,6 @@ pub fn render(conn: &Connection, now: i64, state: &AppState, week: bool) -> anyh
             .iter()
             .map(|c| card(c, tz))
             .collect::<anyhow::Result<_>>()?,
-        week,
         outages: history::outages(conn, OUTAGES, now)?
             .iter()
             .map(|o| outage(o, tz))
@@ -175,7 +165,14 @@ fn card(c: &Card, tz: &TimeZone) -> anyhow::Result<CardView> {
             "absent" => "bad",
             _ => "warn",
         },
-        forecast: c.forecast.clone(),
+        // The EB3A reads 0 W below its meter floor (ROADMAP §4.3), so a 0 W
+        // output says "unknown load", not "no load". A known grid state means
+        // the sample is fresh; a stale 0 W keeps the plain dash.
+        forecast: if c.forecast == "—" && c.out_w == Some(0.0) && c.grid != "unknown" {
+            "no forecast: output reads 0 W (no load, or below the meter floor)".to_owned()
+        } else {
+            c.forecast.clone()
+        },
         last_seen: match c.last_seen {
             Some(ts) => local(ts, tz, "%a %-d %b %H:%M")?,
             None => "never".to_owned(),
@@ -213,13 +210,21 @@ fn energy_rows(d: &EnergyDay) -> Vec<EnergyRow> {
         .map(|s| EnergyRow {
             day: d.day.clone(),
             station: s.station.clone(),
-            cells: [
-                wh(s.energy_in_wh),
-                wh(s.energy_out_wh),
-                wh(s.stored_delta_wh),
-                wh(s.losses_estimate_wh),
-            ],
-            missing: duration(s.missing_s),
+            cells: if s.no_data {
+                ["—", "—", "—", "—"].map(String::from)
+            } else {
+                [
+                    wh(s.energy_in_wh),
+                    wh(s.energy_out_wh),
+                    wh(s.stored_delta_wh),
+                    wh(s.losses_estimate_wh),
+                ]
+            },
+            missing: if s.no_data {
+                "no data".to_owned()
+            } else {
+                duration(s.missing_s)
+            },
         })
         .collect()
 }

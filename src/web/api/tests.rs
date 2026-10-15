@@ -287,3 +287,36 @@ async fn energy_cap_is_30_days_when_retention_is_longer() {
     assert_bad(server.0, "/api/energy?days=31").await;
     stop(server).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn chart_returns_every_station_and_rejects_bad_input() {
+    let conn = db();
+    let now = unix_now();
+    soc(&conn, 1, now - 120, 80.0);
+    event(&conn, "house", now - 600, None);
+    let server = start(AppState::for_tests(conn)).await;
+    let (status, body) = call(server.0, "/api/chart").await;
+    assert_eq!(status, OK, "{body}");
+    // Default window 24 h; the 60 s poll interval raised to 120 s (≤ 1000 points).
+    assert_eq!(
+        body["to"].as_i64().unwrap() - body["from"].as_i64().unwrap(),
+        86_400
+    );
+    assert_eq!(body["step"], 120);
+    assert_eq!(body["stations"][0]["name"], "router");
+    assert_eq!(body["stations"][0]["soc"], json!([80.0]));
+    assert_eq!(body["stations"][0]["in_w"], json!([null]));
+    assert_eq!(body["stations"][1]["t"], json!([]));
+    assert_eq!(body["outages"][0]["scope"], "house");
+    for path in [
+        "/api/chart?from=10&to=5",
+        "/api/chart?from=x",
+        "/api/chart?step=0",
+        "/api/chart?from=-9223372036854775808&to=0",
+        "/api/chart?from=0&to=100000000",
+        "/api/chart?step=9223372036854775807",
+    ] {
+        assert_bad(server.0, path).await;
+    }
+    stop(server).await;
+}

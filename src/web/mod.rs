@@ -16,6 +16,7 @@ use tokio::net::TcpListener;
 
 pub mod api;
 pub mod assets;
+pub mod chart;
 pub mod history;
 pub mod pages;
 pub mod pause;
@@ -42,6 +43,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/assets/{name}", get(assets::asset))
         .route("/api/status", get(api::status))
         .route("/api/series", get(api::series))
+        .route("/api/chart", get(api::chart))
         .route("/api/outages", get(api::outages))
         .route("/api/energy", get(api::energy))
         .route("/api/polling/pause", post(pause::pause))

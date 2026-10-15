@@ -36,13 +36,12 @@ fn fixture(now: i64) -> Connection {
 async fn status_page_is_served_as_html() {
     let now = crate::web::unix_now();
     let (addr, stop, server) = start(AppState::for_tests(fixture(now))).await;
-    let (status, body) = tokio::task::spawn_blocking(move || get(addr, "/?range=7d"))
+    let (status, body) = tokio::task::spawn_blocking(move || get(addr, "/"))
         .await
         .unwrap();
     assert_eq!(status, "HTTP/1.1 200 OK");
     assert!(body.contains(r#"<meta name="viewport""#), "{body}");
     assert!(body.contains("if the power goes now: 1.2 h"), "{body}");
-    assert!(body.contains(r#"<a href="?range=7d" data-range="7d" class="on">"#));
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
 }
@@ -68,7 +67,7 @@ fn page(token: Option<&str>) -> String {
     event(&conn, "office", NOW - 600, None);
     let mut state = AppState::for_tests(Connection::open_in_memory().unwrap());
     state.token = token.map(str::to_owned);
-    render(&conn, NOW, &state, false).unwrap()
+    render(&conn, NOW, &state).unwrap()
 }
 
 #[test]
@@ -98,8 +97,11 @@ fn renders_hand_computed_values() {
         "<tr><td>2026-10-15</td><td>router</td><td>100</td><td>100</td><td>0</td><td>0</td><td>0 s</td></tr>"
     ));
     assert!(html.contains("<tr><td>2026-10-15</td><td>1</td><td>30 min</td><td>30 min</td></tr>"));
+    // Yesterday holds no sample: dashes and "no data", never 0 Wh.
+    assert!(html.contains(
+        "<tr><td>2026-10-14</td><td>router</td><td>—</td><td>—</td><td>—</td><td>—</td><td>no data</td></tr>"
+    ));
     assert!(html.contains(r#"<div class="chart" data-chart-station="office"></div>"#));
-    assert!(html.contains(r#"<a href="?range=24h" data-range="24h" class="on">"#));
     assert!(
         html.contains(r#"<meta name="viewport" content="width=device-width, initial-scale=1">"#)
     );
@@ -114,4 +116,26 @@ fn renders_hand_computed_values() {
 fn token_field_only_with_a_token() {
     assert!(page(Some("s3cret")).contains(r#"<input name="token" type="password""#));
     assert!(!page(Some("s3cret")).contains("s3cret"));
+}
+
+#[test]
+fn zero_output_says_why_there_is_no_forecast() {
+    // router: SOC flat at 100 %, output 0 W (the EB3A meter floor, §4.3), so
+    // neither the load nor the SOC slope gives a runtime.
+    let conn = db();
+    for i in 0..=10 {
+        conn.execute(
+            "INSERT INTO sample (station_id, ts, soc, ac_in_w, ac_out_w, ac_in_v, encrypted)
+             VALUES (1, ?1, 100, 0, 0, 230, 1)",
+            [NOW - 660 + i * 60],
+        )
+        .unwrap();
+    }
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let html = render(&conn, NOW, &state).unwrap();
+    let why = "no forecast: output reads 0 W (no load, or below the meter floor)";
+    assert!(html.contains(why), "{html}");
+    // An hour later the 0 W is stale (grid unknown): the plain dash again.
+    let html = render(&conn, NOW + 3600, &state).unwrap();
+    assert!(!html.contains(why) && html.contains("<p>—</p>"), "{html}");
 }

@@ -14,12 +14,14 @@ use rusqlite::Connection;
 use serde::Serialize;
 use serde_json::{Value, json};
 
-use super::{AppState, history, status as view, unix_now};
+use super::{AppState, chart as dash, history, status as view, unix_now};
 use crate::protocol::device::Metric;
 use crate::store::read;
 
 /// The default window of `/api/series` (§8.4 f).
 const SERIES_DEFAULT_S: i64 = 24 * 3600;
+/// The longest `/api/chart` window: a year, past any retention.
+const CHART_MAX_S: i64 = 366 * 86_400;
 /// The default window of `/api/outages` (§8.4 f).
 const OUTAGES_DEFAULT_S: i64 = 7 * 86_400;
 /// `/api/energy` never reaches further back than this many days (§8.4 f).
@@ -130,6 +132,35 @@ pub async fn series(
             .ok_or_else(|| bad(format!("unknown station {name:?}")))?;
         let s = read::series(conn, station.id, metric, from, to, step)?;
         Ok(json!({ "source": s.source.as_str(), "t": s.t, "v": s.v }))
+    })
+    .await
+}
+
+/// `GET /api/chart?from=&to=&step=`: every station's SOC, input and output
+/// power plus the window's outages in one body (`chart::Chart`). The window
+/// defaults to the last 24 h; `step` to the poll interval, raised so no
+/// station has more than `chart::MAX_POINTS` buckets.
+pub async fn chart(
+    State(state): State<Arc<AppState>>,
+    Query(q): Params,
+) -> Result<Json<dash::Chart>, ApiError> {
+    let now = unix_now();
+    let (from, to) = window(&q, now, SERIES_DEFAULT_S)?;
+    // `from < 0` first: it keeps `to - from` from overflowing.
+    if from < 0 || to - from > CHART_MAX_S {
+        return Err(bad(format!(
+            "the window must start at ≥ 0 and span ≤ {CHART_MAX_S} s"
+        )));
+    }
+    let step = int(&q, "step")?.unwrap_or(state.interval_s);
+    if !(1..=to - from).contains(&step) {
+        return Err(bad(format!(
+            "step must be in 1..={}, got {step}",
+            to - from
+        )));
+    }
+    read(state, move |conn, _| {
+        Ok(dash::chart(conn, from, to, step, now)?)
     })
     .await
 }

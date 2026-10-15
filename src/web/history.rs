@@ -37,8 +37,11 @@ pub struct StationEnergy {
     pub stored_delta_wh: f64,
     /// `in − out − Δstored`; shown labelled "estimate" (§7.4).
     pub losses_estimate_wh: f64,
-    /// Seconds of gaps longer than 3 poll intervals, counted as missing coverage.
+    /// Seconds of gaps longer than 3 poll intervals, counted as missing
+    /// coverage; the whole day when `no_data`.
     pub missing_s: i64,
+    /// No sample inside the day: the zeros above are not measurements.
+    pub no_data: bool,
 }
 
 /// `metrics::house::totals` over one day (§7.2).
@@ -70,9 +73,9 @@ pub struct Outage {
 /// today included as a partial day ending at `now`. `interval_s` is the poll
 /// interval, which sets the gap rule of `energy::totals`.
 ///
-/// shortcut: a day without samples, or a run that stops long before the day
-/// ends, reports `missing_s = 0` (only gaps between samples count, §7.4);
-/// count those too if the table misleads in practice.
+/// A day without samples is `no_data`, all of it missing. shortcut: a run that
+/// starts late or stops long before the day ends reports only the gaps between
+/// samples (§7.4); count the edges too if the table misleads in practice.
 pub fn energy(
     conn: &Connection,
     days: u32,
@@ -107,13 +110,16 @@ pub fn energy(
             let samples = read::samples(conn, station.id, from, to)?;
             let refs: Vec<_> = samples.iter().map(|(ts, v)| (*ts, v)).collect();
             let t = energy::totals(&refs, interval_s, station.capacity_wh, from, to);
+            // `read::samples` adds the one sample before `from`: not this day's.
+            let no_data = !samples.iter().any(|(ts, _)| *ts >= from);
             rows.push(StationEnergy {
                 station: station.name.clone(),
                 energy_in_wh: t.energy_in_wh,
                 energy_out_wh: t.energy_out_wh,
                 stored_delta_wh: t.stored_delta_wh,
                 losses_estimate_wh: t.losses_estimate_wh,
-                missing_s: t.missing_s,
+                missing_s: if no_data { to - from } else { t.missing_s },
+                no_data,
             });
         }
         let h = house::totals(&house_events, from, to);

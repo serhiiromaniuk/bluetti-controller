@@ -125,6 +125,26 @@ fn a_gap_shows_as_missing_coverage() {
 }
 
 #[test]
+fn a_day_without_samples_is_no_data_all_missing() {
+    // One sample at 06-30 23:59 local. 07-01 (to now = 01:00) holds none: the
+    // sample before the day must not make it look measured.
+    let conn = db();
+    sample(&conn, D0 - 60, 50.0, 60.0, 0.0);
+    let days = energy(&conn, 2, D0 + 3600, INTERVAL, &kyiv()).unwrap();
+    let got: Vec<_> = days
+        .iter()
+        .map(|d| {
+            (
+                d.day.as_str(),
+                d.stations[0].no_data,
+                d.stations[0].missing_s,
+            )
+        })
+        .collect();
+    assert_eq!(got, [("2026-07-01", true, 3600), ("2026-06-30", false, 0)]);
+}
+
+#[test]
 fn an_open_outage_is_clipped_to_now() {
     // Open house outage since 01:00 local; now = 02:00 local. Today's totals
     // end at now: 3600 s, not the 82 800 s to the day's end. The log shows it

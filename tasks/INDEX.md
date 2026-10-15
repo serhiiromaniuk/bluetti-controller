@@ -21,6 +21,7 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | 2026-10-13 | 4 | Collector, storage, metrics (M3) | [OUTCOME](./phase-4_collector/OUTCOME.md) | done | `v0.4-collector` |
 | 2026-10-15 | 5 | Web UI + deploy + 1 h run (M4+M5) | [phase-5_web-deploy](./phase-5_web-deploy/) | done | `v1.0-mvp` |
 | 2026-10-15 | ad hoc | Live UI QA report | [2026-10-15_qa-report](./2026-10-15_qa-report/) | done | — |
+| 2026-10-15 | ad hoc | UI dashboard rework | [2026-10-15_ui-dashboard](./2026-10-15_ui-dashboard/) | in-progress | — |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:
