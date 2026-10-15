@@ -22,7 +22,7 @@ use bluetti_controller::transport::read::ReadPolicy;
 use bluetti_controller::transport::replay::ReplayGatt;
 use bluetti_controller::transport::station;
 use rusqlite::Connection;
-use tokio::sync::{mpsc, watch};
+use tokio::sync::{broadcast, mpsc, watch};
 
 const INTERVAL: Duration = Duration::from_secs(60);
 const ROUNDS: usize = 3;
@@ -180,6 +180,7 @@ async fn replayed_rounds_land_samples_failures_and_unreachable() {
         stations,
         params,
         NonZeroU32::new(30).unwrap(),
+        broadcast::channel(1).0,
     )
     .unwrap();
 

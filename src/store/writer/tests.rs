@@ -25,6 +25,12 @@ fn debounced(n: u32) -> Params {
     }
 }
 
+/// An update sender whose receiver is already dropped: every writer built with
+/// it publishes into nothing, which must never fail a record.
+fn quiet() -> broadcast::Sender<Update> {
+    broadcast::channel(1).0
+}
+
 /// Syncs `(name, grid_sensor)` stations into the file and returns them as the
 /// writer sees them.
 fn stations(path: &Path, list: &[(&str, bool)]) -> Vec<Station> {
@@ -73,7 +79,7 @@ fn failed(station: &Station, ts: i64) -> Record {
 /// and wait for the thread to return.
 async fn run(path: &Path, stations: &[Station], records: Vec<Record>) {
     let conn = open_writer(path).unwrap();
-    let writer = Writer::restore(conn, stations.to_vec(), params(), RETENTION).unwrap();
+    let writer = Writer::restore(conn, stations.to_vec(), params(), RETENTION, quiet()).unwrap();
     let (tx, rx) = mpsc::channel(4);
     let handle = writer.spawn(rx);
     for record in records {
@@ -161,6 +167,7 @@ fn a_gap_is_unknown_and_opens_no_event() {
         s.clone(),
         params(),
         RETENTION,
+        quiet(),
     )
     .unwrap();
     for record in rounds(&s, &[(0, &[ON, ON]), (60, &[ON, ON])]) {
@@ -192,7 +199,8 @@ fn an_unreachable_sensor_stops_voting_after_the_tick() {
         let db = TempDb::new(&format!("writer-tick-{debounce}"));
         let s = stations(&db.path(), &[("a", true), ("b", true)]);
         let conn = open_writer(&db.path()).unwrap();
-        let mut writer = Writer::restore(conn, s.clone(), debounced(debounce), RETENTION).unwrap();
+        let mut writer =
+            Writer::restore(conn, s.clone(), debounced(debounce), RETENTION, quiet()).unwrap();
         for record in rounds(&s, &[(0, &[ON, ON]), (60, &[ON, ON])]) {
             writer.handle(&record).unwrap();
         }
@@ -274,6 +282,7 @@ async fn stores_failures_and_snapshots_and_rejects_an_unknown_station() {
         s.clone(),
         params(),
         RETENTION,
+        quiet(),
     )
     .unwrap();
     writer.handle(&failed(&s[0], 0)).unwrap();
@@ -306,7 +315,14 @@ async fn stores_failures_and_snapshots_and_rejects_an_unknown_station() {
 fn a_station_named_house_is_refused() {
     let db = TempDb::new("writer-house-name");
     let s = stations(&db.path(), &[("house", true)]);
-    let err = Writer::restore(open_writer(&db.path()).unwrap(), s, params(), RETENTION).err();
+    let err = Writer::restore(
+        open_writer(&db.path()).unwrap(),
+        s,
+        params(),
+        RETENTION,
+        quiet(),
+    )
+    .err();
     assert!(format!("{:#}", err.unwrap()).contains("house"));
 }
 
@@ -321,6 +337,7 @@ fn a_failed_house_write_is_retried_next_round() {
         s.clone(),
         params(),
         RETENTION,
+        quiet(),
     )
     .unwrap();
     let fail = |writer: &Writer, op: &str| {
@@ -361,3 +378,4 @@ fn a_failed_house_write_is_retried_next_round() {
 }
 
 mod jobs;
+mod updates;

@@ -16,10 +16,12 @@ use bluetti_controller::transport::read::ReadPolicy;
 use bluetti_controller::web;
 use tokio::net::TcpListener;
 use tokio::signal::unix::{SignalKind, signal};
-use tokio::sync::{mpsc, oneshot, watch};
+use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 /// Records queued between the collector and the writer: a few rounds' worth.
 const QUEUE: usize = 256;
+/// Updates buffered per SSE client; a slower client skips the missed ones (§8.4 g).
+const UPDATES: usize = 64;
 
 pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()> {
     // Installed first, so a signal during startup is not lost.
@@ -50,7 +52,14 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         debounce: config.metrics.debounce_samples,
         interval_s: i64::try_from(interval.as_secs()).context("poll_interval_secs too large")?,
     };
-    let writer = Writer::restore(conn, stations, params, config.storage.raw_retention_days)?;
+    let (updates, _) = broadcast::channel(UPDATES);
+    let writer = Writer::restore(
+        conn,
+        stations,
+        params,
+        config.storage.raw_retention_days,
+        updates,
+    )?;
     let router = web::router(open_reader(path)?);
     let listener = TcpListener::bind(config.web.listen)
         .await

@@ -222,7 +222,14 @@ fn the_writer_rolls_up_when_records_enter_a_new_bucket() {
         interval_s: P,
     };
     let days = NonZeroU32::new(30).unwrap();
-    let mut writer = Writer::restore(conn, vec![station], params, days).unwrap();
+    let mut writer = Writer::restore(
+        conn,
+        vec![station],
+        params,
+        days,
+        tokio::sync::broadcast::channel(1).0,
+    )
+    .unwrap();
     for ts in (0..=600).step_by(60) {
         let record = Record::Sample {
             station: id,

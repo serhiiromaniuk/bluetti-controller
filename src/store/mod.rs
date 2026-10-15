@@ -17,4 +17,4 @@ pub use write::{
     Failure, Health, Sample, Stage, close_outage, insert_failure, insert_sample, insert_snapshot,
     open_outage, station_health, sync_stations,
 };
-pub use writer::{Record, Station, Writer};
+pub use writer::{Record, Station, Update, Writer};

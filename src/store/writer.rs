@@ -2,19 +2,21 @@
 //! its own blocking thread, stores every record the collector sends, and drives
 //! the §7.1 grid presence and the §7.2 house outage log into `grid_event` rows.
 //! It also runs the §6 jobs: rollup every 5 minutes, retention nightly, compaction
-//! weekly, timed by the records' own timestamps.
+//! weekly, timed by the records' own timestamps. Every committed row it
+//! publishes as an [`Update`] for the SSE clients (§8.4 g).
 
 use std::num::NonZeroU32;
 
 use anyhow::{Context, bail};
 use rusqlite::Connection;
-use tokio::sync::mpsc;
+use tokio::sync::{broadcast, mpsc};
 use tokio::task::JoinHandle;
 
-use super::read::{last_samples, open_event};
+use super::read::{CORE, Values, last_samples, open_event};
 use super::rollup::{compact, retention, rollup};
 use super::write::{
-    Failure, Sample, close_outage, insert_failure, insert_sample, insert_snapshot, open_outage,
+    Failure, Sample, Stage, close_outage, insert_failure, insert_sample, insert_snapshot,
+    open_outage,
 };
 use crate::metrics::energy::BUCKET_S;
 use crate::metrics::grid::{Grid, GridState, Params};
@@ -45,6 +47,28 @@ pub enum Record {
     },
 }
 
+/// One committed row, published after its commit (§5.3, §8.4 g).
+#[derive(Debug, Clone, PartialEq)]
+pub enum Update {
+    /// A `sample` row: its core columns only (§6).
+    Sample {
+        station: i64,
+        ts: i64,
+        core: Values,
+    },
+    /// A `grid_event` row opened (`ended_at` is `None`) or closed.
+    GridEvent {
+        scope: String,
+        started_at: i64,
+        ended_at: Option<i64>,
+    },
+    PollFailure {
+        station: i64,
+        ts: i64,
+        stage: Stage,
+    },
+}
+
 /// A configured station as the writer sees it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Station {
@@ -72,6 +96,7 @@ pub struct Writer {
     raw_retention_days: NonZeroU32,
     /// The 5-minute bucket, UTC day and week the §6 jobs last ran in.
     ran: [Option<i64>; 3],
+    updates: broadcast::Sender<Update>,
 }
 
 const DAY_S: i64 = 86_400;
@@ -87,6 +112,7 @@ impl Writer {
         stations: Vec<Station>,
         params: Params,
         raw_retention_days: NonZeroU32,
+        updates: broadcast::Sender<Update>,
     ) -> anyhow::Result<Writer> {
         let mut tracked = Vec::with_capacity(stations.len());
         for station in stations {
@@ -113,6 +139,7 @@ impl Writer {
             house_open,
             raw_retention_days,
             ran: [None; 3],
+            updates,
         })
     }
 
@@ -144,12 +171,26 @@ impl Writer {
                     );
                 }
                 insert_sample(&mut self.conn, *station, sample)?;
+                let core = CORE
+                    .iter()
+                    .filter_map(|(m, _)| Some((*m, *sample.values.get(m)?)))
+                    .collect();
+                self.publish(Update::Sample {
+                    station: *station,
+                    ts: sample.ts,
+                    core,
+                });
                 self.stations[index].grid.observe(sample.ts, &sample.values);
                 sample.ts
             }
             Record::Failure { station, failure } => {
                 self.index(*station)?;
                 insert_failure(&self.conn, *station, failure)?;
+                self.publish(Update::PollFailure {
+                    station: *station,
+                    ts: failure.ts,
+                    stage: failure.stage,
+                });
                 failure.ts
             }
             Record::Snapshot {
@@ -189,6 +230,11 @@ impl Writer {
         Ok(())
     }
 
+    /// A send with no receiver (no SSE client) is not an error.
+    fn publish(&self, update: Update) {
+        let _ = self.updates.send(update);
+    }
+
     fn index(&self, id: i64) -> anyhow::Result<usize> {
         self.stations
             .iter()
@@ -208,10 +254,13 @@ impl Writer {
                 (GridState::Absent, None) => {
                     let id = open_outage(&self.conn, &t.station.name, since, self.interval_s)?;
                     t.open = Some((id, since));
+                    let _ = self.updates.send(event(&t.station.name, since, None));
                 }
                 (GridState::Present, Some((id, start))) => {
-                    close_outage(&self.conn, id, since.max(start))?;
+                    let end = since.max(start);
+                    close_outage(&self.conn, id, end)?;
                     t.open = None;
+                    let _ = self.updates.send(event(&t.station.name, start, Some(end)));
                 }
                 _ => {}
             }
@@ -230,7 +279,10 @@ impl Writer {
                 end: None,
                 precision_s,
             }) => match open_outage(&self.conn, HOUSE, start, precision_s) {
-                Ok(id) => self.house_open = Some((id, start)),
+                Ok(id) => {
+                    self.house_open = Some((id, start));
+                    self.publish(event(HOUSE, start, None));
+                }
                 Err(err) => {
                     self.house = House::new(self.interval_s, None);
                     return Err(err);
@@ -246,10 +298,19 @@ impl Writer {
                     self.house_open = Some((id, start));
                     return Err(err);
                 }
+                self.publish(event(HOUSE, start, Some(end)));
             }
             None => {}
         }
         Ok(())
+    }
+}
+
+fn event(scope: &str, started_at: i64, ended_at: Option<i64>) -> Update {
+    Update::GridEvent {
+        scope: scope.into(),
+        started_at,
+        ended_at,
     }
 }
 

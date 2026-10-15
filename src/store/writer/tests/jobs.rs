@@ -31,6 +31,7 @@ fn retention_runs_daily_and_compaction_weekly() {
         s.clone(),
         params(),
         one_day,
+        quiet(),
     )
     .unwrap();
     for ts in (0..=600).step_by(60) {
@@ -62,6 +63,7 @@ fn a_sample_behind_the_rollup_is_stored_and_flagged() {
         s.clone(),
         params(),
         RETENTION,
+        quiet(),
     )
     .unwrap();
     for ts in (0..=600).step_by(60) {

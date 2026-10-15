@@ -207,3 +207,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 4 ✓ 2026-10-15 — the writer publishes `Update`s on a `broadcast` channel
+
+**Changed:**
+- `src/store/writer.rs` — `pub enum Update { Sample { station, ts, core }, GridEvent { scope, started_at, ended_at }, PollFailure { station, ts, stage } }`; `Writer::restore` takes `broadcast::Sender<Update>`. Each is sent after its row's insert/update returns (§8.4 g); `core` = the sample's `read::CORE` metrics only; a snapshot publishes nothing; `send` errors (no receiver) ignored.
+- `src/store/mod.rs` — re-exports `Update`.
+- `src/cli/serve.rs` — creates `broadcast::channel(UPDATES = 64)` and hands it to the writer (step 5 gives `AppState` its clone).
+- Call sites (`writer/tests.rs`, `writer/tests/jobs.rs`, `rollup/tests.rs`, `tests/collector.rs`) pass a sender with a dropped receiver (`quiet()`), so every existing writer test also proves "no receiver never fails a record".
+- `src/store/writer/tests/updates.rs` (new) — the two step tests, split out to keep `tests.rs` at 381 lines.
+
+**Check:** red first — 18 compile errors (`Update`/`broadcast` missing, restore arity). Then `cargo test --lib store::` 42/42 ok.
+- `publishes_one_update_per_committed_row`: hand-computed sequence, debounce 2: ON 0/60, OFF 120/180 → at 180 `Sample` + `GridEvent a [120,–)` + `house [120,–)`; ON 240/300 → at 300 closes both at 240; failure 360 → one `PollFailure`; snapshot → none; extra `pack_voltage` not in `core`; `rx` dropped → record 420 stored (7 samples).
+- `a_failed_insert_publishes_nothing`: temp triggers abort `sample` and `poll_failure` inserts → `handle` errs, `try_recv` empty.
+- First run of the new test failed on my own count (expected 8 samples, real 7: 360 is a failure) — test arithmetic fixed, not code.
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM.
+- Note (not a finding): `Update` omits `encrypted` and the failure `error` text, per the step text; §8.4 g says "the row as JSON" — step 11 settles the SSE payload.
+
+**Decision:** none.
+**Carry-forward:** none.
+**Next:** step 5 — web state and skeleton (`AppState`, route stubs, askama).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:17:53Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-cdfeb076974a97ea)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

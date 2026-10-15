@@ -86,7 +86,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - Expose `schema::migrate` crate-visible for in-memory test DBs (Q4).
   - TDD on an in-memory DB with hand-written rows: window bounds; the sample before `from`; a raw/rollup switch at 48 h; a `step` average.
   - check: `cargo test store::`; `make check` · review: risky
-- [ ] 4. Writer publishes updates (spec §5.3, spec §8.2) in `src/store/writer.rs`.
+- [x] 4. Writer publishes updates (spec §5.3, spec §8.2) in `src/store/writer.rs`.
   - `Writer` takes a `broadcast::Sender<Update>`, where `Update` is `Sample { station, ts, core }`, `GridEvent { scope, started_at, ended_at }` or `PollFailure { station, ts, stage }`.
   - It sends only after the row commits; a send with no receivers is not an error.
   - TDD: one record of each kind yields exactly one `Update`; a failed insert yields none; a closed or dropped receiver never stops the writer.
