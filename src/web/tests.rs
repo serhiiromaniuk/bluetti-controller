@@ -22,7 +22,11 @@ pub(super) fn request(addr: SocketAddr, method: &str, path: &str) -> (String, St
 
 /// A raw HTTP/1.1 request with no body; returns the status line, the header
 /// lines and the body bytes.
-pub(super) fn raw_request(addr: SocketAddr, method: &str, path: &str) -> (String, Vec<String>, Vec<u8>) {
+pub(super) fn raw_request(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+) -> (String, Vec<String>, Vec<u8>) {
     let mut stream = TcpStream::connect(addr).unwrap();
     write!(
         stream,
