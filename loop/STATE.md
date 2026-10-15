@@ -7,7 +7,7 @@
 | Field | Value |
 |-------|-------|
 | **Gate status** | 🟢 `v0.4-collector` tagged 2026-10-15 (phase 4 closed; unplug deferred to H4). Next: open `tasks/phase-5_web-deploy/` (M4+M5, `v1.0-mvp`) |
-| **Blocked?** | no — owner answered everything up front 2026-10-13; physical checks go to `HUMAN-CHECKLIST.md` |
+| **Blocked?** | waiting on the 1 h run ETA 1792069992 (2026-10-15 13:13:12 UTC); step 21 measures it after that — not a failure |
 
 ## Carry-forward — obligations that outlive the task that found them
 

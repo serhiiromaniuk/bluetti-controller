@@ -705,3 +705,37 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 21 · interim 2026-10-15 12:21 UTC — 1 h run not over; waiting on ETA 1792069992 (13:13:12 UTC)
+
+**Scope:** step 21's "now < ETA" branch (A7: ETA = start 1792066392 + 3600). Not an escape-hatch attempt; step not ticked; INDEX stays `in-progress`; no OUTCOME.
+**Interim probe (read-only, 12:21:01 UTC, start + 469 s):**
+- `systemctl --user show` → `ActiveState=active`, `NRestarts=0`, `InvocationID=71d0b93f…` (unchanged since step 18), `MainPID=1387543`.
+- Service PID (`pgrep -P` MainPID) exe → `~/.local/bin/bluetti-controller`; `VmHWM` 11624 kB, `VmRSS` 11624 kB.
+- 20 LAN GETs of `http://192.168.0.179:8080/` → 20× `200`, max 2.98 ms, median 2.22 ms; `/healthz` → `200`, 0.75 ms.
+**Repo:** `loop/STATE.md` `Blocked?` → waiting on ETA 1792069992.
+**reviewer:** batched (low-risk), with steps 19–20, before the push.
+**Next:** relaunch after 13:13:12 UTC; step 21 measures the full hour (interventions, max `VmHWM`, page and API times, `acceptance_v04.py`, grid events).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:21:28Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
