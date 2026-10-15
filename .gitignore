@@ -41,3 +41,6 @@ captures/
 
 # Release tarballs (make dist)
 /dist/
+
+# Machine-local Claude Code settings (personal permissions)
+.claude/settings.local.json

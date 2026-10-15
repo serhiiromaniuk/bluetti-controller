@@ -29,9 +29,7 @@
       "Bash(git reset --hard:*)",
       "Read(~/.ssh/**)",
       "Read(~/.aws/**)",
-      "Read(~/.config/gh/**)",
-      "Read(~/.claude-stepico/**)",
-      "Read(~/stepico_games/**)"
+      "Read(~/.config/gh/**)"
     ]
   }
 }

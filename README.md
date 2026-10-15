@@ -86,6 +86,11 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 build), `bluetti-update`, both units, `config.example.toml`, the changelog and
 the install notes into `dist/`.
 
+## License
+
+MIT — see [`LICENSE`](LICENSE). Vendored uPlot keeps its own MIT licence
+(`assets/uPlot.LICENSE`).
+
 ## Credits
 
 Protocol knowledge comes from these MIT-licensed community projects:

@@ -4,6 +4,7 @@ version = "1.1.1"
 edition = "2024"
 rust-version = "1.89"
 description = "Local monitor for Bluetti power stations over Bluetooth LE"
+license = "MIT"
 publish = false
 
 # Dependencies are added per milestone (see ROADMAP.md §12); versions per §4.9.
