@@ -39,7 +39,8 @@ pub fn open_reader(path: &Path) -> anyhow::Result<Connection> {
 }
 
 /// Applies the migrations past the file's `user_version`, one transaction each.
-fn migrate(conn: &mut Connection) -> anyhow::Result<()> {
+/// Crate-visible so tests can migrate an in-memory database (no WAL there).
+pub(crate) fn migrate(conn: &mut Connection) -> anyhow::Result<()> {
     let version: u32 = conn.pragma_query_value(None, "user_version", |row| row.get(0))?;
     let version = version as usize;
     if version > MIGRATIONS.len() {

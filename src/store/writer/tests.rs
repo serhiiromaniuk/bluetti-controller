@@ -1,9 +1,10 @@
+use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 use std::path::Path;
 
 use super::*;
 use crate::config::StationConfig;
-use crate::protocol::device::Model;
+use crate::protocol::device::{Metric, Model};
 use crate::store::temp_db::TempDb;
 use crate::store::{Stage, open_reader, open_writer, sync_stations};
 

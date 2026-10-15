@@ -164,3 +164,46 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 3 ✓ 2026-10-15 — store read API (`src/store/read.rs`)
+
+**Changed:**
+- `src/store/read.rs` (new, 273 lines) — `stations`, `latest_sample`, `samples` (`[from,to)` + one before), `last_samples`, `latest_extras`, `events_between`, `last_events`, `open_event` (full `GridEventRow`), `series` (§8.4 f: raw ≤ `RAW_MAX_S` = 48 h, else `rollup_5m` for soc + 4 powers, extras/`ac_in_v` stay raw; `step` ≥ 1 buckets). `CORE` maps the 6 columns to `Metric`.
+- `src/store/writer.rs` — `last_samples`/`open_event` moved out; writer maps `GridEventRow` to `(id, started_at)`.
+- `src/store/rollup.rs` — private `load` replaced by `read::samples` (same SQL; now also carries `ac_in_v`, which `energy::rollup` ignores).
+- `src/store/schema.rs` — `migrate` is `pub(crate)`; `store::migrate` re-export is `#[cfg(test)]` (Q4).
+- `stations()` added beyond the step list: the status view needs `capacity_wh` from the DB (§8.4 c), and groups A/B must not edit `read.rs`.
+
+**Check:** `cargo test --lib store::read` 9/9 ok; `cargo test --lib store::` 40/40 ok (writer/rollup tests unchanged but for imports).
+- Tests were written with the code (not red first). Mutation: `>` → `>=` on the 48 h switch → `series_switches_to_the_rollup_past_48_hours` FAILED, restored.
+- Hand-computed: step 120 over soc 40/50/70/80 → buckets `[0,120)` 45, `[120,240)` 75; an event ending at `from` does not overlap.
+
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM. `stations()` not counted as creep.
+- MEDIUM M1: `latest_extras` does a full scan through a correlated subquery → deferred to A4 (step 13, where `/telemetry` uses it).
+
+**Decision:** none.
+**Carry-forward:** none.
+**Next:** step 4 — the writer publishes `Update`s on a `broadcast` channel.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T11:13:17Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-cdfeb076974a97ea)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

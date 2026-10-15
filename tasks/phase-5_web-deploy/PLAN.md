@@ -77,7 +77,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - New `src/metrics/localtime.rs` (pure): `local_day_bounds(ts, tz) -> (start, end)` and `local_hhmm(ts, tz)`, so steps 6 and 7 only call them.
   - TDD: `Europe/Kyiv` parses; `Mars/Base` fails naming the key; `token = ""` fails; local-day bounds across a DST change (23 h / 25 h day); `local_hhmm` hand-computed for Kyiv.
   - check: `cargo test config:: metrics::localtime`; `make check`; the `Cargo.lock` diff only adds the jiff tree · review: risky
-- [ ] 3. Store read API (spec §6, spec §8.2) (needs Q4) in a new `src/store/read.rs`. All queries run on the read-only connection.
+- [x] 3. Store read API (spec §6, spec §8.2) (needs Q4) in a new `src/store/read.rs`. All queries run on the read-only connection.
   - Move `last_samples` and `open_event` out of `writer.rs` and share them.
   - Per station: the newest sample, and the samples in `[from, to)` plus the one before, as `(ts, BTreeMap<Metric, f64>)` (core columns ↦ `Metric`).
   - Per station: the newest extras, and one extra's series.
@@ -261,3 +261,4 @@ Every question below is covered by the standing owner delegation (RULES.md); non
 - A1 · 2026-10-15 · MEDIUM `ROADMAP.md:916` — §8.4 b puts an open station event before staleness, but the writer keeps it open through `Unknown` (`src/store/writer.rs:202`): an unreachable station shows `Absent`, gets a stale forecast and votes in the UI's `house::vote` while the collector's does not. Fix at step 6: staleness first (→ `Unknown`); banner from the open house `grid_event` before the vote · disposition: open
 - A2 · 2026-10-15 · MEDIUM `ROADMAP.md:959` — §8.4 h sends `Pause`/`Run` unconditionally, but `src/cli/serve.rs:104` sends `Shutdown` while the server is still up; a POST in that window overwrites it and `polling.await` hangs. Fix at step 12: `send_if_modified` that never replaces `Shutdown`, with a test · disposition: open
 - A3 · 2026-10-15 · MEDIUM `ROADMAP.md:1111` — §10.3 M5 writes `storage.path` as `~/.local/share/…`, but the loader does not expand `~` (§9 note). Fix at step 16/18: `INSTALL.md` and the installed config use the expanded `/home/<user>/…` path for `storage.path` and `crypto.keys_file` · disposition: open
+- A4 · 2026-10-15 · MEDIUM `src/store/read.rs:168` — `latest_extras` runs a correlated `max(ts)` per `sample_extra` row, so it scans every retained row of the station (~1.45 s on 30 d × 20 keys, sqlite3 CLI); `/telemetry` calls it per station. Fix at step 13: bound the scan to the last 24 h before the station's newest extra, test that a key missing from the newest poll still appears · disposition: open

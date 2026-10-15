@@ -4,14 +4,14 @@
 //! It also runs the §6 jobs: rollup every 5 minutes, retention nightly, compaction
 //! weekly, timed by the records' own timestamps.
 
-use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use anyhow::{Context, bail};
-use rusqlite::{Connection, OptionalExtension, params};
+use rusqlite::Connection;
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
 
+use super::read::{last_samples, open_event};
 use super::rollup::{compact, retention, rollup};
 use super::write::{
     Failure, Sample, close_outage, insert_failure, insert_sample, insert_snapshot, open_outage,
@@ -21,7 +21,6 @@ use crate::metrics::grid::{Grid, GridState, Params};
 #[cfg(test)]
 use crate::metrics::house::HouseState;
 use crate::metrics::house::{Event, House};
-use crate::protocol::device::Metric;
 
 /// The `grid_event.scope` of the house outage log.
 const HOUSE: &str = "house";
@@ -98,14 +97,14 @@ impl Writer {
             for (ts, values) in last_samples(&conn, station.id, params.debounce.get())? {
                 grid.observe(ts, &values);
             }
-            let open = open_event(&conn, &station.name)?;
+            let open = open_event(&conn, &station.name)?.map(|e| (e.id, e.started_at));
             tracked.push(Tracked {
                 station,
                 grid,
                 open,
             });
         }
-        let house_open = open_event(&conn, HOUSE)?;
+        let house_open = open_event(&conn, HOUSE)?.map(|e| (e.id, e.started_at));
         Ok(Writer {
             conn,
             interval_s: params.interval_s,
@@ -254,33 +253,6 @@ impl Writer {
     }
 }
 
-/// The station's newest `n` samples that carry a grid field, oldest first.
-fn last_samples(
-    conn: &Connection,
-    station_id: i64,
-    n: u32,
-) -> anyhow::Result<Vec<(i64, BTreeMap<Metric, f64>)>> {
-    let mut stmt = conn.prepare(
-        "SELECT ts, ac_in_v, ac_in_w FROM sample
-         WHERE station_id = ?1 AND (ac_in_v IS NOT NULL OR ac_in_w IS NOT NULL)
-         ORDER BY ts DESC LIMIT ?2",
-    )?;
-    let mut rows = stmt
-        .query_map(params![station_id, n], |row| {
-            let fields = [(Metric::AcInputVoltage, 1), (Metric::AcInputPower, 2)];
-            let mut values = BTreeMap::new();
-            for (metric, column) in fields {
-                if let Some(value) = row.get::<_, Option<f64>>(column)? {
-                    values.insert(metric, value);
-                }
-            }
-            Ok((row.get(0)?, values))
-        })?
-        .collect::<Result<Vec<_>, _>>()?;
-    rows.reverse();
-    Ok(rows)
-}
-
 /// The station's rollup cursor when `ts` falls in a bucket the rollup has
 /// passed (amendment A8): such a sample is stored but never rolled up, and
 /// retention later deletes it. The collector keeps record times nondecreasing.
@@ -291,18 +263,6 @@ fn rolled_past(conn: &Connection, station_id: i64, ts: i64) -> anyhow::Result<Op
         |row| row.get(0),
     )?;
     Ok(cursor.filter(|cursor| ts < cursor + BUCKET_S))
-}
-
-/// The newest open outage of `scope`: (id, started_at).
-fn open_event(conn: &Connection, scope: &str) -> anyhow::Result<Option<(i64, i64)>> {
-    Ok(conn
-        .query_row(
-            "SELECT id, started_at FROM grid_event
-             WHERE scope = ?1 AND ended_at IS NULL ORDER BY id DESC LIMIT 1",
-            [scope],
-            |row| Ok((row.get(0)?, row.get(1)?)),
-        )
-        .optional()?)
 }
 
 #[cfg(test)]

@@ -6,13 +6,11 @@
 //! Progress is `max(rollup_5m.ts)` per station, so a restart continues where the
 //! last run stopped and a repeat run inserts nothing.
 
-use std::collections::BTreeMap;
-
 use anyhow::Context;
 use rusqlite::{Connection, params};
 
+use super::read::samples;
 use crate::metrics::energy::{self, BUCKET_S};
-use crate::protocol::device::Metric;
 
 /// `register_snapshot` and `poll_failure` retention (§6).
 pub const AUDIT_RETENTION_DAYS: i64 = 90;
@@ -35,7 +33,7 @@ pub fn rollup(
         |row| row.get(0),
     )?;
     let first = cursor.map_or(i64::MIN, |ts| ts + BUCKET_S);
-    let samples = load(conn, station_id, first, open_bucket)?;
+    let samples = samples(conn, station_id, first, open_bucket)?;
     let refs: Vec<_> = samples.iter().map(|(ts, v)| (*ts, v)).collect();
 
     let tx = conn.transaction()?;
@@ -74,41 +72,6 @@ pub fn rollup(
     }
     tx.commit()?;
     Ok(written)
-}
-
-/// The station's samples with `from ≤ ts < to`, plus the last one before `from`,
-/// oldest first, as the metric maps `energy::rollup` reads.
-fn load(
-    conn: &Connection,
-    station_id: i64,
-    from: i64,
-    to: i64,
-) -> anyhow::Result<Vec<(i64, BTreeMap<Metric, f64>)>> {
-    let mut stmt = conn.prepare(
-        "SELECT ts, soc, ac_in_w, dc_in_w, ac_out_w, dc_out_w FROM sample
-         WHERE station_id = ?1 AND ts < ?3 AND ts >= coalesce(
-           (SELECT max(ts) FROM sample WHERE station_id = ?1 AND ts < ?2), ?2)
-         ORDER BY ts",
-    )?;
-    let fields = [
-        (Metric::BatterySoc, 1),
-        (Metric::AcInputPower, 2),
-        (Metric::DcInputPower, 3),
-        (Metric::AcOutputPower, 4),
-        (Metric::DcOutputPower, 5),
-    ];
-    let rows = stmt
-        .query_map(params![station_id, from, to], |row| {
-            let mut values = BTreeMap::new();
-            for (metric, column) in fields {
-                if let Some(value) = row.get::<_, Option<f64>>(column)? {
-                    values.insert(metric, value);
-                }
-            }
-            Ok((row.get(0)?, values))
-        })?
-        .collect::<Result<_, _>>()?;
-    Ok(rows)
 }
 
 /// The nightly job: deletes raw `sample`/`sample_extra` rows older than

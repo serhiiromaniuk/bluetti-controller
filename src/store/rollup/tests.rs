@@ -1,9 +1,10 @@
+use std::collections::BTreeMap;
 use std::num::NonZeroU32;
 
 use super::*;
 use crate::config::StationConfig;
 use crate::metrics::grid::Params;
-use crate::protocol::device::Model;
+use crate::protocol::device::{Metric, Model};
 use crate::store::temp_db::TempDb;
 use crate::store::{
     Failure, Health, Record, Sample, Stage, Station, Writer, close_outage, insert_failure,
