@@ -1283,8 +1283,9 @@ the unplug; DB < 10 MB per station-day.
 - [x] Install the user-level unit on the dev laptop (§10.3), linger on — done
       by the loop under the standing delegation (phase-5 step 18 LOG); the
       homelab host (§10.2) is installed interactively after the MVP (§14 Q2).
-- [ ] 1 h functional run of the installed unit (owner 2026-10-15, replaces the
-      7-day soak); record polls, RSS, page and API time.
+- [x] 1 h functional run of the installed unit (owner 2026-10-15, replaces the
+      7-day soak): polls 100/100/98.3 %, RSS 12.3 MB, max page/API 2.1 ms
+      (phase-5 step 21).
 - [ ] OUTCOME with measured numbers; tag `v1.0-mvp`.
 
 **Acceptance (RULES.md v1.0):** 1 h, ≥ 95 % polls per powered station,
