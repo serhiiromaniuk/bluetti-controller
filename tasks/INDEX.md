@@ -18,7 +18,8 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | 2026-10-13 | 1 | Foundation (M0) | [OUTCOME](./phase-1_foundation/OUTCOME.md) | done | `v0.1-foundation` |
 | 2026-10-13 | 2 | BLE transport + CLI (superseded) | [OUTCOME](./phase-2_ble-transport/OUTCOME.md) | done | — |
 | 2026-10-13 | 2 | BLE + encryption, EB3A + Elite (M1+M2) | [OUTCOME](./phase-2_ble-encryption/OUTCOME.md) | done | `v0.3-encryption` |
-| 2026-10-13 | 4 | Collector, storage, metrics (M3) | [phase-4_collector](./phase-4_collector/) | in-progress | `v0.4-collector` |
+| 2026-10-13 | 4 | Collector, storage, metrics (M3) | [OUTCOME](./phase-4_collector/OUTCOME.md) | done | `v0.4-collector` |
+| 2026-10-15 | 5 | Web UI + deploy + 7-day soak (M4+M5) | [phase-5_web-deploy](./phase-5_web-deploy/) | in-progress | `v1.0-mvp` |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:
