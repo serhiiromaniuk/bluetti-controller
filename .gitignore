@@ -44,3 +44,11 @@ captures/
 
 # Machine-local Claude Code settings (personal permissions)
 .claude/settings.local.json
+
+# One-off agent-readiness audit output (toolkit:agent-readiness)
+/.agent-readiness/
+
+# Other coding agents' sandbox mount points (empty; never commit)
+/.agents/
+/.aws/
+/.codex/
