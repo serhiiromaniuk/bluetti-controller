@@ -1,4 +1,260 @@
 # Plan
 
-> Not yet written — the `planner` writes this from `BRIEF.md` next iteration,
-> then the `plan-reviewer` audits it (`loop/where.sh` reports `needs_plan`).
+> Written before work starts. **Do not edit the steps once work begins** —
+> append changes under `## Amendments`. One step = one loop increment.
+
+## Questions for the owner
+
+Every question below is covered by the standing owner delegation (RULES.md); none crosses the human-only list, so nothing is asked.
+
+- Q1 — With `web.token` unset, is `POST /api/polling/pause` open or disabled? · blocks: 1, 2, 12 · answer: delegated 2026-10-15 — open, as spec §9 says ("required for POST endpoints when set") and spec §8.3 ("optional bearer"). The `src/config.rs` doc comment ("`None` disables them") contradicts the approved spec, so step 2 fixes the comment. A pause is harmless: it stops polling for ≤ 60 min, never writes to a station, and the bind is LAN-only (ROADMAP §14 Q8).
+- Q2 — The core fields (SOC, powers) are still `verified: false` while H1–H3 are pending. May the status page and the runtime forecast use them? · blocks: 1, 6, 10 · answer: delegated 2026-10-15 — yes, with a visible "unverified" badge. RULES.md forbids unverified fields only in alerts and gates, the MVP has no alerts, and spec §7.5's "raw telemetry page only" rule covers the extras in `sample_extra`, not the six core columns. Without these fields the MVP page would be empty.
+- Q3 — How do local-day bounds come from `general.timezone` (the energy table, "lasts until HH:MM")? · blocks: 1, 2, 6, 7 · answer: delegated 2026-10-15 — add the `jiff` crate (MIT/Unlicense, pure Rust) and read the host's tzdb (`/usr/share/zoneinfo`, Debian `tzdata`), which works offline (golden rule #1). `src/config.rs` parses the zone at startup and fails fast on an unknown name. Step 1 records it as an ADR next to ADR-004. Chosen over chrono-tz (a larger bundled database) and over browser-side `Intl`, because the server renders the energy table.
+- Q4 — Spec §M4 asks for handler tests "against an in-memory DB", but `open_writer` insists on WAL, and an in-memory DB cannot use WAL. · blocks: 3, 5–13 · answer: delegated 2026-10-15 — step 3 exposes the existing `schema::migrate` (crate-visible). Tests then migrate `Connection::open_in_memory()`, insert fixture rows and hand that connection to the router as its reader. No new dev-dependency: requests use the raw-`TcpStream` helper in `src/web/tests.rs`.
+- Q5 — How does the soak run? · blocks: 1, 16, 18–21 · answer: delegated 2026-10-15 — as a user unit installed from `deploy/` (spec §10.3).
+  - Files: binary `~/.local/bin/bluetti-controller`; config `~/.config/bluetti-controller/config.toml`, copied from the local `config.toml` with absolute `storage.path` and `keys_file`; a **fresh** DB at `~/.local/share/bluetti-controller/data.db`.
+  - Web: `web.listen = "0.0.0.0:8080"` (spec §9; LAN only by the owner's Q8) and no `web.token`.
+  - Suspend: `ExecStart` is wrapped in `systemd-inhibit --what=sleep:idle:handle-lid-switch`. Phase-4 step 14 only showed a `sleep:idle` lock listed; logind's default `LidSwitchIgnoreInhibited=yes` ignores `sleep` locks on lid close, so the lid-switch lock is needed too. H10 still says "lid open, on AC" regardless.
+  - Probe: an hourly transient user timer (`systemd-run --user --on-calendar=hourly`) appends `scripts/soak_probe.sh` lines to `~/.local/share/bluetti-controller/soak.log`, so RSS and page time have a series, and a crashed invocation's `VmHWM` is caught within the hour.
+  - Why this is allowed: the standing delegation permits gitignored or out-of-repo local config and user-level units.
+- Q6 — What counts as a "manual intervention", and how are RSS and page time measured? · blocks: 1, 17, 20, 21 · answer: delegated 2026-10-15 —
+  - **Intervention:** any human or agent action needed to keep the service working: a restart, reinstall or reconfigure of the unit, `bluetoothctl disconnect`/`remove`, an adapter replug, or a reboot done to recover it.
+  - **Not interventions:** systemd's own `Restart=on-failure` (logged as `NRestarts`), an unrelated reboot the unit survives by itself, and the owner using the app, the pause button or switching a station off.
+  - **RSS:** the maximum `VmHWM` of the unit's `MainPID` across all probes and invocations.
+  - **Page time:** the maximum `time_total` over 20 sequential `curl` GETs of `/`, sent to the host's LAN address (not loopback). The phone measurement is a `HUMAN-CHECKLIST.md` row.
+- Q7 — Does the unit keep running after the soak? · blocks: 22 · answer: delegated 2026-10-15 — yes. It is the MVP in use; nothing in the gate needs it stopped. The homelab system unit (spec §10.2) stays human-only and comes after the MVP.
+
+## Steps
+- [ ] 1. M4/M5 design record (spec §8, spec §9, spec §10.3, spec §M4, spec §M5, spec §3) (needs Q1, Q2, Q3, Q5, Q6). This step is doc-only: it settles in ROADMAP.md what §8/§10.3 leave open (RULES.md decision process). Each item gets a recommendation.
+  - (a) Web module layout, one file per responsibility, each ≤ ~400 lines: `src/web/{mod,state,status,history,api,pages,telemetry,sse,pause,assets}.rs`, with templates in `templates/`. One view model per page: `/` and `/api/status` serialise the same `Status` struct.
+  - (b) A station's grid state, as the UI derives it:
+    - an open station-scope `grid_event` → `Absent`;
+    - otherwise, the newest sample older than 3 intervals → `Unknown`;
+    - otherwise `Present`.
+    The house banner is `house::vote` over the sensor stations' states. Its "since" is the open house event's start, else the last closed event's end.
+  - (c) The runtime forecast runs `metrics::runtime::forecast` over the station's last 2 h of samples, with `station.capacity_wh` and `metrics.usable_capacity_factor`. Core fields carry an "unverified" badge (Q2).
+  - (d) The energy table covers the last 7 local days (Q3), today included as a partial day. Per station and day it runs `energy::totals` over the raw samples plus the one sample before the day. Columns: in, out, Δstored, losses (labelled "estimate", spec §7.4 — self-consumption in UPS mode, spec §2.1 #5) and missing coverage, from `energy::Totals`. Per day it adds `house::totals` (count, hours without power, longest). The tz helpers `local_day_bounds(ts, tz)` and `local_hhmm(ts, tz)` live in one module (step 2), with tests.
+  - (e) The outage log lists the last 20 `grid_event` rows of every scope, newest first; an open event shows as ongoing.
+  - (f) API shapes for spec §8.2:
+    - defaults for `from`/`to`;
+    - `400` with a JSON error on a bad parameter;
+    - `/api/series` reads raw rows for ranges ≤ 48 h and `rollup_5m` beyond (core metrics only; extras stay raw, within their 30-day retention), as columnar `{t:[…], v:[…]}`, with `step` averaging into `ts / step` buckets.
+  - (g) SSE:
+    - the writer publishes `sample`, `grid_event` and `poll_failure` on a `broadcast` channel after each commit;
+    - a lagged client skips the missed messages;
+    - keep-alive every 15 s;
+    - every stream ends on shutdown, so axum's graceful close never waits on an open `/events` client.
+  - (h) Pause:
+    - `minutes=1..=60` → `Control::Pause`; `0` → `Control::Run` (resume, spec §10.5); anything else → `400`;
+    - with `web.token` set, `Authorization: Bearer` is required, else `401`; the token is compared in constant time with no new crate;
+    - with the token unset, the POST is open (Q1);
+    - `paused_until` for the views comes from `state.control.borrow()`'s `Control::Pause { until: Instant }`, converted to wall clock as `SystemTime::now() + (until − Instant::now())`;
+    - no frame is ever sent to a station (golden rule #2).
+  - (i) Assets:
+    - embedded with `include_bytes!` and served at `/assets/<name>` with `Cache-Control: max-age=86400`;
+    - uPlot vendored (the record names the exact release, its tag and the expected byte sizes of `uPlot.iife.min.js`/`uPlot.min.css`; its MIT `LICENSE` beside it, credited in `README.md`);
+    - no CDN and no external URL anywhere, so the page works offline in an outage (golden rule #1);
+    - page-weight arithmetic: uPlot ≈ 50 KB + its CSS ≈ 2 KB + `app.js` ≤ 6 KB + `app.css` ≤ 4 KB + HTML ≤ 25 KB, which is < 100 KB.
+  - (j) Front end:
+    - charts fetch `/api/series`;
+    - the 24 h / 7 d toggle is a `?range=` query parameter;
+    - an SSE event triggers a debounced page reload instead of client-side templating;
+    - the pause form shows a token field only when a token is configured;
+    - a viewport meta tag and one-column CSS make the page phone-friendly.
+  - (k) Telemetry page: every stored metric per station, with its latest value and its `verified` flag from the profile. Each metric gets a server-side inline-SVG sparkline over 24 h, downsampled to ≤ 48 points, so no JS is needed.
+  - (l) M5:
+    - the unit is spec §10.3 plus the inhibit wrapper (Q5);
+    - install paths and absolute-path config (Q5);
+    - `make dist` builds `dist/bluetti-controller-$(git describe --tags --always --dirty)-x86_64-linux.tar.gz`, holding the binary, the unit, `config.example.toml` and `deploy/INSTALL.md`;
+    - the soak definitions are Q6's; the soak starts at the unit's `ActiveEnterTimestamp` after linger.
+  - (m) An ADR for `jiff` (Q3); askama and uPlot are already ADR-004.
+  - check: §8, §9 and §10.3 hold items a–l, each with a recommendation; §3 has the new ADR; `make loop-hygiene` is clean · review: risky (decision record)
+- [ ] 2. Config: timezone and token semantics (spec §9) (needs Q1, Q3).
+  - Add `jiff` with `cargo build --all-targets` (unlocked, insertions only; not `make lock`).
+  - `src/config.rs` parses `general.timezone` into a `jiff::tz::TimeZone` at load and fails fast on an unknown zone.
+  - `web.token`: an empty string is rejected; the doc comment says "unset = POST open" (Q1).
+  - If `src/config.rs` grows past ~400 lines, its tests move to `src/config/tests.rs`.
+  - New `src/metrics/localtime.rs` (pure): `local_day_bounds(ts, tz) -> (start, end)` and `local_hhmm(ts, tz)`, so steps 6 and 7 only call them.
+  - TDD: `Europe/Kyiv` parses; `Mars/Base` fails naming the key; `token = ""` fails; local-day bounds across a DST change (23 h / 25 h day); `local_hhmm` hand-computed for Kyiv.
+  - check: `cargo test config:: metrics::localtime`; `make check`; the `Cargo.lock` diff only adds the jiff tree · review: risky
+- [ ] 3. Store read API (spec §6, spec §8.2) (needs Q4) in a new `src/store/read.rs`. All queries run on the read-only connection.
+  - Move `last_samples` and `open_event` out of `writer.rs` and share them.
+  - Per station: the newest sample, and the samples in `[from, to)` plus the one before, as `(ts, BTreeMap<Metric, f64>)` (core columns ↦ `Metric`).
+  - Per station: the newest extras, and one extra's series.
+  - `grid_event` rows: in a window, the last N, and the open one per scope.
+  - The series query: raw, or `rollup_5m` by range, with `step` buckets (step 1 f).
+  - Expose `schema::migrate` crate-visible for in-memory test DBs (Q4).
+  - TDD on an in-memory DB with hand-written rows: window bounds; the sample before `from`; a raw/rollup switch at 48 h; a `step` average.
+  - check: `cargo test store::`; `make check` · review: risky
+- [ ] 4. Writer publishes updates (spec §5.3, spec §8.2) in `src/store/writer.rs`.
+  - `Writer` takes a `broadcast::Sender<Update>`, where `Update` is `Sample { station, ts, core }`, `GridEvent { scope, started_at, ended_at }` or `PollFailure { station, ts, stage }`.
+  - It sends only after the row commits; a send with no receivers is not an error.
+  - TDD: one record of each kind yields exactly one `Update`; a failed insert yields none; a closed or dropped receiver never stops the writer.
+  - check: `cargo test store::writer`; `make check` · review: risky
+- [ ] 5. Web state and skeleton (spec §8, spec §5.3).
+  - `src/web/state.rs` holds `AppState { reader, control: watch::Sender<Control>, updates: broadcast::Sender<Update>, interval_s, usable_factor, tz, token, shutdown }`.
+  - `router(state)` registers every spec §8.2 route plus `/`, `/telemetry` and `/assets/{name}`. Each route not yet built returns `501`, from doc-only stubs in `status.rs`, `history.rs`, `assets.rs`, `api.rs`, `pages.rs`, `sse.rs` and `pause.rs`.
+  - `src/cli/serve.rs` passes the control sender, the broadcast sender and the config values; it creates `updates` and gives the writer its clone.
+  - Add every other M4 dependency now (askama, plus `futures-util` only if the SSE stream needs it), so groups A and B touch no Cargo file.
+  - `/healthz` keeps its test.
+  - check: `make check`; a test where every new route answers `501` and `/healthz` answers `200`; the `Cargo.lock` diff has insertions only · review: risky
+- [ ] 6. [parallel: A] Status view (spec §8.1, spec §7.2, spec §7.3) (needs Q2, Q3) in `src/web/status.rs`.
+  - `status(conn, now, &AppState) -> Status`:
+    - the house banner (step 1 b, `house::vote`);
+    - one card per station: name, model, SOC, in/out W, grid state, the `runtime::forecast` text ("lasts until HH:MM" in local time / "if the power goes now: N h" / unknown), last seen, health from `station_health`, encrypted, the unverified badge;
+    - `paused_until`.
+  - TDD on an in-memory DB with hand-computed values: an EB3A at 50 % with a 100 W load and an open station event → on battery until the hand-computed HH:MM (Europe/Kyiv); grid present → "if the power goes now"; a stale sample → unknown; 3 failures → unreachable; both sensors absent → house outage since the open event.
+  - check: `cargo test web::status` · review: risky
+- [ ] 7. [parallel: A] History view (spec §7.2, spec §7.4, spec §8.1) (needs Q3) in `src/web/history.rs`.
+  - `energy(conn, days, now, tz)`: per station and local day, `energy::totals` over the raw samples plus the sample before the day; per day, `house::totals` (step 1 d).
+  - `outages(conn, n)` and `outages_between(conn, from, to)` (step 1 e).
+  - TDD with hand-computed values: 100 W in / 50 W out for 1 h on one local day → 100/50 Wh, with the hand-computed Δstored and losses estimate; a day boundary at local midnight, not UTC; a gap shown as missing coverage; an open outage clipped to `now`; 21 events → the newest 20.
+  - check: `cargo test web::history` · review: risky
+- [ ] 8. [parallel: A] Assets (spec §8.3) in `assets/` and `src/web/assets.rs`.
+  - Download the uPlot release step 1 i names (`uPlot.iife.min.js`, `uPlot.min.css`) at dev time, and confirm its MIT license and byte sizes.
+  - Write `assets/app.{js,css}` to the step 1 f/h/j contract (charts from `/api/series`, the range toggle, SSE-triggered reload, pause form, one-column CSS), within the step 1 i size budget.
+  - Keep its license as `assets/uPlot.LICENSE`, and add a `README.md` Credits line.
+  - `assets.rs` serves a static table (name → bytes and content type) with `Cache-Control`; an unknown name → `404`.
+  - Test: each asset answers `200` with its content type and exact byte length; `/assets/nope` → `404`.
+  - check: `cargo test web::assets`; `grep -c uPlot README.md` ≥ 1; `wc -c assets/*` in the LOG · review: low-risk
+- [ ] 9. [parallel: B] JSON API (spec §8.2) (needs Q4) in `src/web/api.rs`.
+  - Routes: `/api/status` (step 6's struct), `/api/outages?from=&to=`, `/api/energy?days=` (1–30, default 7), `/api/series?station=&metric=&from=&to=&step=`. Reads run in `spawn_blocking`.
+  - Handler tests on an in-memory DB (Q4) assert each body's shape and values. A bad station, metric or range → `400` with a JSON error. Series over > 48 h comes from `rollup_5m`.
+  - check: `cargo test web::api`; `make check` · review: risky
+- [ ] 10. [parallel: B] Status page (spec §8.1, spec §8.3) (needs Q2).
+  - Files: `templates/{base,status}.html` and `/` in `src/web/pages.rs` (`app.{js,css}` come from step 8).
+  - The page shows the banner, the cards, the outage log (last 20), the 7-day energy table, and the uPlot SOC and power charts with the 24 h / 7 d toggle.
+  - It has the pause form and the SSE-triggered reload (step 1 j), with a viewport meta tag and one-column CSS.
+  - Handler test: `/` renders hand-computed values from the in-memory DB — the banner state, a card's SOC and forecast text, an outage row and an energy cell. No stub value is left: grep the template for `TODO` and for placeholder text.
+  - check: `cargo test web::pages`; `make check` · review: risky
+- [ ] 11. [parallel: B] SSE `/events` (spec §8.2, spec §5.3) in `src/web/sse.rs`.
+  - Subscribe to `updates` and map each `Update` to a named event (`sample`, `grid_event`, `poll_failure`) with a JSON payload.
+  - A lagged client skips the missed messages; keep-alive every 15 s; the stream ends when `state.shutdown` fires.
+  - Tests:
+    - a published `Update` reaches a connected client as the right event name and data;
+    - a lagged client gets the next update;
+    - **a server with an open `/events` client stops within 2 s of shutdown**.
+  - check: `cargo test web::sse`; `make check` · review: risky
+- [ ] 12. [parallel: B] Pause polling (spec §8.1, spec §8.2, spec §8.3) (needs Q1) in `src/web/pause.rs` and `src/collector/tests.rs`.
+  - `POST /api/polling/pause?minutes=N` sets `Control::Pause { until }` for `1..=60` and `Control::Run` for `0`; `61`, a negative value or a missing `N` → `400`.
+  - With a token configured: `401` without a token or with a wrong one, `200` with the right one. With no token: `200`.
+  - The handler sends only on the `watch` channel, never a frame.
+  - A new collector test: a `Pause` sent **while the collector runs** skips the next polls, which resume after `until`. It adds to the existing `pause_skips_polls_until_it_ends`.
+  - check: `cargo test web::pause collector::`; `make check` · review: risky (golden rule #2 adjacent)
+- [ ] 13. Telemetry page (spec §8.1, spec §7.5).
+  - `/telemetry` lives in `src/web/telemetry.rs` with `templates/telemetry.html`. Per station it shows every stored metric (the core columns and every `sample_extra` key) with its latest value and `verified` flag from the profile.
+  - Each metric gets an inline-SVG sparkline over 24 h, downsampled to ≤ 48 points (pure function, step 1 k).
+  - TDD: the sparkline points are hand-computed for a 3-sample series; a flat series and a single sample do not divide by zero; the page lists an unverified extra with its flag.
+  - check: `cargo test web::telemetry`; `make check` · review: risky
+- [ ] 14. UI smoke, page weight and LAN latency (spec §8.3, spec §M4, spec §10.4), read-only.
+  - Run the spec §10.4 pre-flight and `make build`.
+  - Make a scratch config `data/ui-smoke.toml` pointing at a **copy** of `data/acceptance-24h.db` (history for the charts), with the local stations; read-only polling is allowed unattended. Run `serve` for ~5 min as a `systemd-run --user` transient unit, then stop it. No foreground wait longer than 10 min.
+  - Record in the LOG:
+    - `curl` status and bytes of `/`, `/telemetry`, every `/api/*` and each asset;
+    - **page weight = `/` + its assets, which must be < 100 KB**;
+    - 20 GETs of `/` to the LAN IP, max and median `time_total`;
+    - one `/events` message seen;
+    - one pause/resume POST with a `journalctl` line showing the skipped polls, and no write frame;
+    - `grep -rnE 'https?://' templates assets/app.*` → none.
+  - Add `HUMAN-CHECKLIST.md` H9: open `http://<laptop-ip>:8080/` on the phone; check the layout, the 24 h / 7 d charts, the pause button with the official app connecting while paused, and the page time.
+  - check: page weight < 100 KB and max page time ≤ 1 s in the LOG; `grep -c '^| H9 ' HUMAN-CHECKLIST.md` → 1 · review: low-risk
+- [ ] 15. M4 close-out and boundary greps (spec §M4, spec §5.2). Doc-only.
+  - ROADMAP: tick §12 M4 (the phone item points at H9); update §5.2's `web` row.
+  - README: the pages and the API.
+  - `config.example.toml`: comments on `web.listen` and `web.token`.
+  - Done-when greps go in the LOG:
+    - `grep -rnE 'bluer::|use bluer' src/` hits only `src/transport/bluer/` plus the `src/transport/mod.rs` re-exports;
+    - `grep -rnE 'env::var|from_default_env|from_env' src/` hits only `src/config*`, plus `src/main.rs`'s `RUST_LOG` filter as the documented exception;
+    - `grep -rnE '0x06|0x10|write_single|write_multiple' src/web src/collector` → none;
+    - `grep -rnE 'reqwest|hyper::client|https?://' src/web templates` → none (golden rule #1).
+  - Settle the open `A<n>` amendments.
+  - check: grep output in the LOG; `make check` with both coverage lines ≥ 80 %; `make amendments` → none open · review: low-risk
+- [ ] 16. [parallel: C] Deploy unit and dist (spec §10.3, spec §M5) (needs Q5).
+  - `deploy/bluetti-controller.service` is spec §10.3 plus the inhibit wrapper (step 1 l).
+  - `deploy/INSTALL.md` covers the user-level install, the absolute-path config, `systemctl --user enable --now`, `loginctl enable-linger`, logs, uninstall, and a pointer to spec §10.2 for the homelab.
+  - `make dist` builds the step 1 l tarball from `make build`; `dist/` goes into `.gitignore`.
+  - check: `make build && make dist` and `tar tzf dist/*.tar.gz` in the LOG; `systemd-analyze --user verify deploy/bluetti-controller.service` is clean; `make check` · review: risky (deploy config, Makefile)
+- [ ] 17. [parallel: C] Soak probe script (spec §11, RULES.md v1.0 gate) (needs Q6): `scripts/soak_probe.sh` (bash, read-only, touches no station).
+  - It prints one line per run: UTC ts, `is-active`, `InvocationID`, `NRestarts`, `ActiveEnterTimestamp`, `VmRSS`/`VmHWM` of `MainPID`, `/healthz` age, and the max and median `time_total` of 20 GETs of `/` to a given LAN address.
+  - Usage: `scripts/soak_probe.sh <unit> <lan-addr:port>`.
+  - It exits non-zero when the unit is inactive or a GET fails.
+  - `deploy/INSTALL.md` (step 16) gets the hourly-timer line (Q5) only after the merge; this step writes the script alone.
+  - check: run against a scratch `systemd-run --user` unit of the step 14 binary and config, then stop it; the output line is in the LOG; against a stopped unit it exits non-zero · review: risky (script)
+- [ ] 18. Install the user unit, CF-6, start the soak (spec §10.3, spec §M5, `loop/STATE.md` CF-6) (needs Q5, Q6). Host-changing, user-level only.
+  - Pre-flight (spec §10.4).
+  - `loginctl enable-linger`, then `loginctl show-user "$USER" -p Linger`.
+    - `Linger=yes` → discharge CF-6 in `loop/STATE.md`.
+    - polkit refuses → add `HUMAN-CHECKLIST.md` H11 "stay logged in for the 7 days" and keep CF-6 open, pointing at it.
+  - Install from `make dist`: the binary to `~/.local/bin`, the unit to `~/.config/systemd/user/`, the Q5 config with absolute paths and a fresh DB. Then `systemctl --user daemon-reload && systemctl --user enable --now bluetti-controller`.
+  - `systemd-inhibit --list` must show the unit's lock with `sleep:idle:handle-lid-switch`. If the inhibit wrapper makes the unit fail without a session, drop it by amendment (H10 already covers lid and power).
+  - Add H10: during the soak, keep the laptop lid open, on AC from the Elite's outlet (H8), don't stop or restart the unit, and note every manual intervention here with its date.
+  - Start the hourly probe timer (Q5) into `soak.log`.
+  - Write the soak start (`ActiveEnterTimestamp` as UTC unix), the ETA (start + 604800) and a first `soak_probe.sh` line to the LOG.
+  - From here to step 21: no command touches a station, and nothing reinstalls the binary. A reinstall is an intervention.
+  - check: `is-active` → `active`; `systemctl --user is-enabled` → `enabled`; the inhibit lock listed with all three `what`s; the probe timer listed by `systemctl --user list-timers`; after 3 min every station has ≥ 1 sample (SQL on the soak DB, read-only); `/healthz` → `200` on the LAN address; `Linger=yes` or the H11 row · review: risky (host user unit)
+- [ ] 19. M5 docs during the soak (spec §M5, spec §10.3, spec §10.5). Doc-only, with no station access and no reinstall.
+  - ROADMAP: §10.3 matches the shipped unit; §12 M5 ticks the unit, `make build`/`make dist` and the install items (the "Human:" labels become "done by the loop under the standing delegation" with LOG pointers); §10.5 gains the soak runbook lines (logs, `soak_probe.sh`).
+  - README gets a Deploy section that points at `deploy/INSTALL.md`.
+  - check: `make check`; `make loop-hygiene` is clean; `git diff --stat` touches only docs · review: low-risk
+- [ ] 20. Soak day-1 checkpoint (RULES.md v1.0 gate) (needs Q6).
+  - If `now < start + 86400`: log a `soak_probe.sh` line and the ETA as an interim entry via `loop/step-done.sh --no-tick --commit`, then emit `<<LOOP:BLOCKED>>` (no in-step wait; step 19 should already be done). This wait is not an escape-hatch attempt: INDEX stays `in-progress`, no OUTCOME is written, and STATE `Blocked?` reads `waiting on the soak ETA <ts>`.
+  - Otherwise, log:
+    - a probe line;
+    - `NRestarts` and any `InvocationID` change;
+    - the RSS trend from the hourly `soak.log` lines — a linear projection of `VmHWM` to day 7, which must be ≤ 50 MB;
+    - `scripts/acceptance_v04.py` over `[start, now)`, giving the poll ratio per station, the Elite included (the phase-4 OUTCOME follow-up), and MB per station-day.
+  - A projected RSS > 50 MB or a crash loop is a miss: plan the fix by amendment. The fix needs a reinstall and **restarts the 7-day clock**.
+  - check: the probe and projection numbers in the LOG, with a pass or miss stated · review: low-risk
+- [ ] 21. Soak final measurement (RULES.md v1.0 gate, spec §M5) (needs Q6).
+  - If `now < start + 604800`: log an interim probe line and the ETA the same way as step 20 (`--no-tick`, INDEX `in-progress`, no OUTCOME, not an escape-hatch attempt), then emit `<<LOOP:BLOCKED>>`. The step is not ticked until the 7 days have elapsed and the numbers are in the LOG.
+  - Then log:
+    - a final probe line;
+    - **manual interventions**: the H10 notes, plus any `InvocationID` change not explained by `NRestarts`, plus loop actions on the unit; the gate is ≤ 1;
+    - **RSS**: the max `VmHWM` across every `soak.log` line; the gate is ≤ 50 MB;
+    - **page time**: the max of 20 LAN GETs; the gate is ≤ 1 s;
+    - `acceptance_v04.py` over the 7 days (poll ratio per station and MB per station-day; informational, not the v1.0 gate);
+    - any house `grid_event` in the window, for the owner's H4.
+  - The unit keeps running (Q7).
+  - check: each of the three numbers vs its threshold in the LOG; any miss → the PROMPT §7 rule (attempts 1–2: amend, fix, re-run the soak from step 18; third → `<<LOOP:GATE_FAILED>>`) · review: low-risk
+- [ ] 22. Phase gate `v1.0-mvp` (RULES.md v1.0 gate, AGENTS.md §6).
+  - `make check` is green, with both coverage lines ≥ 80 %.
+  - Every BRIEF done-when item points at its LOG evidence (steps 2–21); ROADMAP §12 M5's soak and OUTCOME items are ticked; H9/H10 (and H11 if added) are listed for the owner.
+  - The `loop/STATE.md` gate line shows the verdict. All pass → the close: OUTCOME with the measured numbers, the `close-reviewer`, the `v1.0-mvp` tag, then `<<LOOP:DONE>>` (final milestone).
+  - check: `make check`; `make amendments` → none open; each done-when item has its evidence line in the LOG · review: low-risk (the `close-reviewer` audits the close)
+
+## Risks / Dependencies
+- **Order.** The design record (1) comes first, then config (2), store reads (3) and writer updates (4), which every view needs. The skeleton (5) fixes `AppState`, every route stub and every Cargo dependency. Then come groups A (views and assets) and B (endpoints and pages), then telemetry (13), then the hardware smoke (14) and the M4 close-out (15). M5 follows: group C (16–17), the install (18), docs during the soak (19), and the soak checkpoints (20–21), then the gate (22).
+- **Parallel group A (6–8)** writes `status.rs`, `history.rs`, and `assets.rs` plus `assets/` (uPlot and `app.{js,css}`) and the README credit line. The tz helpers come from step 2, so 6 and 7 add none. Step 5 created the three stub files and declared them, so no group step edits `web/mod.rs`, `Cargo.toml` or a shared row. None consumes another's output: 6 and 7 use only steps 2–5. Each edits an existing file, so each gets its own worktree branch through `loop/merge-gate.sh`.
+- **Parallel group B (9–12)** writes `api.rs`; `pages.rs` plus `templates/`; `sse.rs`; and `pause.rs` plus `collector/tests.rs`. No group-B step edits a group-A file.
+  - Each consumes only the finished groups A and 2–5, and step 1's API contract. The page's JS calls the endpoints by their step 1 f/h contract, not their code.
+  - Every route is already registered (step 5), and every dependency is already locked.
+- **Parallel group C (16–17)** writes `deploy/`, `Makefile` and `.gitignore`, versus `scripts/soak_probe.sh`; they are disjoint. Step 17 checks against a scratch unit of the step 14 binary, not the `deploy/` unit. Steps 18 and later change the host, so none is tagged. Step 16's worktree sets `CARGO_TARGET_DIR` to the main tree's `target/`, so its `make build && make dist` is not a cold release build.
+- **SSE vs graceful shutdown.** axum waits for open connections, and an `/events` stream never ends by itself, so SIGTERM would hang until systemd kills the process. Step 11 ends every stream on `state.shutdown` and tests the 2 s stop; `serve.rs` (step 5) fires it before stopping the server.
+- **Page weight.** uPlot is the dominant asset (~50 KB). If the vendored size plus the page breaks 100 KB, trim the HTML and JS, never the threshold. Compression would add `tower-http`, a new dependency, which is a design-record amendment and not a quiet add.
+- **Unverified core fields (Q2).** The status page and forecast show values H1–H3 have not yet confirmed. The badge makes that visible, and no alert or gate uses them.
+- **The soak takes 7 wall-clock days.** Waiting is a `<<LOOP:BLOCKED>>` with the ETA, never an in-step wait. Step 19 runs during the window, so the waits are only 20 and 21. Each relaunch before the ETA adds an interim probe line. That costs one iteration and gives the owner a progress reading.
+- **The soak is exposed to the host** (phase-4 lessons):
+  - logout without linger (CF-6, step 18);
+  - suspend, idle and lid close (the inhibit wrapper with `handle-lid-switch`, Q5; H10);
+  - power (H8, H10);
+  - the owner switching stations off (not an intervention, Q6).
+  Any fix that needs a reinstall restarts the clock. Step 20's day-1 RSS projection exists to catch a leak in 1 day, not 7.
+- **The inhibit wrapper without a session.** Phase 4 verified it inside a GNOME session only. Under linger, polkit may refuse it and the unit would fail to start; step 18 checks this and falls back by amendment.
+- **No station access during the soak** (golden rule #5: the unit holds the polling). `make check`/`make build` write `target/`, never `~/.local/bin`, so docs and the gate cannot disturb the run.
+- **Dependencies:**
+  - `jiff` (step 2), askama (step 5), and possibly `futures-util` (step 5; it is already in the tree through axum). Each is added by an unlocked `cargo build`, with insertions only.
+  - uPlot is vendored JS, with no npm and no build step.
+  - The probe uses bash, `systemctl`, `curl` and `/proc`; the measurement reuses `scripts/acceptance_v04.py` (stdlib `sqlite3`, read-only).
+- **Coverage.** `src/web/` is not under the 80 % gate. The gate stays on `src/protocol/` and `src/metrics/`, and steps 6–7 only call the metrics, so those lines hold.
+
+## Escape hatches
+- If a step fails 3 times: stop, log the blocker, set status: blocked, and emit `<<LOOP:BLOCKED>>`. A station unreachable during step 14 or 18 (the app connected, out of range) is logged and retried, and counts toward the 3.
+- If a destructive, secret-touching or irreversible external action is required: stop and hand to a human. This covers:
+  - any 0x06/0x10 frame, `control.enabled = true`, or pairing;
+  - `sudo`: a system unit, a polkit rule for linger or inhibit, the firewall, BlueZ settings, or a system package;
+  - the homelab install (spec §10.2);
+  - a MAC, serial number, key or token that reached a commit.
+- Waiting for the soak (steps 20–21) with nothing else left: `<<LOOP:BLOCKED>>` with the ETA in the LOG — a wait, not a failed attempt (steps 20/21 say how). Never cut the window short, and never count a restarted soak's earlier days.
+- Gate failures — coverage < 80 %, page weight ≥ 100 KB, or a soak with > 1 manual intervention, RSS > 50 MB or a page > 1 s. Attempts 1–2 log the miss, amend, fix and re-run; the third is `<<LOOP:GATE_FAILED>>`. Fix the work, never the threshold. A wrong metric goes only through the falsified-metric path (AGENTS.md §6).
+
+## Amendments
