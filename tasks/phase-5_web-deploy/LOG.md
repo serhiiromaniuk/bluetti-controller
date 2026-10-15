@@ -675,3 +675,33 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 20 ✓ 2026-10-15 — (declined — A7): no day-1 checkpoint; the 1 h run is measured once at step 21
+
+**Changed:** none in code or docs; PLAN step 20 ticked as declined (A7: no 7-day soak, so no day-1 RSS projection).
+**Check (read-only, 12:20:03 UTC):** `systemctl --user show bluetti-controller` → `ActiveState=active`, `NRestarts=0`, `InvocationID=71d0b93f…` (same as step 18).
+**reviewer:** batched (low-risk), before the push.
+**Next:** step 21 — measure the 1 h run at ≥ 13:13:12 UTC (ETA 1792069992).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-15T12:20:24Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-29b9cfa85dc29102)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 99.82% (min 80%)
+>> src/metrics/ line coverage 99.4% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

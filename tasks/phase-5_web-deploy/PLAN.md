@@ -196,7 +196,7 @@ Every question below is covered by the standing owner delegation (RULES.md); non
   - ROADMAP: §10.3 matches the shipped unit; §12 M5 ticks the unit, `make build`/`make dist` and the install items (the "Human:" labels become "done by the loop under the standing delegation" with LOG pointers); §10.5 gains the soak runbook lines (logs, `soak_probe.sh`).
   - README gets a Deploy section that points at `deploy/INSTALL.md`.
   - check: `make check`; `make loop-hygiene` is clean; `git diff --stat` touches only docs · review: low-risk
-- [ ] 20. Soak day-1 checkpoint (RULES.md v1.0 gate) (needs Q6).
+- [x] 20. Soak day-1 checkpoint (RULES.md v1.0 gate) (needs Q6).
   - If `now < start + 86400`: log a `soak_probe.sh` line and the ETA as an interim entry via `loop/step-done.sh --no-tick --commit`, then emit `<<LOOP:BLOCKED>>` (no in-step wait; step 19 should already be done). This wait is not an escape-hatch attempt: INDEX stays `in-progress`, no OUTCOME is written, and STATE `Blocked?` reads `waiting on the soak ETA <ts>`.
   - Otherwise, log:
     - a probe line;
