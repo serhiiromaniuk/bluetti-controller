@@ -116,6 +116,50 @@ async fn the_page_lists_core_and_extra_metrics_with_their_flag() {
     assert!(!body.contains("ac_input_power"), "no NULL column: {body}");
     // Only the base template's inline theme toggle: no script file, no chart.
     assert!(!body.contains("<script src"), "no JS file: {body}");
+    assert!(body.contains("No qualifying discharge yet"), "{body}");
+    stop.send(()).unwrap();
+    server.await.unwrap().unwrap();
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_page_shows_the_capacity_estimate_from_a_discharge() {
+    let conn = db();
+    // Three buckets, SOC 90 → 80, 10 Wh out each, no input: 30 − 10 = 20 Wh
+    // over 10 points = 200 Wh; 200 / 268.8 = 0.74. The charging bucket after
+    // it and a station without rollups add nothing.
+    for (ts, soc, in_wh) in [
+        (0, 90.0, 0.0),
+        (300, 85.0, 0.0),
+        (600, 80.0, 0.0),
+        (900, 81.0, 5.0),
+    ] {
+        conn.execute(
+            "INSERT INTO rollup_5m (station_id, ts, soc_avg, energy_in_wh, energy_out_wh, n)
+             VALUES (1, ?1, ?2, ?3, 10, 5)",
+            params![ts, soc, in_wh],
+        )
+        .unwrap();
+    }
+    conn.execute(
+        "INSERT INTO station VALUES (2, 'mobile', 'AC180', 1152, 0)",
+        [],
+    )
+    .unwrap();
+    let (addr, stop, server) = start(AppState::for_tests(conn)).await;
+    let (status, body) = tokio::task::spawn_blocking(move || get(addr, "/telemetry"))
+        .await
+        .unwrap();
+    assert_eq!(status, "HTTP/1.1 200 OK");
+    let (router, mobile) = body.split_once("mobile").expect("both stations");
+    for text in [
+        "Battery health",
+        "≈ 200 Wh usable of 269 Wh nominal, factor 0.74 (median of the newest 1)",
+        "unverified output meter",
+        "<td>0.2</td><td>90 → 80 %</td><td>20</td><td>200</td>",
+    ] {
+        assert!(router.contains(text), "{text} missing in {router}");
+    }
+    assert!(mobile.contains("No qualifying discharge yet"), "{mobile}");
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
 }

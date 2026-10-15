@@ -4,6 +4,15 @@
 <h1>Raw telemetry</h1>
 <p class="muted">Every stored metric, latest value and the last 24 h (30-min averages). Unverified registers are not yet confirmed on hardware.</p>
 {% for s in stations %}<h2>{{ s.name }} <span class="muted">{{ s.model }}</span></h2>
+<h3>Battery health</h3>
+{% if let Some(e) = s.health.estimate %}<p>{{ e }}{% if s.health.meter_unverified %} <span class="badge warn">unverified output meter</span>{% endif %}</p>
+<div class="scroll"><table>
+<tr><th>Start</th><th>Hours</th><th>SOC</th><th>Out Wh</th><th>Capacity Wh</th></tr>
+{% for g in s.health.segments %}<tr><td>{{ g.start }}</td><td>{{ g.hours }}</td><td>{{ g.soc }}</td><td>{{ g.energy }}</td><td>{{ g.capacity }}</td></tr>
+{% endfor %}</table></div>
+{% else %}<p class="muted">No qualifying discharge yet (needs ≥ 10 SOC points with metered output and no input)</p>
+{% endif %}
+<h3>Metrics</h3>
 <div class="scroll"><table>
 <tr><th>Metric</th><th>Latest</th><th>At</th><th>Flag</th><th>24 h</th></tr>
 {% for r in s.rows %}<tr><td>{{ r.key }}</td><td>{{ r.value }}</td><td>{{ r.at }}</td><td>{% if r.verified %}<span class="badge ok">verified</span>{% else %}<span class="badge warn">unverified</span>{% endif %}</td><td><svg class="spark" viewBox="0 0 120 30" preserveAspectRatio="none"><polyline points="{{ r.points }}"/></svg></td></tr>

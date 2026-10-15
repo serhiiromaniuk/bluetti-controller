@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
+use crate::metrics::capacity::Bucket;
 use crate::protocol::device::Metric;
 
 /// The six `sample` columns and the metric each holds (§6).
@@ -176,6 +177,29 @@ pub fn latest_extras(
     let rows = stmt
         .query_map([station_id], |row| {
             Ok((row.get(0)?, (row.get(1)?, row.get(2)?)))
+        })?
+        .collect::<Result<_, _>>()?;
+    Ok(rows)
+}
+
+/// The station's `rollup_5m` buckets that can belong to a discharge (no input,
+/// some output, an SOC), oldest first. The filter only trims the scan: a
+/// skipped bucket leaves a ts gap, which splits a run just as it would.
+pub fn discharge_buckets(conn: &Connection, station_id: i64) -> anyhow::Result<Vec<Bucket>> {
+    let mut stmt = conn.prepare(
+        "SELECT ts, soc_avg, energy_in_wh, energy_out_wh FROM rollup_5m
+         WHERE station_id = ?1 AND energy_in_wh = 0 AND energy_out_wh > 0
+           AND soc_avg IS NOT NULL
+         ORDER BY ts",
+    )?;
+    let rows = stmt
+        .query_map([station_id], |row| {
+            Ok(Bucket {
+                ts: row.get(0)?,
+                soc_avg: row.get(1)?,
+                energy_in_wh: row.get(2)?,
+                energy_out_wh: row.get(3)?,
+            })
         })?
         .collect::<Result<_, _>>()?;
     Ok(rows)
