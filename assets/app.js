@@ -145,7 +145,7 @@
         cursor: { sync: { key: "dash" }, drag: { x: true, y: false, setScale: false } },
         scales: {
           x: { time: true, range: function () { return [data.from, data.to]; } },
-          y: p[1] === "%" ? { range: [0, 100] } : { range: function (u, lo, hi) { return [0, Math.max(10, hi || 0) * 1.1]; } }
+          y: p[1] === "%" ? { range: [0, 100] } : { range: function (u, lo, hi) { return [Math.min(0, lo || 0), Math.max(10, hi || 0) * 1.1]; } }
         },
         series: [{}].concat(data.stations.map(function (s, i) {
           return { label: s.name, stroke: COLORS[i % COLORS.length], width: 1.5,

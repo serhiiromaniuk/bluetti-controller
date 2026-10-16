@@ -211,3 +211,97 @@ fn outages_between_keeps_the_overlapping_ones_newest_first() {
         [(1900, 900, true), (1500, 100, false), (900, 200, false)]
     );
 }
+
+/// The four R1a lifetime counters at `ts`, in kWh: grid in, PV in, AC out,
+/// DC out; a `None` is not stored.
+fn counters(conn: &Connection, ts: i64, values: [Option<f64>; 4]) {
+    let keys = [
+        "grid_in_energy",
+        "pv_in_energy",
+        "ac_out_energy",
+        "dc_out_energy",
+    ];
+    for (key, value) in keys.into_iter().zip(values) {
+        if let Some(v) = value {
+            conn.execute(
+                "INSERT INTO sample_extra VALUES (1, ?1, ?2, ?3)",
+                params![ts, key, v],
+            )
+            .unwrap();
+        }
+    }
+}
+
+fn counter_wh(days: &[EnergyDay]) -> Vec<(&str, Option<f64>, Option<f64>)> {
+    days.iter()
+        .map(|d| {
+            let s = &d.stations[0];
+            (d.day.as_str(), s.counter_in_wh, s.counter_out_wh)
+        })
+        .collect()
+}
+
+#[test]
+fn counter_deltas_span_the_local_day_boundary() {
+    // 06-30 local: 22:50 (in 99 + 9, out 49 + 4), then 23:50 (in 100 + 10,
+    // out 50 + 5) — the last of the day counts. 07-01: 00:10, then 00:50
+    // (in 100.7 + 10.2 = 110.9, out 50.4 + 5.1 = 55.5).
+    // 07-01: in (110.9 − 110) × 1000 = 900 Wh; out (55.5 − 55) × 1000 = 500 Wh.
+    // All four readings fall on 06-30 in UTC, so UTC days would show no delta.
+    // 06-30 has no reading on 06-29 to subtract: "—".
+    let conn = db();
+    counters(&conn, D0 - 4200, [99.0, 9.0, 49.0, 4.0].map(Some));
+    counters(&conn, D0 - 600, [100.0, 10.0, 50.0, 5.0].map(Some));
+    counters(&conn, D0 + 600, [100.5, 10.1, 50.3, 5.0].map(Some));
+    counters(&conn, D0 + 3000, [100.7, 10.2, 50.4, 5.1].map(Some));
+    let days = energy(&conn, 2, D0 + 3600, INTERVAL, &kyiv()).unwrap();
+    assert_eq!(
+        counter_wh(&days),
+        [
+            ("2026-07-01", Some(900.0), Some(500.0)),
+            ("2026-06-30", None, None)
+        ]
+    );
+}
+
+#[test]
+fn a_missing_counter_reading_is_no_delta() {
+    // 07-01 lacks the DC out counter: out is "—", in still
+    // (100 + 10.1) − (99.1 + 10) = 1.0 kWh = 1000 Wh.
+    let conn = db();
+    counters(&conn, D0 - 600, [99.1, 10.0, 50.0, 5.0].map(Some));
+    counters(&conn, D0 + 600, [Some(100.0), Some(10.1), Some(50.2), None]);
+    let days = energy(&conn, 1, D0 + 3600, INTERVAL, &kyiv()).unwrap();
+    assert_eq!(counter_wh(&days), [("2026-07-01", Some(1000.0), None)]);
+}
+
+#[test]
+fn a_counter_reset_is_no_delta() {
+    // In went 110 → 0.2 kWh (a reset): "—", never −109 800 Wh. Out did not
+    // move: 0 Wh, not "—".
+    let conn = db();
+    counters(&conn, D0 - 600, [100.0, 10.0, 50.0, 5.0].map(Some));
+    counters(&conn, D0 + 600, [0.1, 0.1, 50.0, 5.0].map(Some));
+    let days = energy(&conn, 1, D0 + 3600, INTERVAL, &kyiv()).unwrap();
+    assert_eq!(counter_wh(&days), [("2026-07-01", None, Some(0.0))]);
+}
+
+#[test]
+fn lifetime_sums_the_newest_counters_and_skips_partial_stations() {
+    // office: newest in 100.5 + 20 = 120.5, out 80 + 10.5 = 90.5 kWh. A second
+    // station with only an AC out counter is left out.
+    let conn = db();
+    conn.execute_batch("INSERT INTO station VALUES (2, 'router', 'EB3A', 268.8, 1);")
+        .unwrap();
+    counters(&conn, D0, [100.0, 20.0, 80.0, 10.0].map(Some));
+    counters(&conn, D0 + 600, [100.5, 20.0, 80.0, 10.5].map(Some));
+    conn.execute(
+        "INSERT INTO sample_extra VALUES (2, ?1, 'ac_out_energy', 1.0)",
+        [D0],
+    )
+    .unwrap();
+    assert_eq!(
+        lifetime(&conn).unwrap(),
+        [("office".to_owned(), 120.5, 90.5)]
+    );
+}
