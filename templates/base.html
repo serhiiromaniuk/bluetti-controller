@@ -7,7 +7,7 @@
 <link rel="icon" href="data:,">
 <script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}document.documentElement.className="js"</script>
 {% block head %}{% endblock %}
-<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/app.css?v={{ crate::BUILD }}">
 </head>
 <body>
 <header class="top"><nav><a href="/">Status</a><a href="/telemetry">Telemetry</a></nav>

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block title %}Bluetti status{% endblock %}
-{% block head %}<link rel="stylesheet" href="/assets/uPlot.min.css">{% endblock %}
+{% block head %}<link rel="stylesheet" href="/assets/uPlot.min.css?v={{ crate::BUILD }}">{% endblock %}
 {% block tools %}<div class="tools js-only">
 <select id="range" aria-label="Time range">
 <option value="now-1h">Last 1 hour</option><option value="now-3h">Last 3 hours</option><option value="now-6h">Last 6 hours</option><option value="now-12h" selected>Last 12 hours</option><option value="now-24h">Last 24 hours</option><option value="now-2d">Last 2 days</option><option value="now-7d">Last 7 days</option><option value="now-30d">Last 30 days</option><option value="custom">Custom…</option>
@@ -60,5 +60,5 @@
 {% endif %}<button>Pause</button>
 <output id="pause-reply"></output></form>
 {% endblock %}
-{% block scripts %}<script src="/assets/uPlot.iife.min.js"></script>
-<script src="/assets/app.js"></script>{% endblock %}
+{% block scripts %}<script src="/assets/uPlot.iife.min.js?v={{ crate::BUILD }}"></script>
+<script src="/assets/app.js?v={{ crate::BUILD }}"></script>{% endblock %}

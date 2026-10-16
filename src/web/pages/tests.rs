@@ -239,3 +239,16 @@ fn counter_columns_and_lifetime_line_for_a_v2_station() {
     ));
     assert!(!html.contains("router: in"));
 }
+
+/// A deploy must reach browsers at once: the asset URLs name the build, so a
+/// new binary is a new URL despite the one-day cache.
+#[test]
+fn asset_urls_carry_the_build() {
+    let conn = db();
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let html = render(&conn, NOW, &state).unwrap();
+    for asset in ["app.js", "app.css", "uPlot.iife.min.js", "uPlot.min.css"] {
+        let url = format!("/assets/{asset}?v={}\"", crate::BUILD);
+        assert!(html.contains(&url), "{url} missing");
+    }
+}

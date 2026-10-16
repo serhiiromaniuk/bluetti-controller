@@ -5,6 +5,12 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.3.1 — 2026-10-16
+
+- Asset URLs carry the build (`/assets/app.js?v=<build>`), so a browser picks
+  up new JS and CSS right after a deploy instead of running a cached copy for
+  up to a day (1.3.0's temperature chart stayed empty until then).
+
 ## 1.3.0 — 2026-10-16
 
 Dashboard panels for the R1a extras (ROADMAP §2.2 R1b), AC180 and Elite 200
