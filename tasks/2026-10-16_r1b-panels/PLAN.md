@@ -8,10 +8,10 @@ deploy (owner approved the deploy).
 None.
 
 ## Steps
-- [ ] 1. [parallel: A] Cards: temperature °C, mode name, station time left (status.rs, card markup) — check: `make check`, card tests.
-- [ ] 2. [parallel: A] Chart: `temp_c` in `/api/chart`, 4th panel (chart.rs, app.js `PANELS`, panel markup) — check: `make check`, chart test, JS budget.
-- [ ] 3. [parallel: A] Energy: counter deltas per station-day + lifetime line (history.rs, pages.rs, energy markup) — check: `make check`, hand-computed test.
-- [ ] 4. Merge the three branches, `make check`, CHANGELOG 1.3.0, `make release VERSION=1.3.0`, `make deploy` — check: `/healthz` v1.3.0, page shows the new parts.
+- [x] 1. [parallel: A] Cards: temperature °C, mode name, station time left (status.rs, card markup) — check: `make check`, card tests.
+- [x] 2. [parallel: A] Chart: `temp_c` in `/api/chart`, 4th panel (chart.rs, app.js `PANELS`, panel markup) — check: `make check`, chart test, JS budget.
+- [x] 3. [parallel: A] Energy: counter deltas per station-day + lifetime line (history.rs, pages.rs, energy markup) — check: `make check`, hand-computed test.
+- [x] 4. Merge the three branches, `make check`, CHANGELOG 1.3.0, `make release VERSION=1.3.0`, `make deploy` — check: `/healthz` v1.3.0, page shows the new parts.
 
 ## Risks / Dependencies
 - All three edit `templates/status.html`, in separate sections: expect clean or trivial merges.

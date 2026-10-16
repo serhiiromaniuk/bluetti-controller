@@ -15,8 +15,8 @@ In: the three features exactly as in §2.2 R1b; tests; CHANGELOG 1.3.0; deploy.
 Out: `charging_status`, `feedback_energy`, any budget raise, any schema change.
 
 ## Done when
-- [ ] `make check` green on the merged tree, page-weight budget unchanged.
-- [ ] v1.3.0 deployed once, `/healthz` reports it, the status page renders the
+- [x] `make check` green on the merged tree, page-weight budget unchanged.
+- [x] v1.3.0 deployed once, `/healthz` reports it, the status page renders the
       new card lines, the 4th chart and the counter columns on production.
 
 ## Refs
