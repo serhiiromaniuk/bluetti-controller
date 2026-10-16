@@ -110,6 +110,21 @@ internet down.
 
 - **R1 Battery health & telemetry discovery** — usable-capacity estimate from
   observed discharges, SOH/temperature on V2 stations, register sweeps on EB3A.
+- **R1b Dashboard panels for the R1a extras — approved** (owner 2026-10-16,
+  recorded at the owner's request: "yes, go"). Display only, V2 stations,
+  every value labelled unverified until HUMAN-CHECKLIST H12:
+  - *Cards:* pack temperature in °C (`(°F − 32) × 5 ⁄ 9`), the charging-mode
+    name (0 standard, 1 silent, 2 turbo; the R3 control map of register
+    2020, assumed for 160), and the station's own time left
+    (`time_to_empty`) beside our forecast only while it discharges (output
+    > 0, input = 0). An extra older than 20 min (two slow slots) is not shown.
+  - *Chart:* a 4th dashboard panel, pack temperature °C per station, from
+    `sample_extra` through `/api/chart` (`temp_c`, `null` where absent).
+  - *Energy table:* per station-day the counter deltas (last reading of the
+    day minus the last of the day before; in = `grid_in_energy` +
+    `pv_in_energy`, out = `ac_out_energy` + `dc_out_energy`, in Wh, 100 Wh
+    steps) beside our integrated values, and a lifetime line per station
+    (counters in, out, out ÷ in). EB3A shows "—".
 - **R2 Outage schedules** — YASNO (Kyiv, Dnipro) or the svitlo proxy for other
   regions: next planned outage, "will this station last through it?".
 - **R1a Telemetry extras — approved** (owner 2026-10-15, recorded at the
