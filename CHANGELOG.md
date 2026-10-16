@@ -5,6 +5,18 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.3.2 — 2026-10-16
+
+- **Battery health from the battery side:** on the AC180 and the Elite the
+  capacity estimate now integrates pack V × I over raw samples instead of the
+  metered output, which missed the inverter's own draw and loads under the
+  meter's floor (AC180: 9 W metered vs 55 W from the pack). `/telemetry`
+  shows it as a percentage of nominal. The EB3A keeps the output-based rule.
+- **Runtime forecast:** while nothing charges a V2 station, its load is the
+  pack's own draw over the last 10 min, so the AC180's forecast no longer
+  ignores ~45 W of inverter draw.
+- HUMAN-CHECKLIST H13: plug-meter test of the AC180's capacity.
+
 ## 1.3.1 — 2026-10-16
 
 - Asset URLs carry the build (`/assets/app.js?v=<build>`), so a browser picks

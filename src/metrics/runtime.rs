@@ -43,11 +43,15 @@ pub enum Forecast {
 ///   forecast is `Unknown`.
 /// - `until_ts` is counted from the newest SOC sample, the moment the
 ///   remaining energy was read.
+/// - `battery_w`, the pack's own recent draw while nothing charges it
+///   ([`super::capacity::battery_load_w`]), overrides the output-based load:
+///   it includes the inverter's own draw and loads under the meter's floor.
 pub fn forecast(
     samples: &[(i64, &BTreeMap<Metric, f64>)],
     capacity_wh: f64,
     usable_factor: f64,
     grid: GridState,
+    battery_w: Option<f64>,
 ) -> Forecast {
     let Some(&(ts, soc)) = soc_points(samples).last() else {
         return Forecast::Unknown;
@@ -55,7 +59,9 @@ pub fn forecast(
     let Some(&(_, newest)) = samples.last() else {
         return Forecast::Unknown;
     };
-    let load_w = if output_w(newest) <= 0.0 {
+    let load_w = if let Some(w) = battery_w.filter(|w| *w >= 1.0) {
+        w
+    } else if output_w(newest) <= 0.0 {
         match soc_slope_w(samples, capacity_wh) {
             Some(w) => w,
             None => return Forecast::Unknown,

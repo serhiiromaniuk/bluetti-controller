@@ -33,7 +33,7 @@ fn ewma_over_irregular_intervals_on_battery() {
         (600, sample(None, 150.0, 50.0)),
         (900, sample(Some(50.0), 0.0, 50.0)),
     ];
-    let got = forecast(&view(&rows), 1000.0, 0.85, GridState::Absent);
+    let got = forecast(&view(&rows), 1000.0, 0.85, GridState::Absent, None);
     let Forecast::OnBattery {
         load_w,
         remaining_wh,
@@ -56,7 +56,7 @@ fn on_grid_is_if_the_power_goes_now() {
         (0, sample(Some(80.0), 60.0, 40.0)),
         (60, sample(Some(80.0), 100.0, 0.0)),
     ];
-    let got = forecast(&view(&rows), 2000.0, 0.85, GridState::Present);
+    let got = forecast(&view(&rows), 2000.0, 0.85, GridState::Present, None);
     let Forecast::OnGrid {
         load_w,
         remaining_wh,
@@ -74,7 +74,7 @@ fn on_grid_is_if_the_power_goes_now() {
 fn tiny_nonzero_load_uses_the_one_watt_floor() {
     // 0.5 W read → max(0.5, 1) = 1 W; remaining = 100 × 10 / 100 × 1.0 = 10 Wh → 10 h
     let rows = vec![(0, sample(Some(10.0), 0.0, 0.5))];
-    let got = forecast(&view(&rows), 100.0, 1.0, GridState::Present);
+    let got = forecast(&view(&rows), 100.0, 1.0, GridState::Present, None);
     let Forecast::OnGrid {
         load_w, runtime_h, ..
     } = got
@@ -98,7 +98,7 @@ fn zero_watt_outputs_take_the_load_from_the_soc_slope() {
         (1800, sample(None, 0.0, 0.0)),
         (2280, sample(Some(87.0), 0.0, 0.0)),
     ];
-    let got = forecast(&view(&rows), 268.8, 0.85, GridState::Absent);
+    let got = forecast(&view(&rows), 268.8, 0.85, GridState::Absent, None);
     let Forecast::OnBattery {
         load_w,
         remaining_wh,
@@ -124,7 +124,7 @@ fn soc_slope_ends_at_the_first_sample_of_the_current_level() {
         (1200, sample(Some(88.0), 0.0, 0.0)),
         (1800, sample(Some(88.0), 0.0, 0.0)),
     ];
-    let got = forecast(&view(&rows), 1000.0, 1.0, GridState::Present);
+    let got = forecast(&view(&rows), 1000.0, 1.0, GridState::Present, None);
     let Forecast::OnGrid { load_w, .. } = got else {
         panic!("expected OnGrid, got {got:?}");
     };
@@ -143,7 +143,7 @@ fn idle_on_grid_plateau_does_not_dilute_the_soc_slope() {
         (37200, sample(Some(88.0), 0.0, 0.0)),
         (38340, sample(Some(87.0), 0.0, 0.0)),
     ];
-    let got = forecast(&view(&rows), 268.8, 0.85, GridState::Absent);
+    let got = forecast(&view(&rows), 268.8, 0.85, GridState::Absent, None);
     let Forecast::OnBattery { load_w, .. } = got else {
         panic!("expected OnBattery, got {got:?}");
     };
@@ -157,7 +157,7 @@ fn fewer_than_two_soc_steps_with_zero_watts_is_unknown() {
         (1140, sample(Some(88.0), 0.0, 0.0)),
     ];
     assert_eq!(
-        forecast(&view(&rows), 268.8, 0.85, GridState::Absent),
+        forecast(&view(&rows), 268.8, 0.85, GridState::Absent, None),
         Forecast::Unknown
     );
 }
@@ -172,7 +172,7 @@ fn a_fall_seen_from_the_window_edge_needs_three_soc_levels() {
         (2280, sample(Some(87.0), 0.0, 0.0)),
     ];
     assert_eq!(
-        forecast(&view(&edge), 268.8, 0.85, GridState::Absent),
+        forecast(&view(&edge), 268.8, 0.85, GridState::Absent, None),
         Forecast::Unknown
     );
     // One 2-point jump 90 → 88 has no observed transition after the top.
@@ -181,7 +181,7 @@ fn a_fall_seen_from_the_window_edge_needs_three_soc_levels() {
         (1140, sample(Some(88.0), 0.0, 0.0)),
     ];
     assert_eq!(
-        forecast(&view(&jump), 268.8, 0.85, GridState::Absent),
+        forecast(&view(&jump), 268.8, 0.85, GridState::Absent, None),
         Forecast::Unknown
     );
 }
@@ -193,7 +193,7 @@ fn charging_with_zero_watts_on_grid_is_unknown_not_the_floor() {
         (600, sample(Some(85.0), 0.0, 0.0)),
     ];
     assert_eq!(
-        forecast(&view(&rising), 1000.0, 0.85, GridState::Present),
+        forecast(&view(&rising), 1000.0, 0.85, GridState::Present, None),
         Forecast::Unknown
     );
     // A fall that charging has since reversed is not "SOC falling": 90 → 85 → 87.
@@ -203,7 +203,7 @@ fn charging_with_zero_watts_on_grid_is_unknown_not_the_floor() {
         (1200, sample(Some(87.0), 0.0, 0.0)),
     ];
     assert_eq!(
-        forecast(&view(&reversed), 1000.0, 0.85, GridState::Present),
+        forecast(&view(&reversed), 1000.0, 0.85, GridState::Present, None),
         Forecast::Unknown
     );
 }
@@ -211,17 +211,42 @@ fn charging_with_zero_watts_on_grid_is_unknown_not_the_floor() {
 #[test]
 fn missing_inputs_are_unknown() {
     assert_eq!(
-        forecast(&[], 1000.0, 0.85, GridState::Absent),
+        forecast(&[], 1000.0, 0.85, GridState::Absent, None),
         Forecast::Unknown
     );
     let no_soc = vec![(0, sample(None, 100.0, 0.0))];
     assert_eq!(
-        forecast(&view(&no_soc), 1000.0, 0.85, GridState::Absent),
+        forecast(&view(&no_soc), 1000.0, 0.85, GridState::Absent, None),
         Forecast::Unknown
     );
     let ok = vec![(0, sample(Some(50.0), 100.0, 0.0))];
     assert_eq!(
-        forecast(&view(&ok), 1000.0, 0.85, GridState::Unknown),
+        forecast(&view(&ok), 1000.0, 0.85, GridState::Unknown, None),
         Forecast::Unknown
     );
+}
+
+/// The AC180 case: outputs meter 9 W, the pack gives 55 W. 1152 Wh × 69 % ×
+/// 0.85 = 675.6 Wh at 55 W = 12.28 h, not the 75 h the meter implies.
+#[test]
+fn battery_side_load_overrides_the_metered_output() {
+    let rows = [
+        (0, sample(Some(69.0), 9.0, 0.0)),
+        (60, sample(Some(69.0), 9.0, 0.0)),
+    ];
+    let Forecast::OnBattery {
+        load_w, runtime_h, ..
+    } = forecast(&view(&rows), 1152.0, 0.85, GridState::Absent, Some(55.0))
+    else {
+        panic!("on battery");
+    };
+    approx(load_w, 55.0);
+    approx(runtime_h, 1152.0 * 0.69 * 0.85 / 55.0);
+    // Below 1 W it is ignored: the metered 9 W stays.
+    let Forecast::OnBattery { load_w, .. } =
+        forecast(&view(&rows), 1152.0, 0.85, GridState::Absent, Some(0.5))
+    else {
+        panic!("on battery");
+    };
+    approx(load_w, 9.0);
 }

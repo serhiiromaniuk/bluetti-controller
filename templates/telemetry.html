@@ -7,10 +7,10 @@
 <h3>Battery health</h3>
 {% if let Some(e) = s.health.estimate %}<p>{{ e }}{% if s.health.meter_unverified %} <span class="badge warn">unverified output meter</span>{% endif %}</p>
 <div class="scroll"><table>
-<tr><th>Start</th><th>Hours</th><th>SOC</th><th>Out Wh</th><th>Capacity Wh</th></tr>
+<tr><th>Start</th><th>Hours</th><th>SOC</th><th>Energy Wh</th><th>Capacity Wh</th></tr>
 {% for g in s.health.segments %}<tr><td>{{ g.start }}</td><td>{{ g.hours }}</td><td>{{ g.soc }}</td><td>{{ g.energy }}</td><td>{{ g.capacity }}</td></tr>
 {% endfor %}</table></div>
-{% else %}<p class="muted">No qualifying discharge yet (needs ≥ 10 SOC points with metered output and no input)</p>
+{% else %}<p class="muted">No qualifying discharge yet (needs a drop of ≥ 10 SOC points with no input)</p>
 {% endif %}
 <h3>Metrics</h3>
 <div class="scroll"><table>

@@ -1,6 +1,8 @@
 //! Usable battery capacity from observed discharges (ROADMAP.md §2.2, R1
 //! decision): runs of 5-minute `rollup_5m` buckets with metered output and no
-//! input, each long enough to drop the SOC by [`MIN_DROP`] points. Pure: no I/O.
+//! input, each long enough to drop the SOC by [`MIN_DROP`] points; on stations
+//! with pack V and I, runs of raw samples counted from the battery side
+//! ([`battery_segments`]). Pure: no I/O.
 
 use super::energy::BUCKET_S;
 
@@ -80,6 +82,60 @@ pub fn segments(buckets: &[Bucket]) -> Vec<Segment> {
             })
         })
         .collect()
+}
+
+/// One raw sample seen from the battery (ROADMAP.md §2.2, R1 amended
+/// 2026-10-16): SOC, the summed input power and pack V × I.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct Point {
+    pub ts: i64,
+    pub soc: f64,
+    pub in_w: f64,
+    pub battery_w: f64,
+}
+
+/// Every qualifying discharge in `points` (oldest first), counted from the
+/// battery side: a maximal run with no input and gaps of at most `max_gap_s`,
+/// whose SOC drops by at least [`MIN_DROP`] points. The energy is the left
+/// Riemann sum of `battery_w` over the run, so it includes the inverter's own
+/// draw and loads below the output meter's floor.
+pub fn battery_segments(points: &[Point], max_gap_s: i64) -> Vec<Segment> {
+    let idle = |p: &Point| p.in_w == 0.0;
+    points
+        .chunk_by(|a, b| b.ts - a.ts <= max_gap_s && idle(a) && idle(b))
+        .filter(|run| idle(&run[0]))
+        .filter_map(|run| {
+            let (first, last) = (run[0], run[run.len() - 1]);
+            let drop = first.soc - last.soc;
+            if drop < MIN_DROP {
+                return None;
+            }
+            let energy_wh: f64 = run
+                .windows(2)
+                .map(|w| w[0].battery_w * (w[1].ts - w[0].ts) as f64 / 3600.0)
+                .sum();
+            Some(Segment {
+                start: first.ts,
+                end: last.ts,
+                soc_from: first.soc,
+                soc_to: last.soc,
+                energy_wh,
+                capacity_wh: energy_wh / drop * 100.0,
+            })
+        })
+        .collect()
+}
+
+/// The mean battery-side power of `points` (the last few minutes, oldest
+/// first) for the runtime forecast: only with no input anywhere (the pack
+/// current is unsigned, so charging would read as load), at least 3 points,
+/// and the newest at or after `fresh_from`.
+pub fn battery_load_w(points: &[Point], fresh_from: i64) -> Option<f64> {
+    let newest = points.last()?;
+    if points.len() < 3 || newest.ts < fresh_from || points.iter().any(|p| p.in_w != 0.0) {
+        return None;
+    }
+    Some(points.iter().map(|p| p.battery_w).sum::<f64>() / points.len() as f64)
 }
 
 /// The median capacity of the newest [`RECENT`] of `segments` (oldest first);

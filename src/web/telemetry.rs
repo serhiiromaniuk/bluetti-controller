@@ -125,14 +125,30 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
                 points,
             });
         }
-        // A full bucket less one missed poll (5 − 1 at the 60 s interval).
-        let min_n = (BUCKET_S_5M / state.interval_s.max(1) - 1).max(1);
-        let buckets = read::discharge_buckets(conn, station.id, min_n)?;
-        let segments = capacity::segments(&buckets);
+        // Battery side where the pack reports V and I (R1 amended 2026-10-16),
+        // else the metered output from `rollup_5m`.
+        let battery_side =
+            profile.is_some_and(|p| p.fields.iter().any(|f| f.metric == Metric::PackCurrent));
+        let segments = if battery_side {
+            let from = now - i64::from(state.raw_retention_days) * 86_400;
+            let points = read::battery_points(conn, station.id, from, now + 1)?;
+            capacity::battery_segments(&points, 3 * state.interval_s)
+        } else {
+            // A full bucket less one missed poll (5 − 1 at the 60 s interval).
+            let min_n = (BUCKET_S_5M / state.interval_s.max(1) - 1).max(1);
+            capacity::segments(&read::discharge_buckets(conn, station.id, min_n)?)
+        };
         let estimate = capacity::estimate(&segments, station.capacity_wh).map(|e| {
+            let how = match battery_side {
+                true => "battery side, pack V × I",
+                false => "metered output; reads low at small loads",
+            };
             format!(
-                "≈ {:.0} Wh usable of {:.0} Wh nominal, factor {:.2} (median of the newest {})",
-                e.median_wh, station.capacity_wh, e.factor, e.n
+                "≈ {:.0} Wh of {:.0} Wh nominal = {:.0} % ({how}; median of the newest {})",
+                e.median_wh,
+                station.capacity_wh,
+                e.factor * 100.0,
+                e.n
             )
         });
         let segments = segments

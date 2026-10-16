@@ -170,6 +170,18 @@ internet down.
   config is never changed automatically. Precision: SOC has 1-point steps, so a
   10-point segment is ±10 %, a 50-point one ±2 %. SOH and a capacity trend
   page wait for a known SOH register and months of data.
+  **Amended 2026-10-16 (owner: "yes, do v1.3.2"):** on stations with pack
+  voltage and current (AC180, Elite 200 V2) the estimate counts battery-side
+  energy, Σ pack V × I × Δt over raw samples (`sample` joined with
+  `sample_extra`, within `raw_retention_days`), in runs of samples with no
+  input and gaps ≤ 3 poll intervals, each dropping SOC ≥ 10 points. The
+  metered output misses the inverter's own draw and loads under the meter's
+  floor (AC180: 9 W metered vs 55 W from the pack), which made 0.36 out of a
+  ~0.74 pack. The page shows the result as a percentage of nominal. The EB3A
+  (no pack registers) keeps the output-based rule. The runtime forecast takes
+  its load from the same battery-side power (mean of the last 10 min, no
+  input, ≥ 3 samples, the newest within 2 intervals) when available; while
+  charging the pack current is charge current, so it is never used then.
 - **R3 Device control** — AC/DC on/off, charging mode; schedule-aware charging
   (Turbo before a planned outage, Silent otherwise); staggered charging when the
   grid returns so the breaker does not trip. Needs auth on the UI.

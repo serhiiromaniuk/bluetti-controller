@@ -109,3 +109,70 @@ fn the_estimate_is_the_median_of_the_newest_five() {
     let window = estimate(&caps.map(seg), 1000.0).unwrap();
     assert_eq!((window.median_wh, window.n), (700.0, 5));
 }
+
+fn p(ts: i64, soc: f64, in_w: f64, battery_w: f64) -> Point {
+    Point {
+        ts,
+        soc,
+        in_w,
+        battery_w,
+    }
+}
+
+/// 60 W from the pack for 2 h at 60 s steps: 120 left sums of 60 W × 60 s =
+/// 120 Wh; SOC 50 → 40 is 10 points, so 1200 Wh per 100 points.
+#[test]
+fn battery_side_energy_is_the_left_sum_of_pack_power() {
+    let points: Vec<Point> = (0..=120)
+        .map(|i| {
+            p(
+                i * 60,
+                50.0 - f64::from(u8::try_from(i / 12).unwrap()),
+                0.0,
+                60.0,
+            )
+        })
+        .collect();
+    assert_eq!(points.last().unwrap().soc, 40.0);
+    let got = battery_segments(&points, 180);
+    assert_eq!(got.len(), 1);
+    assert!((got[0].energy_wh - 120.0).abs() < 1e-9, "{:?}", got[0]);
+    assert!((got[0].capacity_wh - 1200.0).abs() < 1e-9);
+    assert_eq!((got[0].start, got[0].end), (0, 7200));
+}
+
+#[test]
+fn battery_runs_split_on_input_and_on_long_gaps_and_need_ten_points() {
+    let run =
+        |t0: i64, soc0: f64| (0..=10).map(move |i| p(t0 + i * 60, soc0 - i as f64, 0.0, 50.0));
+    // A charging sample splits two 10-point runs; a 181 s gap splits too.
+    let mut points: Vec<Point> = run(0, 90.0).collect();
+    points.push(p(660, 80.0, 300.0, 400.0));
+    points.extend(run(720, 80.0));
+    points.extend(run(720 + 600 + 181, 70.0));
+    let got = battery_segments(&points, 180);
+    assert_eq!(got.len(), 3);
+    // 10 sums of 50 W × 60 s = 8.33 Wh over 10 points → 83.3 Wh.
+    assert!((got[0].capacity_wh - 83.333_333).abs() < 1e-3);
+    // A 9-point drop is no segment.
+    assert!(battery_segments(&points[..10], 180).is_empty());
+}
+
+#[test]
+fn battery_load_needs_three_fresh_points_without_input() {
+    let pts = [
+        p(0, 50.0, 0.0, 40.0),
+        p(60, 50.0, 0.0, 50.0),
+        p(120, 50.0, 0.0, 60.0),
+    ];
+    assert_eq!(battery_load_w(&pts, 100), Some(50.0));
+    assert_eq!(battery_load_w(&pts, 121), None, "stale");
+    assert_eq!(battery_load_w(&pts[1..], 0), None, "two points");
+    let mut charging = pts;
+    charging[1].in_w = 500.0;
+    assert_eq!(
+        battery_load_w(&charging, 0),
+        None,
+        "charge current is no load"
+    );
+}

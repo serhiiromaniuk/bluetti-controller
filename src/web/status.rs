@@ -11,6 +11,7 @@ use serde::Serialize;
 use tokio::time::Instant;
 
 use crate::collector::Control;
+use crate::metrics::capacity;
 use crate::metrics::grid::GridState;
 use crate::metrics::house::{self, HouseState};
 use crate::metrics::localtime::{local_day_bounds, local_hhmm};
@@ -182,23 +183,29 @@ fn card(
         .filter(|(ts, _)| *ts >= from)
         .collect();
     let refs: Vec<(i64, &Values)> = window.iter().map(|(ts, v)| (*ts, v)).collect();
-    let forecast = match runtime::forecast(&refs, row.capacity_wh, state.usable_factor, grid) {
-        Forecast::OnBattery { until_ts, .. } => {
-            let at = local_hhmm(until_ts, &state.tz)?;
-            // A5: past local midnight the time alone would read as today.
-            if local_day_bounds(until_ts, &state.tz)? == local_day_bounds(now, &state.tz)? {
-                format!("lasts until {at}")
-            } else {
-                let day = Timestamp::from_second(until_ts)?
-                    .to_zoned(state.tz.clone())
-                    .strftime("%a %-d %b")
-                    .to_string();
-                format!("lasts until {day} {at}")
+    // The pack's draw over the last 10 min, the newest within 2 intervals.
+    let points = read::battery_points(conn, row.id, now - 600, now + 1)?;
+    let battery_w = capacity::battery_load_w(&points, now - 2 * state.interval_s);
+    let forecast =
+        match runtime::forecast(&refs, row.capacity_wh, state.usable_factor, grid, battery_w) {
+            Forecast::OnBattery { until_ts, .. } => {
+                let at = local_hhmm(until_ts, &state.tz)?;
+                // A5: past local midnight the time alone would read as today.
+                if local_day_bounds(until_ts, &state.tz)? == local_day_bounds(now, &state.tz)? {
+                    format!("lasts until {at}")
+                } else {
+                    let day = Timestamp::from_second(until_ts)?
+                        .to_zoned(state.tz.clone())
+                        .strftime("%a %-d %b")
+                        .to_string();
+                    format!("lasts until {day} {at}")
+                }
             }
-        }
-        Forecast::OnGrid { runtime_h, .. } => format!("if the power goes now: {runtime_h:.1} h"),
-        Forecast::Unknown => "—".to_owned(),
-    };
+            Forecast::OnGrid { runtime_h, .. } => {
+                format!("if the power goes now: {runtime_h:.1} h")
+            }
+            Forecast::Unknown => "—".to_owned(),
+        };
 
     let (health, unreachable_since) = match station_health(conn, row.id)? {
         Health::Ok => ("ok", None),

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
-use crate::metrics::capacity::Bucket;
+use crate::metrics::capacity::{self, Bucket};
 use crate::protocol::device::Metric;
 
 /// The six `sample` columns and the metric each holds (§6).
@@ -199,6 +199,36 @@ pub fn last_extras_between(
     let rows = stmt
         .query_map(params![station_id, from, to], |row| {
             Ok((row.get(0)?, row.get(2)?))
+        })?
+        .collect::<Result<_, _>>()?;
+    Ok(rows)
+}
+
+/// The station's samples with `from ≤ ts < to` that carry an SOC, a pack
+/// voltage and a pack current, as battery-side points, oldest first (R1
+/// amended 2026-10-16). A missing input power counts as 0 W.
+pub fn battery_points(
+    conn: &Connection,
+    station_id: i64,
+    from: i64,
+    to: i64,
+) -> anyhow::Result<Vec<capacity::Point>> {
+    let mut stmt = conn.prepare(
+        "SELECT s.ts, s.soc, coalesce(s.ac_in_w, 0) + coalesce(s.dc_in_w, 0), v.value * i.value
+         FROM sample s
+         JOIN sample_extra v ON v.station_id = s.station_id AND v.ts = s.ts AND v.metric = 'pack_voltage'
+         JOIN sample_extra i ON i.station_id = s.station_id AND i.ts = s.ts AND i.metric = 'pack_current'
+         WHERE s.station_id = ?1 AND s.ts >= ?2 AND s.ts < ?3 AND s.soc IS NOT NULL
+         ORDER BY s.ts",
+    )?;
+    let rows = stmt
+        .query_map(params![station_id, from, to], |row| {
+            Ok(capacity::Point {
+                ts: row.get(0)?,
+                soc: row.get(1)?,
+                in_w: row.get(2)?,
+                battery_w: row.get(3)?,
+            })
         })?
         .collect::<Result<_, _>>()?;
     Ok(rows)

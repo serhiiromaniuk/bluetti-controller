@@ -141,7 +141,7 @@ async fn the_page_shows_the_capacity_estimate_from_a_discharge() {
         .unwrap();
     }
     conn.execute(
-        "INSERT INTO station VALUES (2, 'mobile', 'AC180', 1152, 0)",
+        "INSERT INTO station VALUES (2, 'mobile', 'EB3A', 268.8, 0)",
         [],
     )
     .unwrap();
@@ -155,15 +155,43 @@ async fn the_page_shows_the_capacity_estimate_from_a_discharge() {
         )
         .unwrap();
     }
+    // An AC180 counted from the battery side, an hour ago: 11 raw samples a
+    // minute apart, SOC 90 → 80, 32 V × 16.2 A = 518.4 W from the pack while
+    // the output meter reads 0. 10 × 518.4 W × 60 s = 86.4 Wh over 10 points
+    // = 864 Wh = 75 % of 1152 Wh.
+    conn.execute(
+        "INSERT INTO station VALUES (3, 'big', 'AC180', 1152, 0)",
+        [],
+    )
+    .unwrap();
+    let t0 = crate::web::unix_now() - 3600;
+    for i in 0..=10_i64 {
+        let ts = t0 + i * 60;
+        conn.execute_batch(&format!(
+            "INSERT INTO sample (station_id, ts, soc, ac_in_w, ac_out_w, encrypted)
+             VALUES (3, {ts}, {soc}, 0, 0, 1);
+             INSERT INTO sample_extra VALUES (3, {ts}, 'pack_voltage', 32);
+             INSERT INTO sample_extra VALUES (3, {ts}, 'pack_current', 16.2);",
+            soc = 90 - i
+        ))
+        .unwrap();
+    }
     let (addr, stop, server) = start(AppState::for_tests(conn)).await;
     let (status, body) = tokio::task::spawn_blocking(move || get(addr, "/telemetry"))
         .await
         .unwrap();
     assert_eq!(status, "HTTP/1.1 200 OK");
-    let (router, mobile) = body.split_once("mobile").expect("both stations");
+    let (router, rest) = body.split_once("mobile").expect("both stations");
+    let (mobile, big) = rest.split_once("<h2>big").expect("three stations");
+    assert!(
+        big.contains(
+            "≈ 864 Wh of 1152 Wh nominal = 75 % (battery side, pack V × I; median of the newest 1)"
+        ),
+        "{big}"
+    );
     for text in [
         "Battery health",
-        "≈ 200 Wh usable of 269 Wh nominal, factor 0.74 (median of the newest 1)",
+        "≈ 200 Wh of 269 Wh nominal = 74 % (metered output; reads low at small loads; median of the newest 1)",
         "unverified output meter",
         "<td>0.2</td><td>90 → 80 %</td><td>20</td><td>200</td>",
     ] {
