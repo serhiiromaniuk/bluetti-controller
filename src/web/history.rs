@@ -3,6 +3,8 @@
 //! is `Serialize`: `/api/energy` and `/api/outages` return it as JSON, the
 //! pages render it, so the field names are the API's and stay stable.
 
+use std::collections::BTreeMap;
+
 use jiff::Timestamp;
 use jiff::tz::TimeZone;
 use rusqlite::Connection;
@@ -10,6 +12,7 @@ use serde::Serialize;
 
 use crate::metrics::localtime::local_day_bounds;
 use crate::metrics::{energy, house};
+use crate::protocol::device::Metric;
 use crate::store::read::{self, GridEventRow};
 
 /// One local day of the energy table.
@@ -42,6 +45,11 @@ pub struct StationEnergy {
     pub missing_s: i64,
     /// No sample inside the day: the zeros above are not measurements.
     pub no_data: bool,
+    /// The station's own lifetime counters (V2, unverified, 100 Wh steps):
+    /// the last reading of the day minus the last of the day before, in Wh.
+    /// `None` when a reading is missing or the counter went back (a reset).
+    pub counter_in_wh: Option<f64>,
+    pub counter_out_wh: Option<f64>,
 }
 
 /// `metrics::house::totals` over one day (§7.2).
@@ -112,6 +120,14 @@ pub fn energy(
             let t = energy::totals(&refs, interval_s, station.capacity_wh, from, to);
             // `read::samples` adds the one sample before `from`: not this day's.
             let no_data = !samples.iter().any(|(ts, _)| *ts >= from);
+            let (prev, _) = local_day_bounds(from - 1, tz)?;
+            let day = read::last_extras_between(conn, station.id, from, to)?;
+            let before = read::last_extras_between(conn, station.id, prev, from)?;
+            let delta = |keys| {
+                let d = (counter(&day, keys)? - counter(&before, keys)?) * 1000.0;
+                // `+ 0.0` turns −0 into 0; a negative delta is a counter reset.
+                Some(d.round() + 0.0).filter(|d| *d >= 0.0)
+            };
             rows.push(StationEnergy {
                 station: station.name.clone(),
                 energy_in_wh: t.energy_in_wh,
@@ -120,6 +136,8 @@ pub fn energy(
                 losses_estimate_wh: t.losses_estimate_wh,
                 missing_s: if no_data { to - from } else { t.missing_s },
                 no_data,
+                counter_in_wh: delta(COUNTER_IN),
+                counter_out_wh: delta(COUNTER_OUT),
             });
         }
         let h = house::totals(&house_events, from, to);
@@ -137,6 +155,31 @@ pub fn energy(
                 longest_s: h.longest_s,
             },
         });
+    }
+    Ok(out)
+}
+
+/// The V2 lifetime counters summed into energy in and out (R1a, unverified).
+const COUNTER_IN: [Metric; 2] = [Metric::GridInEnergy, Metric::PvInEnergy];
+const COUNTER_OUT: [Metric; 2] = [Metric::AcOutEnergy, Metric::DcOutEnergy];
+
+/// The sum of `keys` in kWh, or `None` when one is missing.
+fn counter(extras: &BTreeMap<String, f64>, keys: [Metric; 2]) -> Option<f64> {
+    keys.iter().map(|m| extras.get(m.key()).copied()).sum()
+}
+
+/// Each station's newest lifetime counters as `(name, in kWh, out kWh)`;
+/// stations without all four counters (the EB3A) are left out.
+pub fn lifetime(conn: &Connection) -> anyhow::Result<Vec<(String, f64, f64)>> {
+    let mut out = Vec::new();
+    for station in read::stations(conn)? {
+        let extras: BTreeMap<String, f64> = read::latest_extras(conn, station.id)?
+            .into_iter()
+            .map(|(k, (_, v))| (k, v))
+            .collect();
+        if let (Some(i), Some(o)) = (counter(&extras, COUNTER_IN), counter(&extras, COUNTER_OUT)) {
+            out.push((station.name, i, o));
+        }
     }
     Ok(out)
 }

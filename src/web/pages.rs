@@ -36,6 +36,7 @@ struct Page {
     cards: Vec<CardView>,
     outages: Vec<OutageRow>,
     energy: Vec<EnergyRow>,
+    lifetime: Vec<String>,
     house: Vec<HouseRow>,
     token: bool,
 }
@@ -69,6 +70,8 @@ struct EnergyRow {
     day: String,
     station: String,
     cells: [String; 4],
+    counter_in: String,
+    counter_out: String,
     missing: String,
 }
 
@@ -140,6 +143,20 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
             .map(|o| outage(o, tz))
             .collect::<anyhow::Result<_>>()?,
         energy: energy_days.iter().flat_map(energy_rows).collect(),
+        lifetime: history::lifetime(conn)?
+            .into_iter()
+            .map(|(name, i, o)| {
+                let ratio = if i > 0.0 {
+                    format!("{:.0} %", o / i * 100.0)
+                } else {
+                    "—".to_owned()
+                };
+                format!(
+                    "{name}: in {i:.1} kWh, out {o:.1} kWh, out ÷ in {ratio} \
+                     (station counters, unverified)"
+                )
+            })
+            .collect(),
         house: energy_days
             .iter()
             // Nothing monitored and no outage recorded: none was ruled out
@@ -242,6 +259,8 @@ fn energy_rows(d: &EnergyDay) -> Vec<EnergyRow> {
             day: d.day.clone(),
             station: "all stations".to_owned(),
             cells: dashes(),
+            counter_in: "—".to_owned(),
+            counter_out: "—".to_owned(),
             missing: "no data".to_owned(),
         }];
     }
@@ -260,6 +279,8 @@ fn energy_rows(d: &EnergyDay) -> Vec<EnergyRow> {
                     wh(s.losses_estimate_wh),
                 ]
             },
+            counter_in: s.counter_in_wh.map_or("—".to_owned(), wh),
+            counter_out: s.counter_out_wh.map_or("—".to_owned(), wh),
             missing: if s.no_data {
                 "no data".to_owned()
             } else {

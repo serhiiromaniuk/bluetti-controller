@@ -182,6 +182,28 @@ pub fn latest_extras(
     Ok(rows)
 }
 
+/// The newest value of every `sample_extra` key of the station with
+/// `from ≤ ts < to`: key → value.
+pub fn last_extras_between(
+    conn: &Connection,
+    station_id: i64,
+    from: i64,
+    to: i64,
+) -> anyhow::Result<BTreeMap<String, f64>> {
+    // SQLite takes the bare `value` from the row that holds `max(ts)`.
+    let mut stmt = conn.prepare(
+        "SELECT metric, max(ts), value FROM sample_extra
+         WHERE station_id = ?1 AND ts >= ?2 AND ts < ?3
+         GROUP BY metric",
+    )?;
+    let rows = stmt
+        .query_map(params![station_id, from, to], |row| {
+            Ok((row.get(0)?, row.get(2)?))
+        })?
+        .collect::<Result<_, _>>()?;
+    Ok(rows)
+}
+
 /// The station's `rollup_5m` buckets that can belong to a discharge (no input,
 /// some output, an SOC, at least `min_n` samples), oldest first. A skipped
 /// bucket leaves a ts gap, which splits a run. `min_n` drops buckets with a

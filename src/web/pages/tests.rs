@@ -94,16 +94,16 @@ fn renders_hand_computed_values() {
     // Today's energy: 60 segments of 1 min at 100 W in and out = 100 Wh each;
     // SOC flat → Δstored 0, losses 100 − 100 − 0 = 0; no gap.
     assert!(html.contains(
-        "<tr><td>2026-10-15</td><td>router</td><td>100</td><td>100</td><td>0</td><td>0</td><td>0 s</td></tr>"
+        "<tr><td>2026-10-15</td><td>router</td><td>100</td><td>100</td><td>0</td><td>0</td><td class=\"muted\">—</td><td class=\"muted\">—</td><td>0 s</td></tr>"
     ));
     assert!(html.contains("<tr><td>2026-10-15</td><td>1</td><td>30 min</td><td>30 min</td></tr>"));
     // Today office has no sample: its own dashes, never 0 Wh.
     assert!(html.contains(
-        "<tr><td>2026-10-15</td><td>office</td><td>—</td><td>—</td><td>—</td><td>—</td><td>no data</td></tr>"
+        "<tr><td>2026-10-15</td><td>office</td><td>—</td><td>—</td><td>—</td><td>—</td><td class=\"muted\">—</td><td class=\"muted\">—</td><td>no data</td></tr>"
     ));
     // Yesterday no station has one: a single row, and no house "0 s".
     assert!(html.contains(
-        "<tr><td>2026-10-14</td><td>all stations</td><td>—</td><td>—</td><td>—</td><td>—</td><td>no data</td></tr>"
+        "<tr><td>2026-10-14</td><td>all stations</td><td>—</td><td>—</td><td>—</td><td>—</td><td class=\"muted\">—</td><td class=\"muted\">—</td><td>no data</td></tr>"
     ));
     assert!(!html.contains("<td>2026-10-14</td><td>router</td>"));
     assert!(html.contains("<tr><td>2026-10-14</td><td>—</td><td>no data</td><td>—</td></tr>"));
@@ -175,4 +175,47 @@ fn a_recorded_outage_shows_on_a_day_without_samples() {
     );
     // 10-12 lies before the outage and holds no sample: unknown, not 0 s.
     assert!(html.contains("<tr><td>2026-10-12</td><td>—</td><td>no data</td><td>—</td></tr>"));
+}
+
+#[test]
+fn counter_columns_and_lifetime_line_for_a_v2_station() {
+    // office (V2) counters at 10-14 23:00 local (NOW − 13 h): in 100 + 20,
+    // out 80 + 10 kWh; today 11:00 (NOW − 1 h): in 100.4 + 20.1 = 120.5, out
+    // 80.2 + 10 = 90.2. Today: in 500 Wh, out 200 Wh; office has no sample,
+    // so its integrated cells stay dashes. Lifetime: out ÷ in = 90.2 ÷ 120.5
+    // = 74.9 % → 75 %. router (EB3A) has no counters: dashes and no line.
+    let conn = fixture(NOW);
+    let keys = [
+        "grid_in_energy",
+        "pv_in_energy",
+        "ac_out_energy",
+        "dc_out_energy",
+    ];
+    for (ts, values) in [
+        (NOW - 13 * 3600, [100.0, 20.0, 80.0, 10.0]),
+        (NOW - 3600, [100.4, 20.1, 80.2, 10.0]),
+    ] {
+        for (key, v) in keys.into_iter().zip(values) {
+            conn.execute(
+                "INSERT INTO sample_extra VALUES (2, ?1, ?2, ?3)",
+                params![ts, key, v],
+            )
+            .unwrap();
+        }
+    }
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let html = render(&conn, NOW, &state).unwrap();
+    assert!(
+        html.contains(
+            r#"<td>office</td><td>—</td><td>—</td><td>—</td><td>—</td><td class="muted">500</td><td class="muted">200</td><td>no data</td>"#
+        ),
+        "{html}"
+    );
+    assert!(html.contains(
+        r#"<td>router</td><td>100</td><td>100</td><td>0</td><td>0</td><td class="muted">—</td><td class="muted">—</td>"#
+    ));
+    assert!(html.contains(
+        r#"<p class="muted">office: in 120.5 kWh, out 90.2 kWh, out ÷ in 75 % (station counters, unverified)</p>"#
+    ));
+    assert!(!html.contains("router: in"));
 }

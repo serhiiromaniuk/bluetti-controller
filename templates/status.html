@@ -42,10 +42,11 @@
 {% endfor %}</table></div>
 <h2>Energy, last 7 days</h2>
 <div class="scroll"><table>
-<tr><th>Day</th><th>Station</th><th>In Wh</th><th>Out Wh</th><th>Δ stored Wh</th><th>Losses Wh (estimate)</th><th>Missing</th></tr>
-{% for e in energy %}<tr><td>{{ e.day }}</td><td>{{ e.station }}</td>{% for v in e.cells %}<td>{{ v }}</td>{% endfor %}<td>{{ e.missing }}</td></tr>
+<tr><th>Day</th><th>Station</th><th>In Wh</th><th>Out Wh</th><th>Δ stored Wh</th><th>Losses Wh (estimate)</th><th class="muted" title="Station counters, 100 Wh steps, unverified">In Wh (counter)</th><th class="muted" title="Station counters, 100 Wh steps, unverified">Out Wh (counter)</th><th>Missing</th></tr>
+{% for e in energy %}<tr><td>{{ e.day }}</td><td>{{ e.station }}</td>{% for v in e.cells %}<td>{{ v }}</td>{% endfor %}<td class="muted">{{ e.counter_in }}</td><td class="muted">{{ e.counter_out }}</td><td>{{ e.missing }}</td></tr>
 {% endfor %}</table>
-<table>
+{% for l in lifetime %}<p class="muted">{{ l }}</p>
+{% endfor %}<table>
 <tr><th>Day</th><th>House outages</th><th>Without power</th><th>Longest</th></tr>
 {% for h in house %}<tr><td>{{ h.day }}</td><td>{{ h.count }}</td><td>{{ h.without }}</td><td>{{ h.longest }}</td></tr>
 {% endfor %}</table></div>
