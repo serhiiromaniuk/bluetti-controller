@@ -312,3 +312,32 @@ fn r1b_station_time_left_only_while_discharging() {
     extra(&conn, NOW, "time_to_empty", 60_001.0);
     assert_eq!(view(conn, NOW).stations[1].station_left, None);
 }
+
+/// office (Elite, 2073.6 Wh) on battery at 80 %, the meter at 10 W, the pack
+/// at 40 V × 1.25 A = 50 W for the last 3 polls. 2073.6 × 0.8 × 0.9 =
+/// 1492.992 Wh / 50 W = 29.86 h = 107 495 s: NOW + that = Fri 16 Oct 14:51Z
+/// = 17:51 Kyiv. One sample with input falls back to the metered 10 W:
+/// 149.3 h = 537 477 s, Wed 21 Oct 14:17Z = 17:17 Kyiv.
+#[test]
+fn the_forecast_load_is_the_pack_draw_while_nothing_charges() {
+    for (charging, want) in [
+        (false, "lasts until Fri 16 Oct 17:51"),
+        (true, "lasts until Wed 21 Oct 17:17"),
+    ] {
+        let conn = db();
+        event(&conn, "office", NOW - 600, None);
+        for (i, ts) in [NOW - 120, NOW - 60, NOW].into_iter().enumerate() {
+            let in_w = if charging && i == 1 { 5.0 } else { 0.0 };
+            conn.execute(
+                "INSERT INTO sample (station_id, ts, soc, ac_in_w, ac_out_w, ac_in_v, encrypted)
+                 VALUES (2, ?1, 80, ?2, 10, 0, 1)",
+                params![ts, in_w],
+            )
+            .unwrap();
+            extra(&conn, ts, "pack_voltage", 40.0);
+            extra(&conn, ts, "pack_current", 1.25);
+        }
+        let card = &view(conn, NOW).stations[1];
+        assert_eq!(card.forecast, want, "charging: {charging}");
+    }
+}

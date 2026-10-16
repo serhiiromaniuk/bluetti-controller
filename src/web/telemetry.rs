@@ -42,7 +42,7 @@ struct StationView {
 struct Health {
     /// The estimate line; `None` before the first qualifying discharge.
     estimate: Option<String>,
-    /// The profile's AC output field is not verified against the app.
+    /// A register the estimate rests on is not verified against the app.
     meter_unverified: bool,
     /// Newest first.
     segments: Vec<SegmentRow>,
@@ -130,7 +130,9 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
         let battery_side =
             profile.is_some_and(|p| p.fields.iter().any(|f| f.metric == Metric::PackCurrent));
         let segments = if battery_side {
-            let from = now - i64::from(state.raw_retention_days) * 86_400;
+            // At most 30 days: the scan is linear in raw samples (~140 ms per
+            // station-month), the page budget is 1 s.
+            let from = now - i64::from(state.raw_retention_days.min(30)) * 86_400;
             let points = read::battery_points(conn, station.id, from, now + 1)?;
             capacity::battery_segments(&points, 3 * state.interval_s)
         } else {
@@ -166,8 +168,14 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
             .collect::<anyhow::Result<_>>()?;
         let health = Health {
             estimate,
-            meter_unverified: profile
-                .is_some_and(|p| !is_verified(p.fields, Some(Metric::AcOutputPower))),
+            // The registers the estimate rests on: pack V and I, or the output.
+            meter_unverified: profile.is_some_and(|p| {
+                let used: &[Metric] = match battery_side {
+                    true => &[Metric::PackVoltage, Metric::PackCurrent],
+                    false => &[Metric::AcOutputPower],
+                };
+                used.iter().any(|m| !is_verified(p.fields, Some(*m)))
+            }),
             segments,
         };
         stations.push(StationView {

@@ -5,7 +5,7 @@
 <p class="muted">Every stored metric, latest value and the last 24 h (30-min averages). Unverified registers are not yet confirmed on hardware.</p>
 {% for s in stations %}<h2>{{ s.name }} <span class="muted">{{ s.model }}</span></h2>
 <h3>Battery health</h3>
-{% if let Some(e) = s.health.estimate %}<p>{{ e }}{% if s.health.meter_unverified %} <span class="badge warn">unverified output meter</span>{% endif %}</p>
+{% if let Some(e) = s.health.estimate %}<p>{{ e }}{% if s.health.meter_unverified %} <span class="badge warn">unverified meter</span>{% endif %}</p>
 <div class="scroll"><table>
 <tr><th>Start</th><th>Hours</th><th>SOC</th><th>Energy Wh</th><th>Capacity Wh</th></tr>
 {% for g in s.health.segments %}<tr><td>{{ g.start }}</td><td>{{ g.hours }}</td><td>{{ g.soc }}</td><td>{{ g.energy }}</td><td>{{ g.capacity }}</td></tr>

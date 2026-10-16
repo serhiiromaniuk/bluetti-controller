@@ -183,6 +183,8 @@ async fn the_page_shows_the_capacity_estimate_from_a_discharge() {
     assert_eq!(status, "HTTP/1.1 200 OK");
     let (router, rest) = body.split_once("mobile").expect("both stations");
     let (mobile, big) = rest.split_once("<h2>big").expect("three stations");
+    // Pack V and I are unverified, so the AC180 gets the badge too.
+    assert!(big.contains("unverified meter"), "{big}");
     assert!(
         big.contains(
             "≈ 864 Wh of 1152 Wh nominal = 75 % (battery side, pack V × I; median of the newest 1)"
@@ -192,7 +194,7 @@ async fn the_page_shows_the_capacity_estimate_from_a_discharge() {
     for text in [
         "Battery health",
         "≈ 200 Wh of 269 Wh nominal = 74 % (metered output; reads low at small loads; median of the newest 1)",
-        "unverified output meter",
+        "unverified meter",
         "<td>0.2</td><td>90 → 80 %</td><td>20</td><td>200</td>",
     ] {
         assert!(router.contains(text), "{text} missing in {router}");
