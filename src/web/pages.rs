@@ -56,6 +56,8 @@ struct CardView {
     polls: String,
     encrypted: &'static str,
     unverified: bool,
+    /// The R1b extras line, e.g. `Pack 20.6 °C · mode standard`; empty = none.
+    extras: String,
 }
 
 struct OutageRow {
@@ -211,6 +213,15 @@ fn card(c: &Card, tz: &TimeZone) -> anyhow::Result<CardView> {
             None => "—",
         },
         unverified: c.unverified,
+        extras: [
+            c.pack_temp_c.map(|t| format!("Pack {t:.1} °C")),
+            c.charging_mode.as_ref().map(|m| format!("mode {m}")),
+            c.station_left.as_ref().map(|l| format!("station says {l}")),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>()
+        .join(" · "),
     })
 }
 
@@ -278,7 +289,7 @@ pub(crate) fn local(ts: i64, tz: &TimeZone, fmt: &str) -> anyhow::Result<String>
 }
 
 /// `1 h 05 min`, `30 min` or `45 s`.
-fn duration(s: i64) -> String {
+pub(crate) fn duration(s: i64) -> String {
     let (h, m) = (s / 3600, s % 3600 / 60);
     if h > 0 {
         format!("{h} h {m:02} min")

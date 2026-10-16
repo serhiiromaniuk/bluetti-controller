@@ -2,6 +2,7 @@
 //! card per station with its runtime forecast, and `paused_until`. `/` and
 //! `/api/status` serialise the same struct, so the field names are the API.
 
+use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use jiff::Timestamp;
@@ -18,7 +19,10 @@ use crate::protocol::device::{Metric, Model};
 use crate::store::read::{self, StationRow, Values};
 use crate::store::{Health, station_health};
 use crate::web::AppState;
+use crate::web::pages::duration;
 
+/// An R1a extra older than this (two 10-min slow slots) is not shown (R1b).
+const EXTRA_MAX_AGE_S: i64 = 20 * 60;
 /// How far back the forecast reads samples (§8.4 c).
 const FORECAST_WINDOW_S: i64 = 2 * 3600;
 /// The poll-health window on the card (§8.4 b).
@@ -85,6 +89,13 @@ pub struct Card {
     pub encrypted: Option<bool>,
     /// SOC, powers and forecast rest on `verified: false` fields (Q2 badge).
     pub unverified: bool,
+    /// R1b, unverified: pack temperature in °C, one decimal (read as °F).
+    pub pack_temp_c: Option<f64>,
+    /// R1b, unverified: `standard`, `silent`, `turbo`, or the raw number.
+    pub charging_mode: Option<String>,
+    /// R1b, unverified: the station's own `time_to_empty`, e.g. `4 h 09 min`;
+    /// only while discharging (output > 0 W, input = 0 W).
+    pub station_left: Option<String>,
 }
 
 /// Builds the status view at `now` (unix seconds) from the read connection.
@@ -223,12 +234,17 @@ fn card(
         (None, None) => None,
         (x, y) => Some(x.unwrap_or(&0.0) + y.unwrap_or(&0.0)),
     };
+    let in_w = sum(Metric::AcInputPower, Metric::DcInputPower);
+    let out_w = sum(Metric::AcOutputPower, Metric::DcOutputPower);
+    let discharging = matches!((in_w, out_w), (Some(i), Some(o)) if i == 0.0 && o > 0.0);
+    let extras = fresh_extras(conn, row.id, now)?;
+    let extra = |m: Metric| extras.get(m.key()).copied();
     let card = Card {
         name: row.name.clone(),
         model: row.model.clone(),
         soc: values.get(&Metric::BatterySoc).copied(),
-        in_w: sum(Metric::AcInputPower, Metric::DcInputPower),
-        out_w: sum(Metric::AcOutputPower, Metric::DcOutputPower),
+        in_w,
+        out_w,
         grid: match grid {
             GridState::Present => "present",
             GridState::Absent => "absent",
@@ -243,8 +259,37 @@ fn card(
         last_failure_stage,
         encrypted,
         unverified: !verified(&row.model),
+        pack_temp_c: extra(Metric::PackTemperature)
+            .map(|f| ((f - 32.0) * 50.0 / 9.0).round() / 10.0),
+        charging_mode: extra(Metric::ChargingMode).map(mode_name),
+        station_left: extra(Metric::TimeToEmpty)
+            .filter(|&min| discharging && min <= 60_000.0)
+            .map(|min| duration((min * 60.0) as i64)),
     };
     Ok((card, grid))
+}
+
+/// The newest value of each extra key no older than [`EXTRA_MAX_AGE_S`].
+fn fresh_extras(
+    conn: &Connection,
+    station_id: i64,
+    now: i64,
+) -> anyhow::Result<BTreeMap<String, f64>> {
+    Ok(read::latest_extras(conn, station_id)?
+        .into_iter()
+        .filter(|(_, (ts, _))| now - ts <= EXTRA_MAX_AGE_S)
+        .map(|(key, (_, v))| (key, v))
+        .collect())
+}
+
+/// `charging_mode` (160) by the R3 map of register 2020, assumed (ROADMAP §2.2 R1b).
+fn mode_name(raw: f64) -> String {
+    match raw as i64 {
+        0 => "standard".to_owned(),
+        1 => "silent".to_owned(),
+        2 => "turbo".to_owned(),
+        _ => format!("{raw}"),
+    }
 }
 
 /// Whether every [`BADGED`] field of the model is verified; an unknown model

@@ -238,3 +238,77 @@ fn a_runtime_past_midnight_names_the_day() {
     let card = &view(conn, NOW).stations[1];
     assert_eq!(card.forecast, "lasts until Sat 17 Oct 10:39");
 }
+
+/// An office (Elite 200 V2) sample at `NOW`: `in_w` in, 100 W out.
+fn office_sample(conn: &Connection, in_w: f64) {
+    conn.execute(
+        "INSERT INTO sample (station_id, ts, soc, ac_in_w, ac_out_w, encrypted)
+         VALUES (2, ?1, 80, ?2, 100, 1)",
+        params![NOW, in_w],
+    )
+    .unwrap();
+}
+
+fn extra(conn: &Connection, ts: i64, key: &str, value: f64) {
+    conn.execute(
+        "INSERT INTO sample_extra VALUES (2, ?1, ?2, ?3)",
+        params![ts, key, value],
+    )
+    .unwrap();
+}
+
+#[test]
+fn r1b_extras_show_on_the_card() {
+    let conn = db();
+    office_sample(&conn, 0.0);
+    extra(&conn, NOW - 600, "pack_temperature", 69.0);
+    extra(&conn, NOW - 600, "charging_mode", 2.0);
+    extra(&conn, NOW, "time_to_empty", 249.0);
+    let card = &view(conn, NOW).stations[1];
+    // (69 − 32) × 5 / 9 = 20.555… → 20.6 °C; 249 min = 4 h 09 min.
+    assert_eq!(card.pack_temp_c, Some(20.6));
+    assert_eq!(card.charging_mode.as_deref(), Some("turbo"));
+    assert_eq!(card.station_left.as_deref(), Some("4 h 09 min"));
+}
+
+#[test]
+fn r1b_extras_older_than_20_min_are_dropped() {
+    let conn = db();
+    office_sample(&conn, 0.0);
+    extra(&conn, NOW - 1201, "pack_temperature", 71.0);
+    extra(&conn, NOW - 1200, "charging_mode", 7.0);
+    extra(&conn, NOW - 1201, "time_to_empty", 249.0);
+    let card = &view(conn, NOW).stations[1];
+    assert_eq!(card.pack_temp_c, None);
+    // Exactly 20 min old is still shown; an unknown mode shows its raw number.
+    assert_eq!(card.charging_mode.as_deref(), Some("7"));
+    assert_eq!(card.station_left, None);
+    // The EB3A has no extras at all.
+    let router = &view(db(), NOW).stations[0];
+    assert_eq!(
+        (
+            router.pack_temp_c,
+            &router.charging_mode,
+            &router.station_left
+        ),
+        (None, &None, &None)
+    );
+}
+
+#[test]
+fn r1b_station_time_left_only_while_discharging() {
+    let conn = db();
+    office_sample(&conn, 50.0);
+    extra(&conn, NOW, "time_to_empty", 249.0);
+    extra(&conn, NOW, "pack_temperature", 32.0);
+    extra(&conn, NOW, "charging_mode", 0.0);
+    let card = &view(conn, NOW).stations[1];
+    assert_eq!(card.station_left, None, "charging: input 50 W");
+    assert_eq!(card.pack_temp_c, Some(0.0));
+    assert_eq!(card.charging_mode.as_deref(), Some("standard"));
+    // Discharging, but past the 60 000 min cap.
+    let conn = db();
+    office_sample(&conn, 0.0);
+    extra(&conn, NOW, "time_to_empty", 60_001.0);
+    assert_eq!(view(conn, NOW).stations[1].station_left, None);
+}

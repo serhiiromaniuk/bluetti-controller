@@ -23,6 +23,7 @@
 <meter min="0" max="100" low="20" high="50" optimum="100" value="{{ c.soc_bar }}"></meter>
 <p>In {{ c.in_w }} · Out {{ c.out_w }} · Grid <span class="badge {{ c.grid_class }}">{{ c.grid }}</span></p>
 <p>{{ c.forecast }}</p>
+{% if !c.extras.is_empty() %}<p class="muted">{{ c.extras }} <span class="badge warn" title="Read from registers not yet verified on hardware">unverified</span></p>{% endif %}
 <p class="muted">Last seen {{ c.last_seen }} · <span class="badge {{ c.health_class }}">{{ c.health }}</span> · {{ c.polls }} · encrypted {{ c.encrypted }}</p>
 </section>
 {% endfor %}</div>

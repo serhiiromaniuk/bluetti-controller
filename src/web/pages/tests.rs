@@ -176,3 +176,23 @@ fn a_recorded_outage_shows_on_a_day_without_samples() {
     // 10-12 lies before the outage and holds no sample: unknown, not 0 s.
     assert!(html.contains("<tr><td>2026-10-12</td><td>—</td><td>no data</td><td>—</td></tr>"));
 }
+
+#[test]
+fn r1b_extras_line_is_muted_and_marked_unverified() {
+    let conn = db();
+    conn.execute_batch(&format!(
+        "INSERT INTO sample (station_id, ts, soc, ac_in_w, ac_out_w, encrypted)
+         VALUES (2, {NOW}, 80, 0, 100, 1);
+         INSERT INTO sample_extra VALUES (2, {NOW}, 'pack_temperature', 69);
+         INSERT INTO sample_extra VALUES (2, {NOW}, 'charging_mode', 1);
+         INSERT INTO sample_extra VALUES (2, {NOW}, 'time_to_empty', 249);"
+    ))
+    .unwrap();
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let html = render(&conn, NOW, &state).unwrap();
+    let line = "<p class=\"muted\">Pack 20.6 °C · mode silent · station says 4 h 09 min \
+                <span class=\"badge warn\"";
+    assert!(html.contains(line), "{html}");
+    // The router has no extras: one such line only.
+    assert_eq!(html.matches("Pack ").count(), 1);
+}
