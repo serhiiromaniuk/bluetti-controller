@@ -306,6 +306,7 @@ async fn chart_returns_every_station_and_rejects_bad_input() {
     assert_eq!(body["stations"][0]["name"], "router");
     assert_eq!(body["stations"][0]["soc"], json!([80.0]));
     assert_eq!(body["stations"][0]["in_w"], json!([null]));
+    assert_eq!(body["stations"][0]["temp_c"], json!([null]));
     assert_eq!(body["stations"][1]["t"], json!([]));
     assert_eq!(body["outages"][0]["scope"], "house");
     for path in [

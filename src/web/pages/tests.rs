@@ -107,7 +107,7 @@ fn renders_hand_computed_values() {
     ));
     assert!(!html.contains("<td>2026-10-14</td><td>router</td>"));
     assert!(html.contains("<tr><td>2026-10-14</td><td>—</td><td>no data</td><td>—</td></tr>"));
-    for slot in ["c-soc", "c-out_w", "c-in_w"] {
+    for slot in ["c-soc", "c-out_w", "c-in_w", "c-temp_c"] {
         assert!(html.contains(&format!(r#"<div class="chart" id="{slot}"></div>"#)));
     }
     // Newest sample NOW − 60 = 11:59 local; stale after 3 × 60 s.

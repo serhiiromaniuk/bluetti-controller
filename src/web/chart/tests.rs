@@ -110,6 +110,47 @@ fn buckets_average_and_round_to_one_decimal() {
     assert_eq!(c.stations[0].out_w, [Some(10.3)]);
 }
 
+fn extra(conn: &Connection, station: i64, ts: i64, metric: &str, value: f64) {
+    conn.execute(
+        "INSERT INTO sample_extra (station_id, ts, metric, value) VALUES (?1, ?2, ?3, ?4)",
+        params![station, ts, metric, value],
+    )
+    .unwrap();
+}
+
+#[test]
+fn pack_temperature_lands_in_its_bucket_as_celsius() {
+    let conn = db();
+    sample(&conn, 1, T0, Some(80.0), None, None, Some(5.0), None);
+    for i in 0..12 {
+        sample(
+            &conn,
+            2,
+            T0 + 60 * i,
+            Some(50.0),
+            None,
+            None,
+            Some(100.0),
+            None,
+        );
+    }
+    // Slow reads every 10 min: 71 °F = 21.666… → 21.7 °C; 86 °F = 30 °C.
+    extra(&conn, 2, T0, "pack_temperature", 71.0);
+    extra(&conn, 2, T0 + 600, "pack_temperature", 86.0);
+    let c = chart(&conn, T0, T0 + 720, 60, T0 + 720).unwrap();
+    let office = &c.stations[1];
+    assert_eq!(office.t.len(), 12);
+    let mut want = vec![None; 12];
+    want[0] = Some(21.7);
+    want[10] = Some(30.0);
+    assert_eq!(office.temp_c, want);
+    // One 600 s bucket averages the reading: (71 + 86) / 2 = 78.5 °F = 25.833… °C.
+    let c = chart(&conn, T0, T0 + 1200, 1200, T0 + 1200).unwrap();
+    assert_eq!(c.stations[1].temp_c, [Some(25.8)]);
+    // No extras (the EB3A): every bucket null, parallel to `t`.
+    assert_eq!(c.stations[0].temp_c, [None]);
+}
+
 #[test]
 fn outages_overlapping_the_window_are_included() {
     let conn = db();
