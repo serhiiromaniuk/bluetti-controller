@@ -5,6 +5,23 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.3.0 — 2026-10-16
+
+Dashboard panels for the R1a extras (ROADMAP §2.2 R1b), AC180 and Elite 200
+V2, all marked unverified until HUMAN-CHECKLIST H12:
+
+- **Cards:** pack temperature in °C, charging mode (standard / silent / turbo),
+  and the station's own time left beside our forecast while it discharges.
+  Extras older than 20 min are hidden. `/api/status` adds `pack_temp_c`,
+  `charging_mode` and `station_left`.
+- **Chart:** a 4th panel, pack temperature °C per station (`temp_c` in
+  `/api/chart`); the 10-min readings join into one line, and the axis goes
+  below 0 °C.
+- **Energy table:** daily in / out from the station counters beside our
+  integrated values, and a lifetime line per station (in, out, out ÷ in).
+  `/api/energy` adds `counter_in_wh` and `counter_out_wh`.
+- No schema change: rollback to 1.2.0 is a binary swap.
+
 ## 1.2.0 — 2026-10-15
 
 - **Battery health (R1):** `/telemetry` estimates each station's usable

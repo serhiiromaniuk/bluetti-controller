@@ -194,7 +194,7 @@ fn r1b_extras_line_is_muted_and_marked_unverified() {
                 <span class=\"badge warn\"";
     assert!(html.contains(line), "{html}");
     // The router has no extras: one such line only.
-    assert_eq!(html.matches("Pack ").count(), 1);
+    assert_eq!(html.matches("<p class=\"muted\">Pack ").count(), 1);
 }
 
 #[test]
