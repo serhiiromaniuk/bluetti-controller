@@ -15,7 +15,7 @@
   var $ = function (id) { return document.getElementById(id); };
   var UNIT = { m: 60, h: 3600, d: 86400 };
   var COLORS = ["#5794f2", "#73bf69", "#ff9830", "#b877d9", "#f2495c", "#8ab8ff"];
-  var PANELS = [["soc", "%"], ["out_w", "W"], ["in_w", "W"]];
+  var PANELS = [["soc", "%"], ["out_w", "W"], ["in_w", "W"], ["temp_c", "°C", 600]];
   var DEFAULT = "now-12h";
 
   // "12h" → 43200; anything else → 0.
@@ -131,7 +131,12 @@
     PANELS.forEach(function (p) {
       var el = $("c-" + p[0]);
       el.textContent = "";
-      var tables = data.stations.map(function (s) { return gaps(s.t, s[p[0]], data.step); });
+      var tables = data.stations.map(function (s) {
+        var t = s.t, v = s[p[0]];
+        // A slow extra (read every p[2] s) keeps only its readings, so they join up.
+        if (p[2]) { t = t.filter(function (x, i) { return v[i] != null; }); v = v.filter(function (x) { return x != null; }); }
+        return gaps(t, v, Math.max(data.step, p[2] || 0));
+      });
       // Mode 2 keeps the gap nulls across the stations' different timestamps.
       var joined = tables.length ? uPlot.join(tables, tables.map(function () { return [0, 2]; })) : [[]];
       charts.push(new uPlot({
