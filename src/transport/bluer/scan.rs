@@ -57,9 +57,49 @@ pub(super) async fn advert_of(device: &::bluer::Device) -> ::bluer::Result<Optio
     }))
 }
 
+/// An LE discovery that runs until this is dropped or stopped.
+struct Discovery {
+    stop: tokio::sync::oneshot::Sender<()>,
+    task: tokio::task::JoinHandle<()>,
+}
+
+impl Discovery {
+    /// Stops the discovery and waits until its token is gone, so the next
+    /// start opens a new one instead of reusing this one.
+    async fn stop(self) {
+        drop(self.stop);
+        let _ = self.task.await;
+    }
+}
+
+/// Starts a discovery on a spawned task. bluer arms its StopDiscovery only
+/// once StartDiscovery returns, so a caller cancelled in between (a poll
+/// deadline) left the shared session's BlueZ client discovering, and every
+/// later start failed "Operation already in progress". The task always runs
+/// to the end and stops the discovery when this handle is dropped.
+async fn start_discovery(adapter: &::bluer::Adapter) -> anyhow::Result<Discovery> {
+    let adapter = adapter.clone();
+    let (stop, stopped) = tokio::sync::oneshot::channel::<()>();
+    let (started_tx, started) = tokio::sync::oneshot::channel();
+    let task = tokio::spawn(async move {
+        match adapter.discover_devices().await {
+            Ok(events) => {
+                let _ = started_tx.send(Ok(()));
+                let _ = stopped.await;
+                drop(events);
+            }
+            Err(err) => {
+                let _ = started_tx.send(Err(err));
+            }
+        }
+    });
+    started.await.context("LE discovery task ended")??;
+    Ok(Discovery { stop, task })
+}
+
 /// `adapter_name`, powered, with an LE-only discovery filter.
 async fn le_adapter(adapter_name: &str) -> anyhow::Result<::bluer::Adapter> {
-    let session = ::bluer::Session::new()
+    let session = super::session()
         .await
         .context("cannot reach bluetoothd over D-Bus")?;
     let adapter = session
@@ -70,12 +110,16 @@ async fn le_adapter(adapter_name: &str) -> anyhow::Result<::bluer::Adapter> {
     }
     // BlueZ cannot filter on manufacturer data, so the filter is LE-only and
     // the company id is checked by `advert_of`.
-    adapter
-        .set_discovery_filter(::bluer::DiscoveryFilter {
-            transport: ::bluer::DiscoveryTransport::Le,
-            ..Default::default()
-        })
-        .await?;
+    let filter = ::bluer::DiscoveryFilter {
+        transport: ::bluer::DiscoveryTransport::Le,
+        ..Default::default()
+    };
+    match adapter.set_discovery_filter(filter).await {
+        // A cancelled scan's discovery still stopping: the filter, the same
+        // every time, was set on the shared session by an earlier call.
+        Err(err) if err.kind == ::bluer::ErrorKind::DiscoveryActive => {}
+        result => result?,
+    }
     Ok(adapter)
 }
 
@@ -86,7 +130,7 @@ async fn listen_for(
 ) -> anyhow::Result<Advert> {
     let adapter = le_adapter(adapter_name).await?;
     // Discovery runs while `_session` lives.
-    let mut _session = Some(adapter.discover_devices().await?);
+    let mut _session = Some(start_discovery(&adapter).await?);
     let device = adapter.device(address)?;
     let until = tokio::time::Instant::now() + timeout;
     let mut last_error = None;
@@ -100,10 +144,12 @@ async fn listen_for(
         match adapter.is_discovering().await {
             Ok(true) => {}
             Ok(false) => {
-                _session = None;
+                if let Some(discovery) = _session.take() {
+                    discovery.stop().await;
+                }
                 restarts += 1;
-                match adapter.discover_devices().await {
-                    Ok(stream) => _session = Some(stream),
+                match start_discovery(&adapter).await {
+                    Ok(discovery) => _session = Some(discovery),
                     Err(err) => {
                         let text = mask_macs(&err.to_string());
                         tracing::warn!(error = %text, "LE discovery restart failed");
@@ -162,9 +208,9 @@ fn not_found(
 
 async fn discover(adapter_name: &str, timeout: Duration) -> anyhow::Result<Vec<Advert>> {
     let adapter = le_adapter(adapter_name).await?;
-    // Discovery runs while `_events` lives; properties are read before it
+    // Discovery runs while `_discovery` lives; properties are read before it
     // stops, because BlueZ drops the RSSI of devices no longer seen.
-    let _events = adapter.discover_devices().await?;
+    let _discovery = start_discovery(&adapter).await?;
     tokio::time::sleep(timeout).await;
 
     let mut adverts = Vec::new();

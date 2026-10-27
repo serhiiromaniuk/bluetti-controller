@@ -9,7 +9,7 @@ use std::time::Duration;
 
 use ::bluer::gatt::remote::{Characteristic, CharacteristicWriteRequest};
 use ::bluer::gatt::{CharacteristicReader, WriteOp};
-use ::bluer::{Address, Device, Session, Uuid};
+use ::bluer::{Address, Device, Uuid};
 use anyhow::{Context, anyhow};
 
 use super::scan::{advert_of, scan_for};
@@ -57,7 +57,7 @@ pub async fn find(ble: &BleConfig, address: &str) -> anyhow::Result<(Advert, boo
 pub async fn release(ble: &BleConfig, address: &str) -> anyhow::Result<()> {
     let address = parse_address(address)?;
     let timeout = Duration::from_secs(ble.request_timeout_secs.get());
-    let session = bounded(timeout, "open a D-Bus session", Session::new()).await?;
+    let session = bounded(timeout, "open a D-Bus session", super::session()).await?;
     let adapter = session
         .adapter(&ble.adapter)
         .with_context(|| format!("no Bluetooth adapter {}", ble.adapter))?;
@@ -81,7 +81,7 @@ pub async fn connect(ble: &BleConfig, advert: &Advert) -> anyhow::Result<BluerGa
     let address = parse_address(&advert.address)?;
     let connect_timeout = Duration::from_secs(ble.connect_timeout_secs.get());
     let request_timeout = Duration::from_secs(ble.request_timeout_secs.get());
-    let session = bounded(request_timeout, "open a D-Bus session", Session::new()).await?;
+    let session = bounded(request_timeout, "open a D-Bus session", super::session()).await?;
     let adapter = session
         .adapter(&ble.adapter)
         .with_context(|| format!("no Bluetooth adapter {}", ble.adapter))?;
@@ -185,7 +185,7 @@ async fn cached(
     address: Address,
     timeout: Duration,
 ) -> anyhow::Result<Option<Advert>> {
-    let session = bounded(timeout, "open a D-Bus session", Session::new()).await?;
+    let session = bounded(timeout, "open a D-Bus session", super::session()).await?;
     let adapter = session
         .adapter(adapter_name)
         .with_context(|| format!("no Bluetooth adapter {adapter_name}"))?;

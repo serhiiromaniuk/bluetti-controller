@@ -25,6 +25,7 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | 2026-10-15 | ad hoc | Homelab migration + release rollout | [2026-10-15_homelab-deploy](./2026-10-15_homelab-deploy/) | done | — |
 | 2026-10-15 | ad hoc | R1 battery health + R1a telemetry extras | [2026-10-15_r1-battery-telemetry](./2026-10-15_r1-battery-telemetry/) | done | `v1.2.0` |
 | 2026-10-16 | ad hoc | R1b dashboard panels for the extras | [2026-10-16_r1b-panels](./2026-10-16_r1b-panels/) | done | `v1.3.1` |
+| 2026-10-27 | ad hoc | BLE reliability fixes (session leak, backoff) | [2026-10-27_ble-reliability](./2026-10-27_ble-reliability/) | in-progress | — |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:
