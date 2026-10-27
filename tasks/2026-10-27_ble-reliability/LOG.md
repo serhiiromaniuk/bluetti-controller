@@ -90,3 +90,39 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 4 ✓ 2026-10-27 — 1.3.3 deployed, first hour on the host
+
+**Changed:** nothing in code. `make release VERSION=1.3.3` (f97d777, tag v1.3.3); the owner ran `make deploy` (the classifier blocks it for the agent) at 19:04:52Z: healthy, v1.3.2 kept as previous.
+
+**Check (host, 19:04:53–20:10:49Z, 66 min):**
+- Memory: 4.2 MB at 17 s, 13.9 MB at 65 min (peak 16.3 MB), swap 0. Was 127.8 MB + 116.9 MB swap. Under 50 MB; "flat" needs a longer look (below).
+- Polls: `/api/series` raw samples 66 of 65 minutes for each of router, living-room and mobile = 100 %. The AC180's "unreachable" at the deploy was stale from 1.3.2; its first 1.3.3 poll at +13 s succeeded.
+- Journal: 0 "dropped while connected", 0 "discovery restart failed". 16 `le-connection-abort-by-local` connect retries and 2 Elite key-exchange retries, all recovered within the poll.
+- bluetoothd "No matching connection": 199 in 65 min, 30 per 10 min = one per poll per station. Step 3 removed our second Disconnect, but one is still logged per poll; harmless log noise, not chased.
+- 1.3.4 (uptime badge) was deployed at 20:11:24Z on the owner's request, after this window.
+
+**Open:** done-when 4 stays unticked until memory is seen flat over ≥ 24 h (`systemctl status bluetti-controller` around 2026-10-28 20:00Z, well under 50 MB).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-10-27T20:12:39Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.86% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

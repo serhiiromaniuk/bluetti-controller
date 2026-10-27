@@ -9,7 +9,7 @@
 - [x] 1. One `bluer::Session` per process: a lazily opened shared session in `src/transport/bluer/` used by `find`/`cached`/`release`/`connect`/`le_adapter` — check: `#[ignore]` churn test red on `Session::new` per call, green on the shared session; `make check`
 - [x] 2. Poll backoff for unreachable stations in `Collector::run` (skip 1, 2, 4 … ticks, cap 10 min, reset on success) — check: collector test on paused time; `make check`
 - [x] 3. One Disconnect per poll: `release` only when `Gatt::disconnect` did not succeed — check: collector test counting `release` calls; `make check`
-- [ ] 4. Release 1.3.3 and deploy (Q1) — check: `make deploy` exit 0; after ≥ 1 h `systemctl status` Memory < 50 MB, `/api/status` ≥ 95 % per station, no "dropped while connected"
+- [x] 4. Release 1.3.3 and deploy (Q1) — check: `make deploy` exit 0; after ≥ 1 h `systemctl status` Memory < 50 MB, `/api/status` ≥ 95 % per station, no "dropped while connected"
 
 ## Risks / Dependencies
 - The leak may not be the session (INVESTIGATION R1 ~90 %): step 1's test proves it; if it stays green, stop and profile before more code.
