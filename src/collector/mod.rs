@@ -1,8 +1,8 @@
 //! The collector (ROADMAP.md §5.3–§5.5): one task that polls every station in
 //! turn, one link at a time, on ticks at `start + k × interval`, and sends each
 //! result to the store writer as a [`Record`]. Every poll runs under the §5.4
-//! deadline and ends with a disconnect by address, also on error, deadline or
-//! shutdown (golden rule #5). A `watch` channel pauses or stops it. The first
+//! deadline and ends with a disconnect: its own, or one by address on error,
+//! deadline or shutdown (golden rule #5). A `watch` channel pauses or stops it. The first
 //! successful poll of each UTC hour also sends every profile block as a
 //! register snapshot (§6).
 
@@ -25,6 +25,10 @@ pub use bluez::BluezConnect;
 
 /// Consecutive failures that make a station unreachable (§5.5).
 const UNREACHABLE_AFTER: u32 = 3;
+/// The longest an unreachable station waits between polls: each miss doubles
+/// the wait up to this, so an absent station costs one 15 s scan per 10 min,
+/// not per minute (tasks/2026-10-27_ble-reliability/INVESTIGATION.md R3).
+const BACKOFF_CAP: Duration = Duration::from_secs(600);
 
 /// What the collector should do; the sender is the `serve` command.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -49,6 +53,8 @@ pub struct Progress {
     /// The first key-exchange error while its retry runs: the poll's failure
     /// stays a `handshake` one, also when the deadline cuts the retry.
     retrying: Option<String>,
+    /// The poll's own disconnect succeeded, so no release by address is owed.
+    disconnected: bool,
 }
 
 impl Progress {
@@ -57,6 +63,7 @@ impl Progress {
             stage: Stage::Discover,
             cached: None,
             retrying: None,
+            disconnected: false,
         }
     }
 }
@@ -107,6 +114,8 @@ impl<C: Connect + Sync> Collector<C> {
         let start = Instant::now();
         let mut tick = 0_u32;
         let mut failures = vec![0_u32; self.stations.len()];
+        // The first tick each station may be polled on again.
+        let mut due = vec![0_u32; self.stations.len()];
         let mut hours = vec![None; self.stations.len()];
         let mut last_ok: Vec<Option<Instant>> = vec![None; self.stations.len()];
         // When each station's slow blocks were last read (ROADMAP.md §2.2 R1a).
@@ -126,6 +135,9 @@ impl<C: Connect + Sync> Collector<C> {
                     Control::Pause { until } if Instant::now() < until => continue,
                     _ => {}
                 }
+                if tick < due[i] {
+                    continue;
+                }
                 let ts = clock.now(i);
                 let retry = *failed < UNREACHABLE_AFTER;
                 let mut progress = Progress::new();
@@ -142,7 +154,11 @@ impl<C: Connect + Sync> Collector<C> {
                     result = tokio::time::timeout(deadline, self.poll(target, ts, retry, slow_until, &mut progress)) => Some(result),
                     () = shutdown(&mut control) => None,
                 };
-                self.connect.release(&target.config).await;
+                // A second Disconnect after a clean one only made bluetoothd
+                // log "No matching connection" once per poll (INVESTIGATION.md R2).
+                if !progress.disconnected {
+                    self.connect.release(&target.config).await;
+                }
                 let Some(outcome) = outcome else { return };
                 let result = outcome.unwrap_or_else(|_| {
                     let error = format!("no result within the {deadline:?} poll deadline");
@@ -200,6 +216,9 @@ impl<C: Connect + Sync> Collector<C> {
                         );
                         if *failed == UNREACHABLE_AFTER {
                             tracing::warn!(station = name, "unreachable");
+                        }
+                        if *failed >= UNREACHABLE_AFTER {
+                            due[i] = tick.saturating_add(backoff(*failed, self.interval));
                         }
                         Record::Failure {
                             station: target.id,
@@ -269,8 +288,11 @@ impl<C: Connect + Sync> Collector<C> {
             Ok::<_, ReadError>(registers)
         })
         .await;
-        if let Err(err) = closed {
-            tracing::warn!(station = target.config.name, error = %err, "disconnect failed");
+        match closed {
+            Ok(()) => progress.disconnected = true,
+            Err(err) => {
+                tracing::warn!(station = target.config.name, error = %err, "disconnect failed");
+            }
         }
         let registers = read.map_err(|err| fail(Stage::Read, err.to_string()))?;
         let poll = Poll {
@@ -300,6 +322,17 @@ fn next_tick(tick: u32, elapsed: Duration, interval: Duration) -> u32 {
     u32::try_from(due)
         .unwrap_or(u32::MAX)
         .max(tick.saturating_add(1))
+}
+
+/// Ticks until the next poll of a station after its `failed`-th miss in a
+/// row (≥ [`UNREACHABLE_AFTER`]): 2, 4, 8 … up to [`BACKOFF_CAP`].
+fn backoff(failed: u32, interval: Duration) -> u32 {
+    let cap = BACKOFF_CAP.as_nanos() / interval.as_nanos().max(1);
+    let cap = u32::try_from(cap).unwrap_or(u32::MAX).max(1);
+    1_u32
+        .checked_shl(failed - UNREACHABLE_AFTER + 1)
+        .unwrap_or(u32::MAX)
+        .min(cap)
 }
 
 /// True when `ts` falls in a later UTC hour than the last snapshot, which

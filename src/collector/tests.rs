@@ -24,8 +24,13 @@ enum Behave {
     FailFirst(Stage),
     /// The first open fails at this stage, every later one never returns.
     FailThenHang(Stage),
+    /// Opening fails at the connect while the test is younger than this
+    /// many seconds, then every open reads 0.
+    FailUntil(u64),
     /// Opening never returns.
     Hang,
+    /// Reads 0, but its own disconnect fails and leaves the link up.
+    DisconnectFails,
     /// Reads 0, but the slow block at 6007 answers a Modbus exception.
     SlowRefused,
     /// Reads 0, but the slow block at 150 never answers.
@@ -85,7 +90,7 @@ impl Connect for Fake {
         progress.stage = Stage::Connect;
         let fill = match behave {
             Behave::Fill(value) => Some(value),
-            Behave::SlowRefused | Behave::SlowStalls => Some(0),
+            Behave::SlowRefused | Behave::SlowStalls | Behave::DisconnectFails => Some(0),
             Behave::Silent | Behave::Stall => None,
             Behave::Fail(failed) => {
                 progress.stage = failed;
@@ -96,6 +101,10 @@ impl Connect for Fake {
                 return Err(format!("{} failed", failed.as_str()));
             }
             Behave::FailFirst(_) => Some(0),
+            Behave::FailUntil(secs) if self.start.elapsed().as_secs() < secs => {
+                return Err("connect failed".into());
+            }
+            Behave::FailUntil(_) => Some(0),
             Behave::FailThenHang(_) => std::future::pending().await,
             Behave::Hang => std::future::pending().await,
         };
@@ -159,7 +168,12 @@ impl Gatt for FakeGatt {
     }
 
     async fn disconnect(&mut self) -> Result<(), TransportError> {
-        self.state.lock().unwrap().disconnects += 1;
+        let mut state = self.state.lock().unwrap();
+        state.disconnects += 1;
+        if matches!(self.behave, Behave::DisconnectFails) {
+            return Err(TransportError::Ble("disconnect: no answer".into()));
+        }
+        state.live = None;
         Ok(())
     }
 }
@@ -252,12 +266,24 @@ async fn stations_are_polled_in_turn_and_every_poll_disconnects() {
     let t0 = records[0].1;
     let ts: Vec<_> = records.iter().map(|r| r.1 - t0).collect();
     assert_eq!(ts, [0, 0, 60, 60, 120, 120]);
+    // A poll that disconnected sends no second Disconnect by address.
     let state = state.lock().unwrap();
     assert_eq!(
         (state.opens.len(), state.disconnects, state.releases),
-        (6, 6, 6)
+        (6, 6, 0)
     );
     assert_eq!(state.live, None);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_failed_disconnect_is_followed_by_a_release_by_address() {
+    let (collector, state, mut rx) = collector(&[("a", Behave::DisconnectFails)]);
+    let (_tx, control) = watch::channel(Control::Run);
+    // Each next open would panic on a link still up.
+    run_for(collector, control, 150).await;
+    assert_eq!(summary(&drain(&mut rx)).len(), 3);
+    let state = state.lock().unwrap();
+    assert_eq!((state.disconnects, state.releases), (3, 3));
 }
 
 #[tokio::test(start_paused = true)]
@@ -272,20 +298,55 @@ async fn each_failure_names_its_stage() {
     run_for(collector, control, 30).await;
     let stages: Vec<_> = summary(&drain(&mut rx)).iter().map(|r| r.2).collect();
     assert_eq!(stages, ["discover", "handshake", "read", "decode"]);
-    // The failed opens left no link; the two that connected disconnected.
+    // The two that connected disconnected; only the failed opens release.
     // The handshake failure was retried once, after its own release.
     let state = state.lock().unwrap();
-    assert_eq!((state.disconnects, state.releases), (2, 5));
+    assert_eq!((state.disconnects, state.releases), (2, 3));
 }
 
 #[tokio::test(start_paused = true)]
 async fn third_failure_makes_a_station_unreachable_with_one_attempt() {
     let (collector, state, mut rx) = collector(&[("a", Behave::Fail(Stage::Connect))]);
     let (_tx, control) = watch::channel(Control::Run);
-    run_for(collector, control, 190).await;
+    // Ticks 0, 1, 2, then 4: the first backed-off poll.
+    run_for(collector, control, 250).await;
     assert_eq!(drain(&mut rx).len(), 4);
     let retries: Vec<_> = state.lock().unwrap().opens.iter().map(|o| o.1).collect();
     assert_eq!(retries, [true, true, true, false]);
+}
+
+/// Seconds since the start of each open of `station`.
+fn opens_of(state: &Mutex<State>, station: &str) -> Vec<u64> {
+    let state = state.lock().unwrap();
+    state
+        .opens
+        .iter()
+        .filter(|o| o.0 == station)
+        .map(|o| o.2)
+        .collect()
+}
+
+#[tokio::test(start_paused = true)]
+async fn an_unreachable_station_is_polled_ever_less_often_up_to_ten_minutes() {
+    let (collector, state, _rx) =
+        collector(&[("a", Behave::Fail(Stage::Connect)), ("b", Behave::Fill(0))]);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 2_190).await;
+    // Ticks 0, 1, 2, then 2, 4, 8 ticks apart, then capped at 10 (10 min).
+    let ticks: Vec<_> = opens_of(&state, "a").iter().map(|s| s / 60).collect();
+    assert_eq!(ticks, [0, 1, 2, 4, 8, 16, 26, 36]);
+    // The other station keeps every tick.
+    assert_eq!(opens_of(&state, "b").len(), 37);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_success_returns_a_backed_off_station_to_every_tick() {
+    let (collector, state, _rx) = collector(&[("a", Behave::FailUntil(300))]);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 610).await;
+    // Fails at ticks 0, 1, 2, 4; tick 8 reads, then every tick again.
+    let ticks: Vec<_> = opens_of(&state, "a").iter().map(|s| s / 60).collect();
+    assert_eq!(ticks, [0, 1, 2, 4, 8, 9, 10]);
 }
 
 #[tokio::test(start_paused = true)]
@@ -317,7 +378,8 @@ async fn a_hanging_station_never_delays_the_others_ticks() {
     };
     assert_eq!(failure.stage, Stage::Connect);
     assert!(failure.error.contains("deadline"), "{}", failure.error);
-    assert_eq!(state.lock().unwrap().releases, 9);
+    // Only the deadline cuts of `a` release; `b` and `c` disconnected.
+    assert_eq!(state.lock().unwrap().releases, 3);
 }
 
 #[tokio::test(start_paused = true)]
@@ -336,7 +398,7 @@ async fn a_deadline_during_the_read_names_the_read_stage() {
 
 #[tokio::test(start_paused = true)]
 async fn a_late_round_skips_the_ticks_it_missed() {
-    let (mut collector, state, _rx) = collector(&[("a", Behave::Fill(0))]);
+    let (mut collector, state, _rx) = collector(&[("a", Behave::Fail(Stage::Connect))]);
     collector.connect.release_delay = Duration::from_secs(130);
     let (_tx, control) = watch::channel(Control::Run);
     run_for(collector, control, 200).await;

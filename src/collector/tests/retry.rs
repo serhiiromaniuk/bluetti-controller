@@ -10,14 +10,15 @@ async fn a_handshake_failure_is_retried_once_on_a_fresh_connection() {
     let stages: Vec<_> = summary(&drain(&mut rx)).iter().map(|r| r.2).collect();
     assert_eq!(stages, ["ok"]);
     let state = state.lock().unwrap();
-    assert_eq!((state.opens.len(), state.releases), (2, 2));
+    assert_eq!((state.opens.len(), state.releases), (2, 1));
 }
 
 #[tokio::test(start_paused = true)]
 async fn an_unreachable_station_gets_no_handshake_retry() {
     let (collector, state, mut rx) = collector(&[("a", Behave::Fail(Stage::Handshake))]);
     let (_tx, control) = watch::channel(Control::Run);
-    run_for(collector, control, 190).await;
+    // Ticks 0, 1, 2, then the backed-off tick 4.
+    run_for(collector, control, 250).await;
     let stages: Vec<_> = summary(&drain(&mut rx)).iter().map(|r| r.2).collect();
     assert_eq!(stages, ["handshake"; 4]);
     let retries: Vec<_> = state.lock().unwrap().opens.iter().map(|o| o.1).collect();
