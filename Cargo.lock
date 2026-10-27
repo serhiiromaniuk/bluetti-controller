@@ -271,7 +271,7 @@ dependencies = [
 
 [[package]]
 name = "bluetti-controller"
-version = "1.3.2"
+version = "1.3.3"
 dependencies = [
  "aes",
  "anyhow",
