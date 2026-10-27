@@ -5,6 +5,19 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.3.3 — 2026-10-27
+
+- **Fix: polls failing on every station after ~10 days.** The service opened
+  a new D-Bus session to bluetoothd for every BlueZ call (~15,000 a day), and
+  each leaked memory. After 11 days it held 139 MB, hit the unit's 128 MB cap and swapped, so
+  polls stalled mid-connection. It now opens one session and keeps it
+  (tasks/2026-10-27_ble-reliability).
+- An LE scan cut short by the poll deadline can no longer leave discovery
+  "already in progress" for every later scan.
+- An unreachable station is polled after 2, 4, 8 … minutes, at most every
+  10 min, instead of every minute; the first good poll resets it.
+- A poll that disconnected cleanly no longer sends a second Disconnect.
+
 ## 1.3.2 — 2026-10-16
 
 - **Battery health from the battery side:** on the AC180 and the Elite the
