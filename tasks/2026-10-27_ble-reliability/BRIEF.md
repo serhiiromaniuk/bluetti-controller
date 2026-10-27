@@ -21,9 +21,9 @@ the owner's go).
 `BUG-station-ble-invisible.md`. Everything in INVESTIGATION.md "Not doing".
 
 ## Done when
-- [ ] Session churn no longer grows RSS: the `#[ignore]` churn test passes, and was red before the fix (`cargo test -- --ignored`)
-- [ ] Unreachable stations are polled with capped backoff: collector test green (`make check`)
-- [ ] A clean poll sends one Disconnect: collector test green (`make check`)
+- [x] Session churn no longer grows RSS: the `#[ignore]` churn test passes, and was red before the fix (`cargo test -- --ignored`)
+- [x] Unreachable stations are polled with capped backoff: collector test green (`make check`)
+- [x] A clean poll sends one Disconnect: collector test green (`make check`)
 - [ ] 1.3.3 released and deployed; on the host after ≥ 1 h: `Memory:` < 50 MB and flat, ≥ 95 % polls per powered station, zero "dropped while connected" (journal + `/api/status`)
 
 ## References
