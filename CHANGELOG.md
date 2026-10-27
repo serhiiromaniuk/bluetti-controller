@@ -5,6 +5,15 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.3.4 — 2026-10-27
+
+- **Grid uptime badge** above the dashboard charts: the share of the
+  selected period with grid power, plus the number of house outages, the
+  total time without power and the longest one. It follows the range picker,
+  zoom and refresh. Only the monitored past counts: time before the first
+  recorded sample and time still in the future are left out. `/api/chart`
+  gains `house` (those totals) and `house_from`/`house_to` (the span counted).
+
 ## 1.3.3 — 2026-10-27
 
 - **Fix: polls failing on every station after ~10 days.** The service opened
