@@ -274,6 +274,19 @@ fn event(row: &Row) -> rusqlite::Result<GridEventRow> {
 
 const EVENT_COLUMNS: &str = "id, scope, started_at, ended_at, precision_s";
 
+/// The oldest sample or rollup timestamp of any station: when monitoring
+/// began. `None` on an empty database. One PK seek per station and table.
+pub fn first_ts(conn: &Connection) -> anyhow::Result<Option<i64>> {
+    Ok(conn.query_row(
+        "SELECT min(ts) FROM (
+           SELECT (SELECT min(ts) FROM sample WHERE station_id = s.id) AS ts FROM station s
+           UNION ALL
+           SELECT (SELECT min(ts) FROM rollup_5m WHERE station_id = s.id) FROM station s)",
+        [],
+        |row| row.get(0),
+    )?)
+}
+
 /// Events of every scope that overlap `[from, to)` (an open one runs to now),
 /// newest `started_at` first.
 pub fn events_between(conn: &Connection, from: i64, to: i64) -> anyhow::Result<Vec<GridEventRow>> {

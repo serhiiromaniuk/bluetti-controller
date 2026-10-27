@@ -8,7 +8,7 @@
 //
 // DOM contract (status.html): #range #custom #from #to #apply #refresh #every,
 // #live and #tables (swapped from a fresh GET / on refresh), #age (data-ts,
-// data-now, data-stale, data-at), #c-soc #c-out_w #c-in_w chart slots, and
+// data-now, data-stale, data-at), #uptime, #c-soc #c-out_w #c-in_w chart slots, and
 // the pause form (POST /api/polling/pause?minutes=N, optional Bearer token).
 (function () {
   "use strict";
@@ -157,7 +157,19 @@
     });
   }
 
+  // Grid uptime over the window's monitored past; floored, so any outage shows < 100%.
+  function uptime() {
+    var h = data.house, w = data.house_to - data.house_from;
+    $("uptime").textContent = "";
+    if (!(w > 0)) return;
+    var on = data.outages.some(function (o) { return o.scope === "house" && o.ongoing; });
+    $("uptime").innerHTML = '<span class="badge ' + (on ? "bad" : h.count ? "warn" : "ok") + '">Grid uptime ' +
+      Math.floor(1000 - 1000 * h.seconds_without_power / w) / 10 + "%</span> " + (h.count ? h.count + " outage(s) · " +
+      span(h.seconds_without_power) + " without power · longest " + span(h.longest_s) + (on ? " · ongoing" : "") : "No outages");
+  }
+
   function failed(e) {
+    $("uptime").textContent = "";
     PANELS.forEach(function (p) { $("c-" + p[0]).textContent = "Chart unavailable: " + e.message; });
   }
 
@@ -170,6 +182,7 @@
         if (!r.ok) throw new Error(body.error || r.status);
         if (my !== seq) return;
         data = body;
+        uptime();
         build();
       });
     }).catch(function (e) { if (my === seq) failed(e); });

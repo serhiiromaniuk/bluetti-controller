@@ -166,8 +166,46 @@ fn outages_overlapping_the_window_are_included() {
         T0 - 8000,
     ))
     .unwrap();
+    // Monitoring began before the window: all of it counts.
+    sample(&conn, 2, T0 - 9999, Some(50.0), None, None, None, None);
     let c = chart(&conn, T0, T0 + 600, 60, T0 + 600).unwrap();
     let starts: Vec<_> = c.outages.iter().map(|o| o.started_at).collect();
     assert_eq!(starts, [T0 + 300, T0 - 600]);
     assert!(c.outages[0].ongoing);
+    // Clipped to the window: 60 s of the first, 300 s of the open one.
+    assert_eq!(
+        c.house,
+        HouseDay {
+            count: 2,
+            seconds_without_power: 360,
+            longest_s: 300
+        }
+    );
+}
+
+#[test]
+fn house_totals_count_only_the_past_part_of_the_window() {
+    let conn = db();
+    conn.execute_batch(&format!(
+        "INSERT INTO grid_event (scope, kind, started_at, ended_at, precision_s)
+         VALUES ('house', 'outage', {}, NULL, 60),
+                ('router', 'outage', {}, NULL, 60);",
+        T0 + 300,
+        T0,
+    ))
+    .unwrap();
+    // Monitoring began 100 s into the window, which runs 300 s past `now`:
+    // the counted span is [T0+100, T0+600); the open outage counts to `now`
+    // only, and a station's own outage is not the house's.
+    sample(&conn, 1, T0 + 100, Some(50.0), None, None, None, None);
+    let c = chart(&conn, T0, T0 + 900, 60, T0 + 600).unwrap();
+    assert_eq!((c.house_from, c.house_to), (T0 + 100, T0 + 600));
+    assert_eq!(c.house.seconds_without_power, 300);
+    assert_eq!(c.house.count, 1);
+}
+
+#[test]
+fn an_empty_database_counts_no_uptime_span() {
+    let c = chart(&db(), T0, T0 + 600, 60, T0 + 600).unwrap();
+    assert_eq!(c.house_from, c.house_to);
 }

@@ -9,9 +9,10 @@ use std::collections::BTreeMap;
 use rusqlite::Connection;
 use serde::Serialize;
 
+use crate::metrics::house;
 use crate::protocol::device::Metric;
 use crate::store::read;
-use crate::web::history::{self, Outage};
+use crate::web::history::{self, HouseDay, Outage};
 
 /// No response carries more than this many buckets per station: the step
 /// grows with the window, so a 30-day request stays as small as a 12 h one.
@@ -28,6 +29,14 @@ pub struct Chart {
     pub stations: Vec<StationSeries>,
     /// Every scope's events overlapping the window, newest first.
     pub outages: Vec<Outage>,
+    /// The house outages clipped to `[house_from, house_to)`: the uptime
+    /// summary above the charts.
+    pub house: HouseDay,
+    /// `from`, moved up to the first recorded sample: time before monitoring
+    /// began is neither uptime nor outage.
+    pub house_from: i64,
+    /// `min(to, now)`, never before `house_from`: the future is not counted.
+    pub house_to: i64,
 }
 
 /// One station's series; `soc`, `in_w`, `out_w` and `temp_c` are parallel to
@@ -107,12 +116,34 @@ pub fn chart(conn: &Connection, from: i64, to: i64, step: i64, now: i64) -> anyh
         }
         stations.push(s);
     }
+    let outages = history::outages_between(conn, from, to, now)?;
+    let events: Vec<house::Event> = outages
+        .iter()
+        .filter(|o| o.scope == "house")
+        .map(|o| house::Event {
+            start: o.started_at,
+            end: o.ended_at,
+            precision_s: o.precision_s,
+        })
+        .collect();
+    // shortcut: only time before the first sample is excluded, not later gaps
+    // while the collector was down; count coverage if those skew the badge.
+    let house_from = read::first_ts(conn)?.map_or(to, |t| t.max(from)).min(to);
+    let house_to = to.min(now).max(house_from);
+    let h = house::totals(&events, house_from, house_to);
     Ok(Chart {
         from,
         to,
         step,
         stations,
-        outages: history::outages_between(conn, from, to, now)?,
+        outages,
+        house: HouseDay {
+            count: h.count,
+            seconds_without_power: h.seconds_without_power,
+            longest_s: h.longest_s,
+        },
+        house_from,
+        house_to,
     })
 }
 

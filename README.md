@@ -61,7 +61,7 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 |---|---|---|
 | GET | `/api/status` | stations + house, the same view as `/` |
 | GET | `/api/series?station=&metric=&from=&to=&step=` | `{source, t:[…], v:[…]}`; raw ≤ 48 h, 5-min rollup beyond |
-| GET | `/api/chart?from=&to=&step=` | `{from, to, step, stations:[{name, t, soc, in_w, out_w}], outages}`; one request draws every chart |
+| GET | `/api/chart?from=&to=&step=` | `{from, to, step, stations:[{name, t, soc, in_w, out_w}], outages, house, house_from, house_to}`; one request draws every chart |
 | GET | `/api/outages?from=&to=` | grid events, newest first (default last 7 days) |
 | GET | `/api/energy?days=7` | daily energy per station and house outage totals |
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |

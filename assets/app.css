@@ -121,6 +121,8 @@ button:disabled { opacity: 0.5; cursor: wait; }
 .badge.ok { background: var(--ok-bg); color: var(--ok); }
 .badge.warn { background: var(--warn-bg); color: var(--warn); }
 .badge.bad { background: var(--bad-bg); color: var(--bad); }
+.uptime { margin: 0 0 10px; }
+.uptime .badge { font-size: 0.9em; padding: 1px 8px; }
 
 table {
   width: 100%;
