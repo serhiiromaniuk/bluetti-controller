@@ -126,3 +126,22 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## 2026-10-28 — 24 h check of done-when 4: not met, task stays open
+
+**Check (host, 2026-10-28 20:17Z, v1.3.4 up since 2026-10-27 20:11:24Z, read-only):**
+- Memory: `MemoryCurrent` 19.7 MB (peak 20.5 MB), swap 0. Process: RssAnon 13.3 MB, RssFile 10.0 MB; cgroup anon 13.6 MB, file 5.3 MB.
+  Was 4.2 MB at 17 s and 13.9 MB at 65 min (1.3.3). Well under 50 MB, but +5.8 MB in 23 h (~0.25 MB/h) is
+  two points only: plateau (SQLite cache, allocator) or a slow climb cannot be told apart yet. At a linear
+  0.25 MB/h the 128 MB cap is ~18 days away, so "flat" is not shown.
+- Polls, last 24 h raw samples: router 1440/1440 (100 %), living-room 1437/1440 (99.8 %), mobile 1440/1440 (100 %).
+- "dropped while connected": 3, all living-room (04:39, 07:59, 18:19Z). Each time the Elite stopped
+  answering reads (3× "no notification within 5s"), then the link dropped; the poll failed at the 20 s
+  deadline and the next poll succeeded. Not the R1 swap stall (memory 20 MB, swap 0): the station went
+  silent, as in BUG-station-ble-invisible.md. 0 "discovery restart failed".
+- Noise, all recovered within the poll: 298 `le-connection-abort-by-local` connect retries, 23 key-exchange retries.
+
+**Verdict:** done-when 4 not met on "flat" (unproven) and "zero dropped" (3). Task stays in-progress.
+Next: one more memory sample at ≥ 48 h (around 2026-10-29 20:00Z). A plateau near 20 MB closes the
+memory part. The 3 Elite drops are the owner's call: accept them as the station's own silence (bug report)
+or treat them as a miss.
