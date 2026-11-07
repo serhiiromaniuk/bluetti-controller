@@ -24,9 +24,13 @@ the owner's go).
 - [x] Session churn no longer grows RSS: the `#[ignore]` churn test passes, and was red before the fix (`cargo test -- --ignored`)
 - [x] Unreachable stations are polled with capped backoff: collector test green (`make check`)
 - [x] A clean poll sends one Disconnect: collector test green (`make check`)
-- [ ] 1.3.3 released and deployed; on the host after ≥ 1 h: `Memory:` < 50 MB and flat, ≥ 95 % polls per powered station, zero "dropped while connected" (journal + `/api/status`)
+- [x] 1.3.3 released and deployed; on the host after ≥ 1 h: `Memory:` < 50 MB and flat, ≥ 95 % polls per powered station, zero "dropped while connected" (journal + `/api/status`)
 
 ## References
 - Governing spec: `ROADMAP.md`
 - `tasks/2026-10-27_ble-reliability/INVESTIGATION.md` (evidence, plan, not-doing list)
 - RULES.md golden rule #5 · deploy/HOMELAB.md §6
+
+> 2026-11-07 (owner): done-when 4 judged on process RSS, with the Elite's
+> switched-off-by-hand windows excluded (11-03, 11-04; 11-07 not judged); the "zero dropped" part moved to
+> `tasks/2026-11-07_elite-read-stalls/`. Evidence: LOG.md, last entry.

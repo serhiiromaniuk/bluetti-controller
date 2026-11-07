@@ -149,3 +149,24 @@ or treat them as a miss.
 ## 2026-11-07 — Task set blocked (owner)
 - Owner chose to mark this task `blocked` so R3 (`2026-11-07_r3-control-schedule`) can take the in-progress slot.
 - Waiting on the owner: verdict on the 3 Elite "dropped while connected" events and the memory plateau (done-when 4).
+
+## 2026-11-07 — Done-when 4 met on the owner's verdicts; task closed
+
+**Check (host, read-only; v1.3.4 up since 2026-10-31 22:25 EET after the outage power-off, 0 restarts):**
+- Memory: VmRSS 24.3 MB (RssAnon 14.5 MB, RssFile 9.8 MB), swap 0. Anon 13.6 MB at 24 h (2026-10-28) and
+  14.8 MB at ~7 days: flat. systemd `Memory:` 52.1 MB = anon 14.8 + page cache 36.2 MB (28.1 MB inactive_file, reclaimable).
+- Polls 2026-11-01 00:00 – 11-07 00:00 Kyiv (8640 ticks/station, raw `battery_soc` samples via `/api/series`):
+  router 8554 (99.0 %), mobile 8345 (96.6 %), living-room 8089 (93.6 %).
+- living-room gaps > 5 min: 11-03 03:52 (367 min), 11-04 17:08 (67 min). Without them: 8089 / 8206 = 98.6 %.
+- mobile gaps > 5 min: 11-01 01:40 (17), 19:37 (8), 21:54 (86 min); 11-02 21:49 (176 min, spans midnight).
+  Passes without exclusion.
+- "dropped while connected" 11-01 – 11-06: 33, all living-room (~5/day), none on 11-07. 0 "discovery restart failed".
+
+**Owner verdicts (2026-11-07, recorded at the owner's request):**
+- Elite switched off by hand on 11-03, 11-04 and 11-07: those windows are excluded from its poll rate; 11-07 is not judged.
+- Memory "< 50 MB" is judged on process RSS (matches RULES.md v1.0 "resident memory"), not the cgroup `Memory:` line.
+- The 33 Elite drops are accepted as the station going silent, not as a miss of this task. A follow-up task
+  with its own hard target owns them: `tasks/2026-11-07_elite-read-stalls/`.
+
+**Verdict:** done-when 4 met: RSS 24 MB < 50 MB and flat; ≥ 95 % per powered station (99.0 / 96.6 / 98.6 %);
+the drops are re-targeted to the follow-up task by the owner. Task done.
