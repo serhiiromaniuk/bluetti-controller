@@ -145,3 +145,7 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 Next: one more memory sample at ≥ 48 h (around 2026-10-29 20:00Z). A plateau near 20 MB closes the
 memory part. The 3 Elite drops are the owner's call: accept them as the station's own silence (bug report)
 or treat them as a miss.
+
+## 2026-11-07 — Task set blocked (owner)
+- Owner chose to mark this task `blocked` so R3 (`2026-11-07_r3-control-schedule`) can take the in-progress slot.
+- Waiting on the owner: verdict on the 3 Elite "dropped while connected" events and the memory plateau (done-when 4).
