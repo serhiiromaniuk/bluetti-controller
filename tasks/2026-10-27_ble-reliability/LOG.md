@@ -180,3 +180,12 @@ the drops are re-targeted to the follow-up task by the owner. Task done.
   retries and one handshake-out-of-order retry, then "unreachable" at 19:56:52Z. Not the Elite pattern
   (reads stop, link drops); the adapter or link was failing for every connect then.
 - The verdict stands: the owner re-targeted the drops; the follow-up BRIEF baseline is corrected.
+
+## 2026-11-07 — Owner verdict on the EB3A drop
+
+- Host check: no reboot (boot since 2026-10-31 22:25 EET), service NRestarts=0, so Debian did not shut off.
+  The 11-04 19:56Z (21:56 Kyiv) EB3A drop falls inside grid outage #155 (11-04 20:35 – 11-05 01:40 Kyiv),
+  with the host on its own battery.
+- Owner (2026-11-07, recorded at the owner's request): exclude it as a one-off during an outage, host on
+  battery; no follow-up. With this and the Elite verdict, every drop in 11-01 – 11-06 has an owner ruling;
+  done-when 4 stays ticked.

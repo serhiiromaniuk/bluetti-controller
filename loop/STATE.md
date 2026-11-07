@@ -25,7 +25,7 @@
 - 2026-10-13: web UI only; no notifications, no Prometheus, no cloud in the MVP (ROADMAP.md §2).
 - 2026-10-13: no CI/CD; `make check` locally is the gate (owner).
 - 2026-10-13: RULES.md (golden rules, phases, thresholds) and ROADMAP.md (scope, ADR-001…008, milestones) approved (owner).
-- 2026-11-07: ble-reliability done-when 4 — memory judged on process RSS, not systemd `Memory:`; Elite hand-switch-off windows excluded; its "dropped while connected" re-targeted to `2026-11-07_elite-read-stalls` (owner).
+- 2026-11-07: ble-reliability done-when 4 — memory judged on process RSS, not systemd `Memory:`; Elite hand-switch-off windows excluded; its "dropped while connected" re-targeted to `2026-11-07_elite-read-stalls`; the one EB3A drop (11-04, outage, host on battery) excluded (owner).
 - 2026-10-13: owner resumed development; Phase 2 may open (owner).
 - 2026-10-13: M1 runs on the owner's dev laptop (internal BT adapter); the homelab host arrives after MVP (owner, ROADMAP.md §14 Q2).
 - 2026-10-13: AC180 stays off for now; M1 validates on the EB3A, the Elite 200 V2 is in BLE range (owner).
