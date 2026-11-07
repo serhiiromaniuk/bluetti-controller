@@ -18,7 +18,7 @@ switch-off windows excluded).
 - 246d60e, 99d313f, e8331a9, and this close: host checks in LOG.md.
 
 ## Pending / Follow-up
-- [ ] `tasks/2026-11-07_elite-read-stalls/`: the Elite's ~5 "dropped while connected" a day
+- [ ] `tasks/2026-11-07_elite-read-stalls/`: the Elite's ~5.5 "dropped while connected" a day (33 in 6 days; 1 more on the EB3A)
       (the station stops answering reads, then the link drops). Re-targeted there by the owner.
 - [ ] `BUG-station-ble-invisible.md` (problem #3) stays owner-handled.
 

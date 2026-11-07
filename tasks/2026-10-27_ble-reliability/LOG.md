@@ -170,3 +170,13 @@ or treat them as a miss.
 
 **Verdict:** done-when 4 met: RSS 24 MB < 50 MB and flat; ≥ 95 % per powered station (99.0 / 96.6 / 98.6 %);
 the drops are re-targeted to the follow-up task by the owner. Task done.
+
+## 2026-11-07 — Correction: drop count from the journal
+
+- Owner-allowed `sudo journalctl` on the host, 2026-11-01 – 11-07 00:00 EET: **34** "dropped while connected"
+  (the close entry said 33, from a by-hour tally). Each attributed by the next station-tagged line:
+  33 living-room, **1 router** (EB3A).
+- The router event: 2026-11-04 19:56:08Z, inside a ~6 min burst of `le-connection-abort-by-local` connect
+  retries and one handshake-out-of-order retry, then "unreachable" at 19:56:52Z. Not the Elite pattern
+  (reads stop, link drops); the adapter or link was failing for every connect then.
+- The verdict stands: the owner re-targeted the drops; the follow-up BRIEF baseline is corrected.
