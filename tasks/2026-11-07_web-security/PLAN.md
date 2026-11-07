@@ -332,3 +332,7 @@ None is pending; no step is blocked.
      · `re-targeted → <CF-n or task>` · `declined — <reason>`. `make amendments`
      counts the ones still open; at the close every open one gets a disposition
      here and in OUTCOME.md. Only `- A<n>` items are counted. -->
+- A1 · 2026-11-07 · MEDIUM `PLAN.md` steps 1 (d), 6, 7 vs `tasks/2026-11-07_r3-control-schedule/PLAN.md` step 12 —
+  step 7 removes the pause form's token field, which R3's panel reads; the "R3 ordering" risk covers only R3
+  step 10. The guard (step 1 (d), step 6) treats an empty or absent `Authorization` bearer as no bearer, so a
+  valid session cookie still passes; R3 A1 covers the panel side · disposition: open

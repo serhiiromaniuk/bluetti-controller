@@ -7,7 +7,7 @@
 | Field | Value |
 |-------|-------|
 | **Gate status** | 🟢 MVP done (`v1.0-mvp`); `v1.3.4` runs on the homelab host (ideapad) since 2026-10-27, laptop unit removed. Updates: `make release` + `make deploy` (deploy/HOMELAB.md). Next: owner's HUMAN-CHECKLIST rows |
-| **Blocked?** | no — loop DONE; remaining work is the owner's |
+| **Blocked?** | no — next: the todo tasks in `tasks/INDEX.md` order (R3 first); HUMAN-CHECKLIST rows stay the owner's |
 
 ## Carry-forward — obligations that outlive the task that found them
 

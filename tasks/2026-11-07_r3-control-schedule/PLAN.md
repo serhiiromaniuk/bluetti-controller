@@ -396,3 +396,16 @@ delegated defaults the owner accepted).
      · `re-targeted → <CF-n or task>` · `declined — <reason>`. `make amendments`
      counts the ones still open; at the close every open one gets a disposition
      here and in OUTCOME.md. Only `- A<n>` items are counted. -->
+- 2026-11-07 — plan (batch reviewer H1): `POST`/`DELETE /api/schedule` require `web.token` to be set,
+  whatever `control.enabled` is: with no token they answer `403` "schedule edits need web.token". Why: with
+  `src/web/pause.rs:29`'s optional-bearer pattern, anyone on the LAN could save an entry while control is
+  off, and Q3 would fire it as a real write the moment the owner enables control. Applies to Q1's "behind
+  the bearer like pause" and step 11: step 11's tests add "403 with no token configured" next to 401.
+  Step 1's `spec §8.2` states the rule. Does not depend on the web-security task landing first.
+- A1 · 2026-11-07 · MEDIUM `PLAN.md` step 12 vs `tasks/2026-11-07_web-security/PLAN.md` step 7 — R3's panel reads
+  the bearer from the pause form's token field, which web-security step 7 removes. Step 12 sends the bearer only
+  when that field exists and is non-empty, so either task order works (web-security A1 covers its side) · disposition: open
+- A2 · 2026-11-07 · MEDIUM `PLAN.md` step 1 (`spec §4.3`), BRIEF :26-27 — the Elite 200 V2's 2011/2012 write and
+  read-back are extrapolated from the AC180 / V2 base map; ROADMAP §4.3 has no Elite source. Step 1 marks the Elite
+  pair `verified: false` with that source, and the Elite stays out of `switches()` until H16 confirms the pair, so no
+  read-back failure can make the scheduler resend a write up to 10 times per slot · disposition: open
