@@ -1,8 +1,9 @@
 //! `serve`: the long-running monitor (ROADMAP.md §5.3, §12 M3). It opens and
 //! migrates the store, syncs the configured stations, then runs the writer, the
-//! collector and the web server until SIGINT/SIGTERM, and shuts them down in
-//! order: the collector stops (its open link disconnected), the writer drains
-//! every queued record, the server closes gracefully.
+//! collector, the web server and, with `control.enabled`, the scheduler (§R3)
+//! until SIGINT/SIGTERM, and shuts them down in order: the scheduler and the
+//! collector stop (its open link disconnected), the writer drains every queued
+//! record, the server closes gracefully.
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -10,6 +11,7 @@ use std::time::Duration;
 use anyhow::{Context as _, bail};
 use bluetti_controller::collector::{BluezConnect, Collector, Control, Target};
 use bluetti_controller::config::Config;
+use bluetti_controller::control::schedule::{self, Scheduler};
 use bluetti_controller::metrics::grid::Params;
 use bluetti_controller::protocol::crypto::handshake::StaticKeys;
 use bluetti_controller::store::{Station, Writer, open_reader, open_writer, sync_stations};
@@ -66,6 +68,18 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     let (control, control_rx) = watch::channel(Control::Run);
     let (commands_tx, commands) = mpsc::channel(COMMANDS);
     let (records, queue) = mpsc::channel(QUEUE);
+    // Only with control enabled; its reader is its own (§R3 "Scheduler").
+    let scheduler = if config.control.enabled {
+        Some(Scheduler::new(
+            open_reader(path)?,
+            targets.clone(),
+            config.control.clone(),
+            commands_tx.clone(),
+            records.downgrade(),
+        ))
+    } else {
+        None
+    };
     let state = web::AppState::new(
         open_reader(path)?,
         config,
@@ -88,6 +102,10 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     );
 
     let writer = writer.spawn(queue);
+    let scheduler = scheduler.map(|scheduler| {
+        let tz = config.general.timezone.clone();
+        tokio::spawn(schedule::run(scheduler, tz, state.shutdown.subscribe()))
+    });
     let (stop_server, server_stopped) = oneshot::channel::<()>();
     let mut server = tokio::spawn(web::serve(listener, router, async {
         let _ = server_stopped.await;
@@ -128,6 +146,11 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     // finished future is never polled again (it would panic).
     state.shutdown.send_replace(true);
     let _ = state.control.send(Control::Shutdown);
+    if let Some(scheduler) = scheduler
+        && let Err(err) = scheduler.await
+    {
+        tracing::error!(error = %err, "scheduler task failed");
+    }
     if !collector_done {
         polling.await;
     }

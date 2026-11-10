@@ -8,7 +8,7 @@ use tokio::sync::watch;
 use tokio::time::Instant;
 
 use super::{Collector, Connect, Control, Progress, Request, Target, UNREACHABLE_AFTER, shutdown};
-use crate::control::Command;
+use crate::control::{Command, PAUSED};
 use crate::transport::{self, write::set_output};
 
 impl<C: Connect + Sync> Collector<C> {
@@ -67,7 +67,7 @@ impl<C: Connect + Sync> Collector<C> {
         match state {
             Control::Shutdown => return Err("shutting down".into()),
             Control::Pause { until } if Instant::now() < until => {
-                return Err("polling paused".into());
+                return Err(PAUSED.into());
             }
             _ => {}
         }

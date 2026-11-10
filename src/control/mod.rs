@@ -73,6 +73,10 @@ impl Command {
     }
 }
 
+/// The collector's answer while polling is paused: not a failure, so the
+/// scheduler waits for the pause to end without counting it (§R3 "Retry cap").
+pub const PAUSED: &str = "polling paused";
+
 /// Answers a [`Request`]: the read-back state, or the error text.
 pub type Reply = tokio::sync::oneshot::Sender<Result<bool, String>>;
 

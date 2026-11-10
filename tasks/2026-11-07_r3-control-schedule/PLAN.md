@@ -281,7 +281,7 @@ delegated defaults the owner accepted).
   `off` moved earlier in the UI is due at once when already past; a DST-gap
   time resolves. — check: the new tests red then green, `make check`.
 
-- [ ] 13b. Scheduler task + wiring (`spec §R3`, golden rule #5) (needs Q1): in
+- [x] 13b. Scheduler task + wiring (`spec §R3`, golden rule #5) (needs Q1): in
   `src/control/schedule.rs`, `pub async fn run(reader: Connection, stations:
   Vec<Target>, tz, control: ControlConfig, commands, records, shutdown)`:
   every 60 s read `schedule_entries` on its own read-only connection
@@ -444,3 +444,7 @@ delegated defaults the owner accepted).
   request swaps `#live`: the new row is enabled again (a second write can queue), the reply/error lands on detached
   elements, unsaved typed times are replaced. Keep a pending set keyed by station+output, ignore clicks on a pending
   row, and on completion re-find the row by `data-station`/`data-output` before writing label and output · disposition: open
+- A13 · 2026-11-10 · MEDIUM `src/control/schedule.rs:161-169` (step-13b review M1) — the in-memory `applied` map is never
+  pruned, so an entry deleted and re-added (new row, `last_due = NULL`) inherits the old slot: off 23:00 runs, at 23:30 the
+  owner re-adds `on 08:00` only, and today's 08:00 slot (older than 23:00) is never applied. Keep only keys present in the
+  read and drop a key once the row's `last_due` ≥ it; test delete + re-insert then tick sends · disposition: open

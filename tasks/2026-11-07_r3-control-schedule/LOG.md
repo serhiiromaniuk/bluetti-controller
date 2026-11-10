@@ -495,3 +495,52 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 13b ✓ 2026-11-10 — scheduler task + `serve` wiring
+
+**Changed:** `src/control/schedule.rs` (282 lines): `Scheduler::new(reader, stations, control,
+commands, records)` + `tick(&now) -> bool` + `pub async fn run(scheduler, tz, shutdown)` (60 s
+`interval`, first tick immediate, `MissedTickBehavior::Delay`, stops on the shutdown watch or a gone
+collector/writer). Per tick: `schedule_entries` in `spawn_blocking` on its own `open_reader`
+connection, `last_due` overlaid with in-memory successes, `due`, then per slot `Command::new` →
+request → on `Ok` `Record::ScheduleRun` + remember; on `Err` count per slot, cap `MAX_FAILURES = 10`
+(one `warn!` at the cap); a `PAUSED` answer does not count. `src/control/mod.rs`: `pub const PAUSED`,
+used by `src/collector/control.rs`. `src/cli/serve.rs`: built only when `control.enabled`, spawned
+after the writer, awaited after the shutdown flag and before the collector/writer.
+Deviations: (a) `Scheduler` struct + 3-arg `run`, not one 7-arg fn; tests drive `tick(&now)` with
+Kyiv instants, since `now` is wall clock and paused tokio time does not move it; (b) `records` is a
+`WeakSender` (writer drain unchanged); (c) `PAUSED` const; (d) a `Refused` logs every tick it occurs.
+**Check:** 5 tests in `src/control/schedule/tests.rs` `mod task` (temp db, fake collector task):
+due entry → 1 request + 1 `ScheduleRun`, no repeat next tick though the writer never stored it;
+failed run retried next tick, newer `on` slot supersedes it; 3 pauses + 10 failures → 13 sends over
+15 ticks; disabled → nothing; `run` sends at once and stops on shutdown. Red against a no-op `tick`:
+4 FAILED (disabled passes trivially). Mutations (overlay removed; cap `>=` → `>`) → 2 FAILED,
+restored. `make format`, `make check` green.
+**Reviewer (risky, before the commit):** INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM;
+deviations (a)–(d) accepted; A7 holds (scheduler only via `Command::new`). M1 (`applied` never
+pruned: delete + re-add inherits the old slot) → deferred to amendment A13.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 14 — docs batch + close evidence.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:37:29Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

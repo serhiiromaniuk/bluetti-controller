@@ -129,3 +129,180 @@ fn a_time_past_23_59_is_an_error() {
     let entries = [entry(Some(24 * 60), None, None)];
     assert!(due(&entries, &kyiv(MIDNIGHT)).is_err());
 }
+
+// ---- the scheduler task (step 13b) ----
+
+mod task {
+    use std::collections::VecDeque;
+    use std::sync::{Arc, Mutex};
+
+    use tokio::sync::{mpsc, watch};
+
+    use super::*;
+    use crate::collector::Target;
+    use crate::config::{ControlConfig, StationConfig};
+    use crate::control::{PAUSED, Request};
+    use crate::protocol::device::Model;
+    use crate::store::temp_db::TempDb;
+    use crate::store::{Record, open_reader, open_writer, sync_stations};
+
+    type Sent = Arc<Mutex<Vec<(String, Output, bool)>>>;
+
+    /// A scheduler over a temp db holding `router` (EB3A) with one `ac` entry
+    /// `on 07:00`, `off 23:00`, never run; a fake collector that logs every
+    /// request and answers from `answers`, then `Ok(read-back)`.
+    struct Rig {
+        scheduler: Scheduler,
+        sent: Sent,
+        records: mpsc::Receiver<Record>,
+        _records_tx: mpsc::Sender<Record>,
+        id: i64,
+        _db: TempDb,
+    }
+
+    fn rig(name: &str, enabled: bool, answers: Vec<Result<bool, String>>) -> Rig {
+        let db = TempDb::new(name);
+        let mut conn = open_writer(&db.path()).unwrap();
+        let config = StationConfig {
+            name: "router".into(),
+            model: Model::Eb3a,
+            address: "AA:BB:CC:00:00:00".into(),
+            grid_sensor: false,
+        };
+        let id = sync_stations(&mut conn, std::slice::from_ref(&config)).unwrap()["router"];
+        conn.execute(
+            "INSERT INTO schedule (station_id, output, on_min, off_min) VALUES (?1, 'ac', 420, 1380)",
+            [id],
+        )
+        .unwrap();
+        drop(conn);
+        let (commands, requests) = mpsc::channel(8);
+        let (records_tx, records) = mpsc::channel(64);
+        let sent = fake_collector(requests, answers);
+        let scheduler = Scheduler::new(
+            open_reader(&db.path()).unwrap(),
+            vec![Target { id, config }],
+            ControlConfig { enabled },
+            commands,
+            records_tx.downgrade(),
+        );
+        Rig {
+            scheduler,
+            sent,
+            records,
+            _records_tx: records_tx,
+            id,
+            _db: db,
+        }
+    }
+
+    fn fake_collector(
+        mut requests: mpsc::Receiver<Request>,
+        answers: Vec<Result<bool, String>>,
+    ) -> Sent {
+        let sent = Sent::default();
+        let log = Arc::clone(&sent);
+        let mut answers = VecDeque::from(answers);
+        tokio::spawn(async move {
+            while let Some(Request { command, reply }) = requests.recv().await {
+                let entry = (command.station().to_owned(), command.output(), command.on());
+                log.lock().unwrap().push(entry);
+                let _ = reply.send(answers.pop_front().unwrap_or(Ok(command.on())));
+            }
+        });
+        sent
+    }
+
+    fn drain(records: &mut mpsc::Receiver<Record>) -> Vec<Record> {
+        std::iter::from_fn(|| records.try_recv().ok()).collect()
+    }
+
+    fn sent(rig: &Rig) -> Vec<(String, Output, bool)> {
+        rig.sent.lock().unwrap().clone()
+    }
+
+    const AT_23: i64 = MIDNIGHT + 23 * H;
+
+    #[tokio::test]
+    async fn a_due_entry_sends_one_request_and_one_run_record() {
+        let mut rig = rig("sched-due", true, vec![]);
+        let now = kyiv(AT_23 + 10);
+        assert!(rig.scheduler.tick(&now).await);
+        assert_eq!(sent(&rig), [("router".to_owned(), Output::Ac, false)]);
+        let run = Record::ScheduleRun {
+            station: rig.id,
+            output: Output::Ac,
+            due: AT_23,
+        };
+        assert_eq!(drain(&mut rig.records), [run]);
+        // The writer never applied the UPDATE here: the in-memory success
+        // still stops a repeat on the next tick.
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 70)).await);
+        assert_eq!(sent(&rig).len(), 1);
+        assert_eq!(drain(&mut rig.records), []);
+    }
+
+    #[tokio::test]
+    async fn a_failed_run_is_retried_next_tick_and_not_after_a_newer_slot() {
+        let fail = || Err("no link".to_owned());
+        let mut rig = rig("sched-retry", true, vec![fail(), fail()]);
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 10)).await);
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 70)).await);
+        assert_eq!(drain(&mut rig.records), []);
+        // Next day 07:10: the `on` slot supersedes the failed `off`.
+        let next_on = MIDNIGHT + 31 * H;
+        assert!(rig.scheduler.tick(&kyiv(next_on + 10 * M)).await);
+        let router = |on| ("router".to_owned(), Output::Ac, on);
+        assert_eq!(sent(&rig), [router(false), router(false), router(true)]);
+        let run = Record::ScheduleRun {
+            station: rig.id,
+            output: Output::Ac,
+            due: next_on,
+        };
+        assert_eq!(drain(&mut rig.records), [run]);
+    }
+
+    #[tokio::test]
+    async fn pauses_do_not_count_and_the_11th_failure_sends_nothing() {
+        let mut answers = vec![Err(PAUSED.to_owned()); 3];
+        answers.extend(vec![Err("no link".to_owned()); MAX_FAILURES as usize]);
+        let mut rig = rig("sched-cap", true, answers);
+        for minute in 0..15 {
+            assert!(rig.scheduler.tick(&kyiv(AT_23 + minute * M)).await);
+        }
+        assert_eq!(sent(&rig).len(), 3 + MAX_FAILURES as usize);
+        assert_eq!(drain(&mut rig.records), []);
+    }
+
+    #[tokio::test]
+    async fn disabled_control_sends_nothing() {
+        let mut rig = rig("sched-off", false, vec![]);
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 10)).await);
+        assert_eq!(sent(&rig), []);
+        assert_eq!(drain(&mut rig.records), []);
+    }
+
+    #[tokio::test]
+    async fn run_ticks_at_once_and_stops_on_shutdown() {
+        let rig = rig("sched-run", true, vec![]);
+        let sent = Arc::clone(&rig.sent);
+        let (stop, shutdown) = watch::channel(false);
+        let tz = TimeZone::get("Europe/Kyiv").unwrap();
+        let task = tokio::spawn(run(rig.scheduler, tz, shutdown));
+        // An `on`/`off` entry never run is always due: the first tick sends.
+        let first = async {
+            while sent.lock().unwrap().is_empty() {
+                tokio::task::yield_now().await;
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(5), first)
+            .await
+            .expect("the first tick sends at once");
+        stop.send_replace(true);
+        tokio::time::timeout(std::time::Duration::from_secs(5), task)
+            .await
+            .expect("run stops on shutdown")
+            .unwrap();
+        assert_eq!(sent.lock().unwrap().len(), 1);
+    }
+}
