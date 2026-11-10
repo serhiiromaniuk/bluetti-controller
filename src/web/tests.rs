@@ -115,6 +115,20 @@ pub(super) fn send(
     (head.lines().next().unwrap().to_owned(), body.to_owned())
 }
 
+/// Collects every formatted log line in memory (secret-hygiene tests).
+#[derive(Clone, Default)]
+pub(super) struct Capture(pub(super) Arc<std::sync::Mutex<Vec<u8>>>);
+
+impl Write for Capture {
+    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
+        self.0.lock().unwrap().extend_from_slice(buf);
+        Ok(buf.len())
+    }
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
 /// Serves `router(state)` on a free loopback port until the sender fires.
 pub(super) async fn start(
     state: AppState,

@@ -409,8 +409,11 @@ async fn every_response_carries_the_security_headers() {
     }
 }
 
-// Step 10a.2 (amendment A10): the negative, exploit and boundary suites.
+// Steps 10a.2–10a.3 (amendment A10): security suite types 1–6.
 mod boundary;
 mod exploits;
 mod login_exploits;
 mod negative;
+mod properties;
+mod response_classes;
+mod secrets;

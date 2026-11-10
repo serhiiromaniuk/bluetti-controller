@@ -616,3 +616,62 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10a.3 ✓ 2026-11-10 — security suite types 4–6: property-style, secret hygiene, response classes (A10)
+**Changed:** tests only, no production code.
+- `src/web/guard/tests/{properties,secrets,response_classes}.rs` (new), mounted from `guard/tests.rs`.
+- `src/cli/scan/tests.rs`: exhaustive `printable` test (bin crate). `src/config/web.rs`: 1 config-error test.
+- `Capture` (log sink) moved from `auth/tests.rs` to `web/tests.rs`, shared by both suites.
+- Table-driven generation, no `proptest`: exhaustive small domains beat random sampling here, no new dep.
+**Types and counts** (tests / generated rows):
+- (4) property — 4: `safe_next` over 74 274 strings (≤4 of 16 symbols: `/ \ TAB LF CR SP a : % . @ ? # NUL é DEL`,
+  plus `http:` + ≤3) against an independent browser model (WHATWG-strict: trim C0, drop TAB/LF/CR, `\`=`/`,
+  scheme or `//` leaves the site) — sound and complete, 637 kept; Host rule 28 names × 11 ports = 308 rows, each
+  also uppercased, + 28 with no allow-list; Origin 40 own hosts × 17 mutations = 680 pairs + 40 without Host;
+  `printable` over all 1 112 064 scalars, exactly 77 replaced (65 Cc + 12 Bidi_Control).
+- (5) secret hygiene — 2: 18 router requests under captured TRACE logs (current-thread runtime, so the server's
+  tasks log to the test's subscriber) reaching 200/303/400/401/403/404/421/429: token, password, hash, salt,
+  digest, `$argon2`, `Bearer` and every session id absent from bodies, headers (bar the login's Set-Cookie),
+  redirects and logs; 4 refused configs (bad hash, open listen + token, control without hash/token) never quote
+  a secret. `Debug` already covered (`debug_hides_token_and_hash`); `AppState`/`Auth` have no `Debug`.
+- (6) response classes — 1 / 26 rows: 200 page/API/SSE/asset/healthz/login, 303 ×3 (page refusal, login, logout;
+  the app uses 303, not 302), 400, 401 ×7, 429, 403, 404 ×2, 405, 415, 422, 421 ×2 — four §8.5 f headers on
+  each; login cookie 64 lowercase hex + exact attributes, logout exact, no other row sets a cookie; SSE type.
+  Inline `<script>`: already `pages/tests.rs` `no_template_has_an_inline_script`; templates have no `style=`/`on*=`.
+**Check:** failure-first by mutation — 10 hand mutants, each turned only its target test red, sources restored:
+- `safe_next` allows `/\` · allowed hosts case-sensitive · 6-digit port · Origin tolerates a trailing `/` ·
+  U+061C dropped from `printable` · guard logs `Authorization` · logout logs the session id · no headers on 4xx ·
+  cookie without `HttpOnly` · config error quotes the hash.
+- First run: `kept` bound wrong (test arithmetic, now pinned to 637); clippy `type_complexity` → `Row` alias.
+**reviewer:** INTENT shortfall → fixed; 1 HIGH / 0 MEDIUM; oracle independence, log capture, no vacuous asserts confirmed.
+- H1 `src/config.rs` `parse`: `toml::from_str(text)?` — toml's `Display` quotes the source line, so a malformed
+  token/hash line reached stderr/journal (`serve`) and stdout (`check`). Verified against source → fixed: error
+  is `line <n>: <message>` (no snippet; `keys.rs` already line-only). +4 test cases (hash with junk, unterminated
+  token, duplicate `token`, token as array): red on the old `parse` ("SECRET in TOML parse error…"), green now.
+- Second pass on the H1 fix: 1 HIGH (H1b) — `e.message()` still quotes an unquoted numeric token (serde
+  "invalid type: integer `98765…`"). Fixed: `without_value` keeps kind + "expected …" for serde invalid
+  type/value/length; +2 cases (integer, float token) red on `e.message()`, green now. No third pass (§4b).
+**Next:** 10a.4 — the `COV_SECURITY` 100 % gate in `make check`, red then green.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T18:39:09Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

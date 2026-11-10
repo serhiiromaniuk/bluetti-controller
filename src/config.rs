@@ -156,11 +156,30 @@ pub fn load(path: &Path) -> anyhow::Result<Config> {
     Ok(config)
 }
 
-/// Parses and validates config text.
+/// Parses and validates config text. A TOML error names the line and the
+/// message only: its `Display` quotes the source line, which may hold the token,
+/// the hash or a MAC (golden rule #3).
 pub fn parse(text: &str) -> anyhow::Result<Config> {
-    let config: Config = toml::from_str(text)?;
+    let config: Config = toml::from_str(text).map_err(|e: toml::de::Error| {
+        let line = e
+            .span()
+            .map_or(0, |s| text[..s.start].matches('\n').count() + 1);
+        anyhow::anyhow!("line {line}: {}", without_value(e.message()))
+    })?;
     config.validate()?;
     Ok(config)
+}
+
+/// serde's "invalid type: integer `123`, expected a string" quotes the value,
+/// which may be a mistyped token: keep the kind and the expectation only.
+fn without_value(message: &str) -> String {
+    match message.split_once(": ") {
+        Some((kind @ ("invalid type" | "invalid value" | "invalid length"), rest)) => {
+            let expected = rest.rsplit_once(", expected").map_or("", |(_, e)| e);
+            format!("{kind}, expected{expected}")
+        }
+        _ => message.to_owned(),
+    }
 }
 
 impl Config {

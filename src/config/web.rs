@@ -241,6 +241,39 @@ mod tests {
     }
 
     #[test]
+    fn no_config_error_quotes_the_token_or_the_hash() {
+        // Security suite type 5 (step 10a): a refused config never echoes a secret.
+        let bad_hash = "$argon2i$v=19$m=19456,t=2,p=1$c2VjcmV0LXNhbHQ$SECRET-digest";
+        let token = "token = \"tok-SECRET-1\"";
+        let enabled = |text: &str| text.replacen("enabled = false", "enabled = true", 1);
+        for text in [
+            with(LISTEN, &format!("{LISTEN}\npassword_hash = \"{bad_hash}\"")),
+            with(
+                LISTEN,
+                "listen = \"0.0.0.0:8080\"\ntoken = \"tok-SECRET-1\"",
+            ),
+            enabled(&with("# token = \"change-me\"", token)),
+            enabled(&with_hash(EXAMPLE)),
+            // TOML syntax errors (reviewer H1): `Display` would quote the line.
+            with(
+                LISTEN,
+                &format!("{LISTEN}\npassword_hash = \"{bad_hash}\" junk"),
+            ),
+            with(LISTEN, &format!("{LISTEN}\ntoken = \"tok-SECRET-1")),
+            with(LISTEN, &format!("{LISTEN}\n{token}\n{token}")),
+            with(LISTEN, &format!("{LISTEN}\ntoken = [\"tok-SECRET-1\"]")),
+            // An unquoted number: serde would quote it (second pass, H1b).
+            with(LISTEN, &format!("{LISTEN}\ntoken = 987654321")),
+            with(LISTEN, &format!("{LISTEN}\ntoken = 9876.54321")),
+        ] {
+            let err = error_of(&text);
+            for secret in ["SECRET", "c2VjcmV0", "XYoC+", "FYfUAw0", "$argon2", "98765"] {
+                assert!(!err.contains(secret), "{secret} in {err}");
+            }
+        }
+    }
+
+    #[test]
     fn debug_hides_token_and_hash() {
         let mut config = parse(&with_hash(EXAMPLE)).unwrap();
         config.web.token = Some("s3cret-token".into());

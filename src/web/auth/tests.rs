@@ -1,6 +1,5 @@
-use std::io::Write;
+use std::sync::Arc;
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, Mutex};
 
 use axum::Form;
 use axum::extract::State;
@@ -9,7 +8,7 @@ use axum::http::StatusCode;
 use super::{LoginForm, login, safe_next};
 use crate::web::AppState;
 use crate::web::auth::Auth;
-use crate::web::tests::{header, request_with, start_shared};
+use crate::web::tests::{Capture, header, request_with, start_shared};
 
 const FORM: &str = "Content-Type: application/x-www-form-urlencoded";
 
@@ -223,20 +222,6 @@ async fn dev_mode_login_only_redirects() {
 
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
-}
-
-/// Collects every formatted log line in memory.
-#[derive(Clone, Default)]
-struct Capture(Arc<Mutex<Vec<u8>>>);
-
-impl Write for Capture {
-    fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
-        self.0.lock().unwrap().extend_from_slice(buf);
-        Ok(buf.len())
-    }
-    fn flush(&mut self) -> std::io::Result<()> {
-        Ok(())
-    }
 }
 
 #[tokio::test]

@@ -86,3 +86,32 @@ fn a_hostile_advertised_name_cannot_drive_the_terminal() {
         assert_eq!(super::super::printable(name), shown, "{name:?}");
     }
 }
+
+#[test]
+fn printable_over_every_unicode_scalar() {
+    // Security suite type 4 (step 10a), exhaustive: every `char` alone and
+    // between two letters. Replaced exactly when it is a control (Cc) or in
+    // Unicode's Bidi_Control set (PropList.txt), else kept as is.
+    const BIDI_CONTROL: &[(u32, u32)] = &[
+        (0x061c, 0x061c),
+        (0x200e, 0x200f),
+        (0x202a, 0x202e),
+        (0x2066, 0x2069),
+    ];
+    let mut replaced = 0;
+    for c in (0..=0x10_ffff).filter_map(char::from_u32) {
+        let bidi = BIDI_CONTROL
+            .iter()
+            .any(|(lo, hi)| (*lo..=*hi).contains(&u32::from(c)));
+        let want = if c.is_control() || bidi {
+            '\u{fffd}'
+        } else {
+            c
+        };
+        let text = format!("a{c}b");
+        assert_eq!(super::super::printable(&text), format!("a{want}b"), "{c:?}");
+        replaced += usize::from(want != c);
+    }
+    // 65 Cc (C0, DEL, C1) + 12 Bidi_Control.
+    assert_eq!(replaced, 77);
+}
