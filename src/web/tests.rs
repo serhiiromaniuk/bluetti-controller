@@ -30,8 +30,8 @@ pub(super) fn raw_request(
     exchange(addr, method, path, &[], b"")
 }
 
-/// A raw HTTP/1.1 request with extra header lines (`"Name: value"`) and a
-/// body; returns the status line, the header lines and the body.
+/// A raw HTTP/1.1 request with extra header lines (`"Name: value"`; a `Host`
+/// line replaces the default `Host: localhost`) and a body; returns the status line, the header lines and the body.
 pub(super) fn request_with(
     addr: SocketAddr,
     method: &str,
@@ -60,9 +60,17 @@ fn exchange(
 ) -> (String, Vec<String>, Vec<u8>) {
     let mut stream = TcpStream::connect(addr).unwrap();
     let extra: String = headers.iter().map(|h| format!("{h}\r\n")).collect();
+    let custom_host = headers
+        .iter()
+        .any(|h| h.to_ascii_lowercase().starts_with("host:"));
+    let host = if custom_host {
+        ""
+    } else {
+        "Host: localhost\r\n"
+    };
     write!(
         stream,
-        "{method} {path} HTTP/1.1\r\nHost: localhost\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
+        "{method} {path} HTTP/1.1\r\n{host}{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
         body.len()
     )
     .unwrap();
@@ -85,8 +93,9 @@ pub(super) fn post(addr: SocketAddr, path: &str, auth: Option<&str>) -> (String,
     send(addr, "POST", path, auth)
 }
 
-/// A raw HTTP/1.1 request with no body and an optional `Authorization`
-/// header; returns the status line and the body.
+/// A raw HTTP/1.1 request with no body, a same-origin `Origin` (as a page of
+/// this site sends) and an optional `Authorization` header; returns the status
+/// line and the body.
 pub(super) fn send(
     addr: SocketAddr,
     method: &str,
@@ -97,7 +106,7 @@ pub(super) fn send(
     let auth = auth.map_or(String::new(), |a| format!("Authorization: {a}\r\n"));
     write!(
         stream,
-        "{method} {path} HTTP/1.1\r\nHost: localhost\r\n{auth}Content-Length: 0\r\nConnection: close\r\n\r\n"
+        "{method} {path} HTTP/1.1\r\nHost: localhost\r\nOrigin: http://localhost\r\n{auth}Content-Length: 0\r\nConnection: close\r\n\r\n"
     )
     .unwrap();
     let mut response = String::new();

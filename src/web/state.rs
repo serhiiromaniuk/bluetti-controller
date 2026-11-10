@@ -36,7 +36,7 @@ pub struct AppState {
     pub raw_retention_days: u32,
     /// `general.timezone`, for local days and "lasts until HH:MM" (ADR-009).
     pub tz: TimeZone,
-    /// `web.token`; `None` = the POST is open (§9, §8.4 h).
+    /// `web.token`, the bearer for scripts (§8.5 b); checked by `guard`.
     pub token: Option<String>,
     /// Set to `true` by `serve` before the server stops, so every `/events`
     /// stream ends and the graceful close does not wait on it (§8.4 g).
@@ -58,6 +58,8 @@ pub struct AppState {
     /// The login state from `web.password_hash`; `None` = dev mode, no login
     /// (§8.5 h).
     pub auth: Option<Auth>,
+    /// `web.allowed_hosts`: DNS names the Host rule accepts (§8.5 e).
+    pub allowed_hosts: Vec<String>,
 }
 
 impl AppState {
@@ -87,6 +89,7 @@ impl AppState {
             stations,
             records,
             auth: config.web.password_hash.clone().map(Auth::new),
+            allowed_hosts: config.web.allowed_hosts.clone(),
         }))
     }
 
@@ -111,7 +114,8 @@ impl AppState {
 
     /// A state over `reader` with test defaults: 60 s interval, factor 0.9,
     /// 30 days of raw retention, `Europe/Kyiv`, no token, control disabled, no
-    /// stations, a command channel nobody reads, a closed record channel, no login. Tests change fields,
+    /// stations, a command channel nobody reads, a closed record channel, no login,
+    /// no allowed host names. Tests change fields,
     /// then wrap it in an `Arc`.
     #[cfg(test)]
     pub fn for_tests(reader: Connection) -> Self {
@@ -131,6 +135,7 @@ impl AppState {
             stations: Vec::new(),
             records: mpsc::channel(1).0.downgrade(),
             auth: None,
+            allowed_hosts: Vec::new(),
         }
     }
 

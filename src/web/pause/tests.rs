@@ -104,48 +104,6 @@ async fn bad_minutes_are_400_and_change_nothing() {
     assert_eq!(last, Control::Run);
 }
 
-#[tokio::test(flavor = "multi_thread")]
-async fn a_set_token_is_required() {
-    let path = "/api/polling/pause?minutes=0";
-    let (replies, last) = run(
-        "pause-token",
-        Some("s3cret"),
-        Control::Pause {
-            until: Instant::now() + Duration::from_secs(600),
-        },
-        &[
-            (path, None),
-            (path, Some("Bearer s3creT")),
-            (path, Some("Bearer s3cret-longer")),
-            (path, Some("s3cret")),
-        ],
-    )
-    .await;
-    for (status, body) in &replies {
-        assert_eq!(status, "HTTP/1.1 401 Unauthorized");
-        assert!(body.starts_with(r#"{"error":""#), "{body}");
-    }
-    assert!(matches!(last, Control::Pause { .. }), "{last:?}");
-
-    let (replies, last) = run(
-        "pause-token-ok",
-        Some("s3cret"),
-        Control::Run,
-        &[("/api/polling/pause?minutes=1", Some("Bearer s3cret"))],
-    )
-    .await;
-    assert_eq!(replies[0].0, OK);
-    assert!(matches!(last, Control::Pause { .. }), "{last:?}");
-}
-
-#[test]
-fn token_compare_checks_length_and_every_byte() {
-    assert!(super::same(b"abc", b"abc"));
-    assert!(!super::same(b"abc", b"abd"));
-    assert!(!super::same(b"abc", b"ab"));
-    assert!(!super::same(b"", b"a"));
-}
-
 /// A2: `serve` sends `Shutdown` while the server still runs; a POST then must
 /// not overwrite it, or the collector never stops.
 #[tokio::test(flavor = "multi_thread")]

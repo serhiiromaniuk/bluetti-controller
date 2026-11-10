@@ -188,7 +188,8 @@ async fn logout_revokes_the_session_and_clears_the_cookie() {
     assert!(auth(&state).sessions.check(&id));
 
     let cookie = format!("Cookie: theme=dark; session={id}");
-    let (status, headers, _) = post(addr, "/logout", vec![cookie], "").await;
+    let origin = "Origin: http://localhost".to_owned();
+    let (status, headers, _) = post(addr, "/logout", vec![cookie, origin], "").await;
     assert_eq!(status, "HTTP/1.1 303 See Other");
     assert_eq!(header(&headers, "location"), Some("/login"));
     assert_eq!(

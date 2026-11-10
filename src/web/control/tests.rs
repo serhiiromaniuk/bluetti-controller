@@ -91,27 +91,6 @@ async fn run(
 const AC_OFF: &str = "/api/control/output?station=router&output=ac&state=off";
 
 #[tokio::test(flavor = "multi_thread")]
-async fn without_the_right_bearer_is_401_and_sends_nothing() {
-    let (replies, seen) = run(
-        "control-401",
-        true,
-        Control::Run,
-        Fake::ReadBack,
-        &[
-            (AC_OFF, None),
-            (AC_OFF, Some("Bearer wrong")),
-            (AC_OFF, Some("s3cret")),
-        ],
-    )
-    .await;
-    for (status, body) in replies {
-        assert!(status.contains("401"), "{status}");
-        assert!(body.contains("bearer"), "{body}");
-    }
-    assert!(seen.is_empty());
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn disabled_control_is_403_and_sends_nothing() {
     let (replies, seen) = run(
         "control-403",

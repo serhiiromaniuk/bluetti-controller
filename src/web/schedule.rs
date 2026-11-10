@@ -2,7 +2,7 @@
 //! every entry; `POST` sets one station output's daily `on`/`off` times and
 //! `DELETE` removes them. Edits go to the single writer as [`Record`]s and are
 //! accepted while control is disabled; they need `web.token` to be set and
-//! the bearer, so nobody on the LAN can save an entry that fires once the
+//! a credential the guard accepts (§8.5), so nobody on the LAN can save an entry that fires once the
 //! owner enables control.
 
 use std::collections::HashMap;
@@ -10,13 +10,13 @@ use std::sync::Arc;
 
 use axum::Json;
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode, header::AUTHORIZATION};
+use axum::http::StatusCode;
 use serde::Serialize;
 use serde_json::{Value, json};
 
 use super::AppState;
 use super::api::{ApiError, read};
-use super::pause::{error, same};
+use super::pause::error;
 use crate::collector::Target;
 use crate::protocol::control::{Output, switches};
 use crate::store::Record;
@@ -57,8 +57,8 @@ pub async fn list(State(state): State<Arc<AppState>>) -> Result<Json<Vec<Entry>>
 /// `POST /api/schedule?station=&output=&on=HH:MM&off=HH:MM`: an empty or
 /// missing time is unset; at least one is set and `on ≠ off`. `202` with the
 /// entry once the writer has it queued.
-pub async fn set(State(state): State<Arc<AppState>>, headers: HeaderMap, query: Params) -> Reply {
-    let (target, output) = match edit(&state, &headers, &query) {
+pub async fn set(State(state): State<Arc<AppState>>, query: Params) -> Reply {
+    let (target, output) = match edit(&state, &query) {
         Ok(found) => found,
         Err(reply) => return reply,
     };
@@ -105,12 +105,8 @@ pub async fn set(State(state): State<Arc<AppState>>, headers: HeaderMap, query: 
 }
 
 /// `DELETE /api/schedule?station=&output=`: `202` once the writer has it queued.
-pub async fn delete(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    query: Params,
-) -> Reply {
-    let (target, output) = match edit(&state, &headers, &query) {
+pub async fn delete(State(state): State<Arc<AppState>>, query: Params) -> Reply {
+    let (target, output) = match edit(&state, &query) {
         Ok(found) => found,
         Err(reply) => return reply,
     };
@@ -126,27 +122,14 @@ pub async fn delete(
     (StatusCode::ACCEPTED, Json(entry))
 }
 
-/// The checks both edits share, in order: `web.token` set (`403`), the bearer
-/// (`401`), a configured station name (never a MAC) and an output its model
+/// The checks both edits share, after the guard's credential check (§8.5), in
+/// order: `web.token` set (`403`), a configured station name (never a MAC) and an output its model
 /// switches (`400`).
-fn edit<'a>(
-    state: &'a AppState,
-    headers: &HeaderMap,
-    query: &Params,
-) -> Result<(&'a Target, Output), Reply> {
-    let Some(token) = &state.token else {
+fn edit<'a>(state: &'a AppState, query: &Params) -> Result<(&'a Target, Output), Reply> {
+    if state.token.is_none() {
         return Err(error(
             StatusCode::FORBIDDEN,
             "schedule edits need web.token",
-        ));
-    };
-    let given = headers
-        .get(AUTHORIZATION)
-        .and_then(|value| value.as_bytes().strip_prefix(b"Bearer "));
-    if !given.is_some_and(|given| same(given, token.as_bytes())) {
-        return Err(error(
-            StatusCode::UNAUTHORIZED,
-            "a valid bearer token is required",
         ));
     }
     let name = query.get("station").map_or("", String::as_str);

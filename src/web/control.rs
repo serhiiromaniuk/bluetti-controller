@@ -1,5 +1,5 @@
 //! `POST /api/control/output?station=&output=ac|dc&state=on|off` (ROADMAP.md
-//! §8.2, §R3): the bearer, then the control gate (golden rule #2), then the
+//! §8.2, §R3): after the guard's credential check (§8.5), the control gate (golden rule #2), then the
 //! request goes to the collector, which runs it between poll rounds and
 //! answers with the read-back state.
 
@@ -9,37 +9,25 @@ use std::time::Duration;
 
 use axum::Json;
 use axum::extract::{Query, State};
-use axum::http::{HeaderMap, StatusCode, header::AUTHORIZATION};
+use axum::http::StatusCode;
 use serde_json::{Value, json};
 use tokio::sync::oneshot;
 
 use super::AppState;
-use super::pause::{error, same};
+use super::pause::error;
 use crate::collector::Control;
 use crate::control::{Command, Refused, Request};
 use crate::protocol::control::Output;
 
-/// `401` without the right bearer (also when no `web.token` is set: then no
-/// bearer is right), `403` while control is disabled, `400` for an unknown
+/// `403` while control is disabled, `400` for an unknown
 /// station, an output the model does not list or a bad `state`. Then waits
 /// at most one poll deadline + one interval for the collector: `504` on
 /// timeout, `503` while shutting down, `502` with the error, else `200
 /// {station, output, state}` with the read-back.
 pub async fn output(
     State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
     Query(query): Query<HashMap<String, String>>,
 ) -> (StatusCode, Json<Value>) {
-    let given = headers
-        .get(AUTHORIZATION)
-        .and_then(|value| value.as_bytes().strip_prefix(b"Bearer "));
-    let authorized = state
-        .token
-        .as_ref()
-        .is_some_and(|token| given.is_some_and(|given| same(given, token.as_bytes())));
-    if !authorized {
-        return error(StatusCode::UNAUTHORIZED, "a valid bearer token is required");
-    }
     let name = query.get("station").map_or("", String::as_str);
     let Some(target) = state.stations.iter().find(|t| t.config.name == name) else {
         return error(StatusCode::BAD_REQUEST, "unknown station");

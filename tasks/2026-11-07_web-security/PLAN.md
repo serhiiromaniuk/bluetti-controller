@@ -174,7 +174,7 @@ None is pending; no step is blocked.
   back to `/`; logout revokes; the hash is absent from every log line captured
   by a test subscriber. — check: the new tests red then green, `make check`.
 
-- [ ] 6. The guard layers (`spec §8.5` a, d, e, g; risky — auth middleware):
+- [x] 6. The guard layers (`spec §8.5` a, d, e, g; risky — auth middleware):
   new `src/web/guard.rs` with two `axum::middleware::from_fn_with_state`
   functions. `host_guard` (outer `.layer`, every route except `/healthz`): the
   Host rule (Q8) → `421` on a miss — so `POST /login` is covered too.
@@ -354,3 +354,6 @@ None is pending; no step is blocked.
   frees the permit while the hash still runs, so up to 5 verifications (~95 MiB) can overlap (§8.5 c "one hash
   in memory"). Fix: `Arc<Semaphore>` + `acquire_owned()`, the permit moved into the blocking closure; a test
   that drops the handler future mid-verify · disposition: open
+- A4 · 2026-11-10 · MEDIUM `src/web/guard/tests.rs:253` — A1 (an empty or wrong bearer plus a valid session
+  still passes) has no login-mode test; add `Authorization: Bearer ` and `Bearer wrong`, each with a valid
+  session + same Origin on `POST /api/polling/pause` → `200` · disposition: open

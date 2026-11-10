@@ -1,5 +1,6 @@
 //! The web server (ROADMAP.md §8): the pages, the JSON API, SSE, the pause
-//! POST, the output control POST and the schedule routes (§R3), one module each (§8.4 a). Handlers
+//! POST, the output control POST and the schedule routes (§R3), one module each (§8.4 a), behind
+//! the login and request guard (§8.5). Handlers
 //! read through the read-only connection in `spawn_blocking` (§5.3), never
 //! through the writer's.
 
@@ -10,6 +11,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use anyhow::Context;
 use axum::extract::State;
 use axum::http::StatusCode;
+use axum::middleware::from_fn_with_state;
 use axum::routing::{get, post};
 use axum::{Json, Router};
 use serde::Serialize;
@@ -20,6 +22,7 @@ pub mod assets;
 pub mod auth;
 pub mod chart;
 pub mod control;
+pub mod guard;
 pub mod history;
 pub mod pages;
 pub mod pause;
@@ -43,14 +46,15 @@ pub struct Health {
     pub samples_since_start: u64,
 }
 
-/// Every route of §8.1/§8.2 over `state`.
+/// Every route of §8.1/§8.2 over `state`, behind the guard of §8.5 a: the
+/// public routes, the protected ones under `auth_guard`, all under
+/// `host_guard`. A new route goes in one of the two lists of
+/// `guard/tests.rs`, or that test fails.
 pub fn router(state: Arc<AppState>) -> Router {
-    Router::new()
+    let protected = Router::new()
         .route("/", get(pages::status))
-        .route("/login", get(auth::login_page).post(auth::login))
         .route("/logout", post(auth::logout))
         .route("/telemetry", get(telemetry::page))
-        .route("/assets/{name}", get(assets::asset))
         .route("/api/status", get(api::status))
         .route("/api/series", get(api::series))
         .route("/api/chart", get(api::chart))
@@ -65,7 +69,13 @@ pub fn router(state: Arc<AppState>) -> Router {
                 .delete(schedule::delete),
         )
         .route("/events", get(sse::events))
+        .route_layer(from_fn_with_state(Arc::clone(&state), guard::auth_guard));
+    Router::new()
+        .route("/login", get(auth::login_page).post(auth::login))
+        .route("/assets/{name}", get(assets::asset))
         .route("/healthz", get(healthz))
+        .merge(protected)
+        .layer(from_fn_with_state(Arc::clone(&state), guard::host_guard))
         .with_state(state)
 }
 

@@ -89,27 +89,6 @@ async fn edits_without_a_configured_token_are_403() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn edits_without_the_right_bearer_are_401() {
-    let (replies, seen) = run(
-        "schedule-401",
-        Some("s3cret"),
-        "",
-        &[
-            ("POST", SET, None),
-            ("POST", SET, Some("Bearer wrong")),
-            ("DELETE", DELETE, None),
-            ("DELETE", DELETE, Some("s3cret")),
-        ],
-    )
-    .await;
-    for (status, body) in replies {
-        assert!(status.contains("401"), "{status}");
-        assert!(body.contains("bearer"), "{body}");
-    }
-    assert!(seen.is_empty());
-}
-
-#[tokio::test(flavor = "multi_thread")]
 async fn each_bad_field_is_400_naming_it() {
     let cases: &[(&'static str, &str)] = &[
         ("/api/schedule?station=nope&output=ac&on=07:00", "station"),

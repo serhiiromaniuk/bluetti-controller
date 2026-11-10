@@ -293,3 +293,58 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-11-10 — the guard layers
+
+**Changed:**
+- `src/web/guard.rs` (new): `host_guard` (outer `.layer` over the whole router, `/healthz` exempt by exact
+  path, so 404s are Host-guarded too; IP literal / `localhost` / `allowed_hosts`, case-insensitive, port
+  ignored → else `421`) and `auth_guard` (protected `route_layer`): valid bearer passes; login on → session
+  else `401 {"error":"login required"}` for `/api/*`+`/events`, `303 /login?next=<percent-encoded path+query>`
+  for pages; dev mode + `web.token` → unsafe method needs the bearer (`401`, §8.5 h); unsafe method without
+  bearer → `Origin` byte-equal to `http://<Host>` or `https://<Host>` else `403`. `same` moved here.
+- `src/web/mod.rs`: `router()` = public (`/login`, `/assets/{name}`, `/healthz`) + protected (rest, incl.
+  `/logout`, R3 control/schedule) under `auth_guard`, all under `host_guard`.
+- `pause.rs`, `control.rs`, `schedule.rs`: per-handler bearer checks removed (plan amendment 2026-11-10);
+  schedule keeps R3's "`web.token` set" `403`. `AppState.allowed_hosts` from `web.allowed_hosts`.
+- Tests: handler 401 tests (pause, control, schedule) moved into `guard/tests.rs`; `web/tests.rs` `send()`
+  sends `Origin: http://localhost` (a same-origin page), `exchange()` takes a custom `Host` line; logout test
+  sends `Origin`.
+
+**Check:** `cargo test --lib web::guard` with both guards stubbed as pass-through — 5/10 failed (Origin,
+Host, no-credential walk, dev mode, dev-mode token); restored → 10/10 green; `cargo test --lib web` 123/123.
+Tests: route scan of `../mod.rs` (each `.route(` path in exactly one list, both directions), protected walk
+none/session/bearer, public walk, Origin (`evil`, own IP `:9999`, no port, missing, `null` → 403; `http://`
+and `https://` Host → 200), Host (`evil.example` on `/` and `POST /login`, unlisted name → 421; v4, `[::1]`,
+`localhost`, listed name any case, `/healthz` under evil → 200), Host edge cases, dev mode.
+`grep -n AUTHORIZATION src/web/*.rs` → `guard.rs:97` only.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 1 MEDIUM (INTENT: satisfied; golden rules clean)
+- MEDIUM M1: no login-mode test for A1's fall-through (wrong/empty bearer + session) → deferred to A4.
+- Flake check: `cargo test --lib web` 3/3 runs green.
+
+**Carry-forward:** none
+**Next:** step 7 — security headers + CSP-clean pages.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:34:30Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
