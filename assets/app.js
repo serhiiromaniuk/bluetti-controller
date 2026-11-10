@@ -9,7 +9,7 @@
 // DOM contract (status.html): #range #custom #from #to #apply #refresh #every,
 // #live and #tables (swapped from a fresh GET / on refresh), #age (data-ts,
 // data-now, data-stale, data-at), #uptime, #c-soc #c-out_w #c-in_w chart slots, and
-// the pause form (POST /api/polling/pause?minutes=N, optional Bearer token).
+// the pause form (POST /api/polling/pause?minutes=N; session cookie + Origin, §8.5).
 (function () {
   "use strict";
   var $ = function (id) { return document.getElementById(id); };
@@ -281,11 +281,8 @@
     ev.preventDefault();
     var out = $("pause-reply");
     var show = function (text) { if (out) out.textContent = text; };
-    var headers = {};
-    var token = form.elements.token;
-    if (token && token.value) headers.Authorization = "Bearer " + token.value;
     var minutes = encodeURIComponent(form.elements.minutes.value);
-    fetch("/api/polling/pause?minutes=" + minutes, { method: "POST", headers: headers })
+    fetch("/api/polling/pause?minutes=" + minutes, { method: "POST" })
       .then(function (r) {
         return r.text().then(function (text) { show((r.ok ? "" : r.status + " ") + text); });
       })

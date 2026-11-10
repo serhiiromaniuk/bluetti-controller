@@ -204,7 +204,7 @@ None is pending; no step is blocked.
   check: the new tests red then green, `make check`; `grep -n "AUTHORIZATION"
   src/web/*.rs` lists only `guard.rs`.
 
-- [ ] 7. Security headers + CSP-clean pages (`spec §8.5` f): new
+- [x] 7. Security headers + CSP-clean pages (`spec §8.5` f): new
   `src/web/headers.rs`, added to the outer layer of step 6 (also 404, login,
   assets, `/healthz`) adding the four headers of step 1 (f); `base.html`'s two
   inline `<script>` blocks move to a new `assets/theme.js` (loaded

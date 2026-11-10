@@ -131,10 +131,41 @@ fn renders_hand_computed_values() {
     assert!(html.len() <= 18_000, "{} B", html.len());
 }
 
+/// §8.5 b, d: the session cookie and `Origin` carry the POSTs, so no token
+/// field even with `web.token` set; the header has a logout form.
 #[test]
-fn token_field_only_with_a_token() {
-    assert!(page(Some("s3cret")).contains(r#"<input name="token" type="password""#));
-    assert!(!page(Some("s3cret")).contains("s3cret"));
+fn no_token_field_and_a_logout_form() {
+    let html = page(Some("s3cret"));
+    assert!(!html.contains(r#"name="token""#) && !html.contains("s3cret"));
+    assert!(
+        html.contains(r#"<form method="post" action="/logout">"#),
+        "{html}"
+    );
+}
+
+/// §8.5 f: `script-src` falls back to `'self'`, so no template keeps an
+/// inline script; every `<script` loads a file.
+#[test]
+fn no_template_has_an_inline_script() {
+    for (name, source) in [
+        ("base.html", include_str!("../../../templates/base.html")),
+        ("login.html", include_str!("../../../templates/login.html")),
+        (
+            "status.html",
+            include_str!("../../../templates/status.html"),
+        ),
+        (
+            "telemetry.html",
+            include_str!("../../../templates/telemetry.html"),
+        ),
+    ] {
+        assert_eq!(source.matches("<script>").count(), 0, "{name}");
+        assert_eq!(
+            source.matches("<script").count(),
+            source.matches("<script src=\"/assets/").count(),
+            "{name}"
+        );
+    }
 }
 
 #[test]
@@ -247,7 +278,14 @@ fn asset_urls_carry_the_build() {
     let conn = db();
     let state = AppState::for_tests(Connection::open_in_memory().unwrap());
     let html = render(&conn, NOW, &state).unwrap();
-    for asset in ["app.js", "app.css", "uPlot.iife.min.js", "uPlot.min.css"] {
+    for asset in [
+        "app.js",
+        "theme.js",
+        "control.js",
+        "app.css",
+        "uPlot.iife.min.js",
+        "uPlot.min.css",
+    ] {
         let url = format!("/assets/{asset}?v={}\"", crate::BUILD);
         assert!(html.contains(&url), "{url} missing");
     }
@@ -303,12 +341,14 @@ fn control_panel_has_one_row_per_allowed_output() {
     assert_eq!(html.matches(r#"<fieldset class="ctl""#).count(), 2);
     assert!(!html.contains(r#"data-station="office""#));
     assert!(!html.contains("control disabled") && !html.contains(" disabled>"));
+    assert!(html.contains(r#"<script src="/assets/control.js?v="#));
+    let js = include_str!("../../../assets/control.js");
     for route in [
         "\"/api/control/output\"",
         "\"/api/schedule\"",
         "m = \"DELETE\"",
     ] {
-        assert!(html.contains(route), "{route}");
+        assert!(js.contains(route), "{route}");
     }
 }
 

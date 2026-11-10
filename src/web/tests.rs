@@ -216,6 +216,8 @@ async fn healthz_is_null_before_the_first_poll() {
 fn assets_stay_within_the_page_weight_budget() {
     for (name, cap) in [
         ("app.js", 12_000),
+        ("theme.js", 1_000),
+        ("control.js", 2_000),
         ("app.css", 5_000),
         ("uPlot.iife.min.js", 51_081),
         ("uPlot.min.css", 1_857),
@@ -237,6 +239,8 @@ async fn every_asset_is_served_with_its_type_and_bytes() {
         ("uPlot.iife.min.js", "text/javascript; charset=utf-8"),
         ("uPlot.min.css", "text/css; charset=utf-8"),
         ("app.js", "text/javascript; charset=utf-8"),
+        ("theme.js", "text/javascript; charset=utf-8"),
+        ("control.js", "text/javascript; charset=utf-8"),
         ("app.css", "text/css; charset=utf-8"),
     ];
     for (name, content_type) in assets {

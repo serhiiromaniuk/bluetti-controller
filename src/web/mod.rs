@@ -23,6 +23,7 @@ pub mod auth;
 pub mod chart;
 pub mod control;
 pub mod guard;
+pub mod headers;
 pub mod history;
 pub mod pages;
 pub mod pause;
@@ -48,7 +49,7 @@ pub struct Health {
 
 /// Every route of §8.1/§8.2 over `state`, behind the guard of §8.5 a: the
 /// public routes, the protected ones under `auth_guard`, all under
-/// `host_guard`. A new route goes in one of the two lists of
+/// `host_guard`, and outermost the §8.5 f headers. A new route goes in one of the two lists of
 /// `guard/tests.rs`, or that test fails.
 pub fn router(state: Arc<AppState>) -> Router {
     let protected = Router::new()
@@ -76,6 +77,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/healthz", get(healthz))
         .merge(protected)
         .layer(from_fn_with_state(Arc::clone(&state), guard::host_guard))
+        .layer(axum::middleware::from_fn(headers::security_headers))
         .with_state(state)
 }
 

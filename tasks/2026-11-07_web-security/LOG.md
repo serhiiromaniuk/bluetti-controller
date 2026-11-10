@@ -348,3 +348,55 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 7 ✓ 2026-11-10 — security headers + CSP-clean pages
+
+**Changed:**
+- `src/web/headers.rs` (new): `security_headers` (`from_fn`) sets the four §8.5 f headers; `router()` adds it
+  as the outermost `.layer`, so 404s and `host_guard`'s `421` carry them too.
+- `assets/theme.js` (new, 681 B): `base.html`'s two inline scripts, loaded synchronously in `<head>`; the
+  toggle binds with `addEventListener` on `DOMContentLoaded`.
+- `assets/control.js` (new, 1 508 B): `status.html` had a **third** inline script (R3's output rows, inline
+  because `app.js` sits at its 12 KB cap) — moved out too, else `script-src 'self'` blocks the controls. Its
+  bearer-from-token-field lines dropped (cookie + `Origin` carry the request).
+- `assets.rs` serves both; page-weight test caps `theme.js` 1 000 B, `control.js` 2 000 B; `spec §8.4` i sum
+  updated: 90 938 B < 100 000 B (threshold unchanged).
+- `app.js`: pause POST drops the token header; `status.html` loses the token input; `pages.rs` drops `token`;
+  `base.html` header gains `<form method="post" action="/logout">` (every page).
+- Tests: `guard/tests.rs` `every_response_carries_the_security_headers` (every `PROTECTED` route with a
+  session, `/login`, `/assets/app.js`, `/healthz`, a 404, a `421`); `pages/tests.rs`
+  `no_template_has_an_inline_script` (each `<script` is a `/assets/` src), `no_token_field_and_a_logout_form`
+  (replaces `token_field_only_with_a_token`), asset-URL test lists the two new files; the R3 control-panel
+  and telemetry tests now read `control.js` / expect only `theme.js`.
+
+**Check:** red first — `cargo test --lib web::` 4 failed (headers, inline script, logout form, asset URLs);
+then green 125/125; `grep -c "<script>" templates/*.html` → 0 in all four; no `Bearer` left in
+`assets/*.js` or templates.
+
+**reviewer:** batched (plan: steps 7–10 in one pass before the push).
+
+**Carry-forward:** none
+**Next:** steps 8 + 9 — parallel group A (query-span caps, printable names).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:40:46Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

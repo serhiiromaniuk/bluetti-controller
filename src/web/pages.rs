@@ -42,7 +42,6 @@ struct Page {
     energy: Vec<EnergyRow>,
     lifetime: Vec<String>,
     house: Vec<HouseRow>,
-    token: bool,
     /// `control.enabled`: the toggles work only when set (golden rule #2).
     control: bool,
 }
@@ -198,7 +197,6 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
                 },
             })
             .collect(),
-        token: state.token.is_some(),
         control: state.control_config.enabled,
     };
     Ok(page.render()?)

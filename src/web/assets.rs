@@ -9,8 +9,10 @@ const JS: &str = "text/javascript; charset=utf-8";
 const CSS: &str = "text/css; charset=utf-8";
 
 /// Every served asset: name → (bytes, content type).
-static ASSETS: [(&str, &[u8], &str); 4] = [
+static ASSETS: [(&str, &[u8], &str); 6] = [
     ("app.js", include_bytes!("../../assets/app.js"), JS),
+    ("theme.js", include_bytes!("../../assets/theme.js"), JS),
+    ("control.js", include_bytes!("../../assets/control.js"), JS),
     ("app.css", include_bytes!("../../assets/app.css"), CSS),
     (
         "uPlot.iife.min.js",

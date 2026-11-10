@@ -5,14 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{% block title %}Bluetti{% endblock %}</title>
 <link rel="icon" href="data:,">
-<script>try{var t=localStorage.getItem("theme");if(t)document.documentElement.dataset.theme=t}catch(e){}document.documentElement.className="js"</script>
+<script src="/assets/theme.js?v={{ crate::BUILD }}"></script>
 {% block head %}{% endblock %}
 <link rel="stylesheet" href="/assets/app.css?v={{ crate::BUILD }}">
 </head>
 <body>
 <header class="top"><nav><a href="/">Status</a><a href="/telemetry">Telemetry</a></nav>
-<button type="button" id="theme" class="js-only" title="Light / dark theme" aria-label="Toggle light or dark theme">Theme</button>{% block tools %}{% endblock %}</header>
-<script>document.getElementById("theme").onclick=function(){var r=document.documentElement,t=r.dataset.theme=="light"?"dark":"light";r.dataset.theme=t;try{localStorage.setItem("theme",t)}catch(e){}dispatchEvent(new Event("themechange"))}</script>
+<button type="button" id="theme" class="js-only" title="Light / dark theme" aria-label="Toggle light or dark theme">Theme</button>{% block tools %}{% endblock %}
+<form method="post" action="/logout"><button>Log out</button></form></header>
 {% block content %}{% endblock %}
 {% block scripts %}{% endblock %}
 </body>

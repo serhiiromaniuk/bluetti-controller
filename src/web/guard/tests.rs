@@ -331,3 +331,45 @@ fn token_compare_checks_length_and_every_byte() {
     assert!(!same(b"abc", b"ab"));
     assert!(!same(b"", b"a"));
 }
+
+/// §8.5 f: the four headers on every response — protected, public, a 404 and
+/// a Host refusal (the outermost layer wraps `host_guard`).
+#[tokio::test(flavor = "multi_thread")]
+async fn every_response_carries_the_security_headers() {
+    let (_db, state) = state("guard-headers", true, None);
+    let cookie = session(&state);
+    let mut calls: Vec<(&str, String, Vec<String>)> = PROTECTED
+        .iter()
+        .map(|(m, p)| (*m, concrete(p), vec![cookie.clone(), ORIGIN.to_owned()]))
+        .collect();
+    for path in ["/login", "/assets/app.js", "/healthz", "/no-such-page"] {
+        calls.push(("GET", path.to_owned(), vec![]));
+    }
+    calls.push(("GET", "/".to_owned(), vec!["Host: evil.example".to_owned()]));
+    let replies = send_all(&state, calls.clone()).await;
+    assert_eq!(replies[PROTECTED.len() + 3].0, "HTTP/1.1 404 Not Found");
+    assert_eq!(
+        replies[PROTECTED.len() + 4].0,
+        "HTTP/1.1 421 Misdirected Request"
+    );
+    for ((_, path, _), (_, headers, _)) in calls.iter().zip(&replies) {
+        assert_eq!(
+            header(headers, "content-security-policy"),
+            Some(
+                "default-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'"
+            ),
+            "{path}"
+        );
+        assert_eq!(header(headers, "x-frame-options"), Some("DENY"), "{path}");
+        assert_eq!(
+            header(headers, "x-content-type-options"),
+            Some("nosniff"),
+            "{path}"
+        );
+        assert_eq!(
+            header(headers, "referrer-policy"),
+            Some("same-origin"),
+            "{path}"
+        );
+    }
+}

@@ -114,8 +114,12 @@ async fn the_page_lists_core_and_extra_metrics_with_their_flag() {
         "{row}"
     );
     assert!(!body.contains("ac_input_power"), "no NULL column: {body}");
-    // Only the base template's inline theme toggle: no script file, no chart.
-    assert!(!body.contains("<script src"), "no JS file: {body}");
+    // Only the base template's theme script: no dashboard JS, no chart.
+    assert_eq!(body.matches("<script src").count(), 1, "{body}");
+    assert!(
+        body.contains(r#"<script src="/assets/theme.js?v="#),
+        "{body}"
+    );
     assert!(body.contains("No qualifying discharge yet"), "{body}");
     stop.send(()).unwrap();
     server.await.unwrap().unwrap();
