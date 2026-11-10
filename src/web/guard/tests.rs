@@ -365,6 +365,8 @@ fn token_compare_checks_length_and_every_byte() {
     assert!(!same(b"abc", b"abd"));
     assert!(!same(b"abc", b"ab"));
     assert!(!same(b"", b"a"));
+    // Swapped bytes give equal XORs that an XOR fold would cancel to 0.
+    assert!(!same(b"ab", b"ba"));
 }
 
 /// §8.5 f: the four headers on every response — protected, public, a 404 and

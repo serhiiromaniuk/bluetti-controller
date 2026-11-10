@@ -20,8 +20,9 @@ forecast and energy totals, and serves them on the LAN.
 ## Develop
 
 ```bash
-make tools   # once per clone: pinned cargo-llvm-cov into .tools/
+make tools   # once per clone: pinned cargo-llvm-cov and cargo-mutants into .tools/
 make check   # fmt-check + clippy + tests (needs rustfmt, clippy, make tools)
+make mutants # mutation-test the security files; fails on any surviving mutant
 make test    # tests under cargo llvm-cov; fails if src/protocol/ or src/metrics/ < 80% lines
 make help    # all targets
 ```

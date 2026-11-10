@@ -28,6 +28,18 @@ async fn an_id_expires_after_30_days() {
 }
 
 #[tokio::test(start_paused = true)]
+async fn an_id_expiring_at_this_instant_is_dropped_at_the_next_issue() {
+    let sessions = Sessions::default();
+    let old = sessions.issue().unwrap();
+    tokio::time::advance(SESSION_TTL).await;
+    assert!(!sessions.check(&old), "expiry is exclusive, as in check");
+    let new = sessions.issue().unwrap();
+    let ids = sessions.ids.lock().unwrap();
+    assert_eq!(ids.len(), 1, "only the new id is stored");
+    assert!(ids.contains_key(&new));
+}
+
+#[tokio::test(start_paused = true)]
 async fn the_17th_id_evicts_the_oldest() {
     let sessions = Sessions::default();
     let mut ids = Vec::new();

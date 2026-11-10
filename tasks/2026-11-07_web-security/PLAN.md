@@ -362,7 +362,7 @@ None is pending; no step is blocked.
   step 10a below, after the docs step and before the close; the close needs it ticked. Hard gate added by
   the owner, never lowered: 100 % line coverage on every security file.
 
-- [ ] 10a. Security test suite + 100 % gate (owner, 2026-11-10; risky — reviewed before the commit).
+- [x] 10a. Security test suite + 100 % gate (owner, 2026-11-10; risky — reviewed before the commit).
   **Scope:** every file of this slice: `src/web/guard*`, `src/web/auth*` (sessions, lockout, login,
   logout, `safe_next`), `src/web/headers*`, `src/config/web.rs`, `src/config/mode.rs`, the hash module and
   `hash-password` CLI, the span caps (`api.rs` `window()`) and `printable()`; list the exact files in LOG.
@@ -415,7 +415,7 @@ None is pending; no step is blocked.
   secret hygiene, headers on every response class). 10a.4: the `COV_SECURITY` 100 % gate in `make check`,
   red then green (move `printable` and `window()` into their own files if the per-file gate needs it).
   10a.5: type 7 (`tests/security_e2e.rs`). 10a.6: type 8 (`cargo-mutants` in `.tools/`, survivors killed),
-  ticks 10a · disposition: open
+  ticks 10a · disposition: fixed 2026-11-10 (10a.1–10a.6 done; 10a ticked by 10a.6)
 - A11 · 2026-11-10 · MEDIUM `src/web/auth/session.rs:28-50` — the RNG test seam (`pub type Fill`, `pub fn
   with_rng`) is public library API, so any caller could swap the CSPRNG behind session ids; make both
   `pub(crate)` (or `with_rng` `#[cfg(test)]`) · disposition: open

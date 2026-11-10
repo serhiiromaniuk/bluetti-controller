@@ -787,3 +787,49 @@ Run time 4.5 s (6 tests); `cargo clippy --all-targets -D warnings` clean.
 ```
 
 <!-- gate:end -->
+
+## Step 10a.6 ✓ 2026-11-10 — type 8 mutation run over the security files; ticks 10a (A10)
+**Changed:**
+- `Makefile`: `MUTANTS_VERSION := 27.1.0`; `make tools` installs `cargo-mutants` into `.tools/` (`--locked`);
+  new `make mutants` = `cargo mutants --gitignore true --jobs 4 --output target --file <each COV_SECURITY
+  file>`, exit ≠ 0 on any missed or timed-out mutant. Not in `check` (~21 min). `AGENTS.md`, `README.md` list it.
+- `--gitignore true` added after the first run's scratch copy in /tmp held the gitignored `config.toml`,
+  `keys.toml`, `data/` (GR #3; local only, removed at the run's end). Second run's copy: none of them.
+**Failing-first run** (27.1.0, `-j 4`, the 10 `COV_SECURITY` files): 159 mutants in 22 min — 144 caught,
+10 unviable, 0 timeout, **5 missed**:
+- `src/config/mode.rs:34` `loose_mode` → `Some(0)`, `Some(1)`: the `cfg(not(unix))` stub, never compiled on
+  Linux → stub deleted (`bluer` is unconditional, so the crate is Linux-only); tests now `#[cfg(test)]`.
+- `src/web/guard.rs:144` `same` fold `|` → `^` (swapped bytes cancel) → test `!same(b"ab", b"ba")`.
+- `src/web/auth/password.rs:11` `argon2id()` → `Ok(Default::default())`: equivalent mutant (argon2 0.5
+  default = the ADR-011 params) → helper inlined into `hash`, explicit params kept; their `*` mutants caught.
+- `src/web/auth/session.rs:60` `retain` `>` → `>=` → test
+  `an_id_expiring_at_this_instant_is_dropped_at_the_next_issue` (paused clock, map holds only the new id).
+**Green run** (`make mutants`): `156 mutants tested in 21m: 146 caught, 10 unviable`, 0 missed, 0 timeout,
+EXIT=0. Unviable = mutants that do not compile (e.g. `MutexGuard::new()`), not survivors.
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 0 MEDIUM. Checked GR #3 on the live scratch copies,
+each kill, the inlining is not a weakening. No second pass.
+**Step 10a done:** types 1–8 (10a.2–10a.6), `COV_SECURITY` 100 % gate (10a.4), A3/A4 (10a.1). A10 fixed.
+**Next:** task close — `make amendments` (A7, A8, A11, A12 open), OUTCOME, `close-reviewer`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T21:56:29Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

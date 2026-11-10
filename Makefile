@@ -11,6 +11,9 @@ CARGO ?= cargo
 TOOLS_DIR := $(abspath $(shell git rev-parse --path-format=absolute --git-common-dir)/..)/.tools
 LLVM_COV_VERSION := 0.9.1
 LLVM_COV := $(TOOLS_DIR)/bin/cargo-llvm-cov
+MUTANTS_VERSION := 27.1.0
+MUTANTS := $(TOOLS_DIR)/bin/cargo-mutants
+MUTANTS_JOBS ?= 4
 # Minimum line coverage (%) of each gated directory (RULES.md Testing).
 COV_MIN ?= 80
 COV_DIRS := src/protocol/ src/metrics/
@@ -61,8 +64,18 @@ lint:                           ## clippy, warnings are errors
 	$(CARGO) clippy --all-targets --locked -- -D warnings
 
 .PHONY: tools
-tools:                          ## install pinned dev tools (cargo-llvm-cov) into .tools/
+tools:                          ## install pinned dev tools (cargo-llvm-cov, cargo-mutants) into .tools/
 	$(CARGO) install --locked --root $(TOOLS_DIR) cargo-llvm-cov --version $(LLVM_COV_VERSION)
+	$(CARGO) install --locked --root $(TOOLS_DIR) cargo-mutants --version $(MUTANTS_VERSION)
+
+# Mutation testing of every COV_SECURITY file (web-security step 10a type 8):
+# fails on any surviving mutant. Minutes, not seconds, so it is not part of
+# `check`; run it after touching a security file. --gitignore keeps the local
+# config, keys and data out of the scratch copy (golden rule #3).
+.PHONY: mutants
+mutants:                        ## mutation-test the security files (cargo-mutants); fail on any survivor
+	@test -x $(MUTANTS) || { echo "!! $(MUTANTS) missing — run: make tools" >&2; exit 1; }
+	PATH="$(TOOLS_DIR)/bin:$$PATH" $(CARGO) mutants --gitignore true --jobs $(MUTANTS_JOBS) --output target $(addprefix --file ,$(COV_SECURITY))
 
 # Tests run once, under coverage; the gate fails below COV_MIN on any of COV_DIRS
 # and below COV_SECURITY_MIN on any COV_SECURITY file.

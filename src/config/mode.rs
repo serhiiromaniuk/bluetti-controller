@@ -22,19 +22,14 @@ pub(super) fn warn_loose(path: &Path, key: &str) {
     }
 }
 
-#[cfg(unix)]
+// Unix only, like the crate (`bluer` needs BlueZ), so no non-unix stub.
 fn loose_mode(path: &Path) -> Option<u32> {
     use std::os::unix::fs::PermissionsExt;
     let mode = std::fs::metadata(path).ok()?.permissions().mode() & 0o777;
     (mode & LOOSE != 0).then_some(mode)
 }
 
-#[cfg(not(unix))]
-fn loose_mode(_: &Path) -> Option<u32> {
-    None
-}
-
-#[cfg(all(test, unix))]
+#[cfg(test)]
 mod tests {
     use std::os::unix::fs::PermissionsExt;
 
