@@ -378,7 +378,7 @@ pub fn series(
     let rollup = ROLLUP.iter().find(|(m, _)| *m == metric);
     let core = CORE.iter().find(|(m, _)| *m == metric);
     let (source, table, column, filter) = match (rollup, core) {
-        (Some((_, column)), _) if to - from > RAW_MAX_S => {
+        (Some((_, column)), _) if to.saturating_sub(from) > RAW_MAX_S => {
             (Source::Rollup5m, "rollup_5m", *column, "")
         }
         (_, Some((_, column))) => (Source::Raw, "sample", *column, ""),

@@ -27,3 +27,21 @@ fn unknown_station_still_prints() {
     };
     assert_eq!(line(&advert, true), "  ?  ? dBm  unknown  encrypted=yes");
 }
+
+#[test]
+fn control_characters_in_the_name_never_reach_the_terminal() {
+    let advert = Advert {
+        address: String::new(),
+        name: Some("EB3A\x1b[31m\rX\u{9b}".into()),
+        rssi: None,
+        manufacturer_data: b"BLUETTI\x01".to_vec(),
+    };
+    let raw = line(&advert, false);
+    assert!(
+        raw.starts_with("  EB3A\u{fffd}[31m\u{fffd}X\u{fffd}  "),
+        "{raw:?}"
+    );
+    let masked = line(&advert, true);
+    assert!(!masked.chars().any(char::is_control), "{masked:?}");
+    assert_eq!(super::super::printable("EB3A2235000123"), "EB3A2235000123");
+}

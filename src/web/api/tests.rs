@@ -321,3 +321,29 @@ async fn chart_returns_every_station_and_rejects_bad_input() {
     }
     stop(server).await;
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn every_windowed_route_caps_the_span() {
+    let server = start(AppState::for_tests(db())).await;
+    let year = 366 * 86_400;
+    for route in [
+        "/api/series?station=router&metric=battery_soc&",
+        "/api/outages?",
+        "/api/chart?",
+    ] {
+        for query in [
+            "from=-1&to=10".to_owned(),
+            format!("from={T0}&to={}", T0 + 2 * year),
+            format!("from={T0}&to={}", T0 + year + 1),
+            format!("from={}&to={T0}", i64::MIN),
+            format!("from=0&to={}", i64::MAX),
+            format!("to={}", i64::MIN),
+        ] {
+            assert_bad(server.0, &format!("{route}{query}")).await;
+        }
+        let path = format!("{route}from={T0}&to={}", T0 + year);
+        let (status, body) = call(server.0, &path).await;
+        assert_eq!(status, OK, "{path}: {body}");
+    }
+    stop(server).await;
+}

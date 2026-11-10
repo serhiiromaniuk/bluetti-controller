@@ -62,3 +62,18 @@ fn identity_line_names_type_layout_and_firmware() {
     identity.firmware.clear();
     assert!(identity_line(&identity).ends_with("firmware: not found over BLE"));
 }
+
+#[test]
+fn flag_control_bytes_are_replaced() {
+    let advert = Advert {
+        address: String::new(),
+        name: None,
+        rssi: None,
+        manufacturer_data: b"\x1b[2J\r\x07ok".to_vec(),
+    };
+    let line = line(&advert, false);
+    assert!(
+        line.ends_with("flag=\u{fffd}[2J\u{fffd}\u{fffd}o"),
+        "{line:?}"
+    );
+}

@@ -400,3 +400,59 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 8 ✓ 2026-11-10 — query-span caps (parallel group A)
+**Changed:**
+- `src/web/api.rs`: `CHART_MAX_S` → `MAX_SPAN_S` (366 d); `window()` enforces `0 ≤ from < to` and
+  `to.checked_sub(from) ≤ MAX_SPAN_S` for `/api/series`, `/api/outages`, `/api/chart`; a defaulted `from` is
+  `to.checked_sub(span)` (overflow → 400) then `.max(0)`. Chart's own span check removed (now in `window()`).
+- `src/web/history.rs` (`from - 1`, `to - from`, `duration_s`) and `src/store/read.rs` (`to - from`):
+  `saturating_sub` — inputs come from `local_day_bounds` or DB rows, never overflow-reachable; no panic either way.
+- Test `every_windowed_route_caps_the_span` (`src/web/api/tests.rs`): per route `from=-1`, 2-year span,
+  1 y + 1 s, `from=i64::MIN`, `to=i64::MAX`, `to=i64::MIN` → 400; exactly 1 year → 200.
+**Check:** red first — `/api/series … from=-1&to=10` answered 200; then green. Release build:
+`cargo test --release --lib every_windowed_route_caps_the_span` → 1 passed.
+**reviewer:** batched with steps 7, 9 and 2216f03 — 0 CRITICAL / 0 HIGH; INTENT satisfied (accepts
+`saturating_sub` over `checked_sub` in history/read).
+**Carry-forward:** none
+**Next:** step 10 — docs batch + close evidence.
+
+## Step 9 ✓ 2026-11-10 — printable advertised names (parallel group A)
+**Changed:**
+- `src/cli/mod.rs`: `pub(crate) fn printable` maps every `char::is_control` (C0, DEL, C1) to U+FFFD
+  (`pub(crate)`: binary-crate module).
+- `scan::line` prints `printable(name)` / `printable(&mask_name(name))`; `detect::line` passes the
+  manufacturer-data flag through `printable`. The session banner (`src/cli/session.rs:41`) goes through
+  `detect::line` → `scan::line`; no other print of `advert.name` in `src/cli` (`src/transport/session*` does
+  not exist). `identity_line` (register data, not advertised) left as is.
+- Tests: `scan` `control_characters_in_the_name_never_reach_the_terminal` (ESC, CR, U+009B; plain
+  `EB3A2235000123` unchanged), `detect` `flag_control_bytes_are_replaced`.
+**Check:** red first — `cannot find function printable`; then a test bug (flag is the first 7 bytes) fixed;
+green 22/22 bin tests.
+**reviewer:** batched (same pass) — 0 CRITICAL / 0 HIGH / 1 MEDIUM
+- MEDIUM M1: `printable` misses Cf bidi controls (U+202A–E, U+2066–9), needed by step 10a → deferred to A5.
+**Carry-forward:** none
+**Next:** step 10 — docs batch + close evidence.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:47:09Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

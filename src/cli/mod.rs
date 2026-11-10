@@ -93,6 +93,14 @@ pub enum Command {
     },
 }
 
+/// `text` with every control character (ESC, CR, C1 …) replaced by U+FFFD, so
+/// an advertised name cannot drive the terminal (SECURITY.md limitation 5).
+pub(crate) fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| if c.is_control() { '\u{fffd}' } else { c })
+        .collect()
+}
+
 /// What every command shares: config, keys and the global flags.
 pub struct Context<'a> {
     pub ble: &'a BleConfig,

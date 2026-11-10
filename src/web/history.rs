@@ -96,7 +96,7 @@ pub fn energy(
     for _ in 0..days {
         let (from, to) = local_day_bounds(ts, tz)?;
         bounds.push((from, to.min(now)));
-        ts = from - 1;
+        ts = from.saturating_sub(1);
     }
     let Some(&(oldest, _)) = bounds.last() else {
         return Ok(Vec::new());
@@ -120,7 +120,7 @@ pub fn energy(
             let t = energy::totals(&refs, interval_s, station.capacity_wh, from, to);
             // `read::samples` adds the one sample before `from`: not this day's.
             let no_data = !samples.iter().any(|(ts, _)| *ts >= from);
-            let (prev, _) = local_day_bounds(from - 1, tz)?;
+            let (prev, _) = local_day_bounds(from.saturating_sub(1), tz)?;
             let day = read::last_extras_between(conn, station.id, from, to)?;
             let before = read::last_extras_between(conn, station.id, prev, from)?;
             let delta = |keys| {
@@ -134,7 +134,11 @@ pub fn energy(
                 energy_out_wh: t.energy_out_wh,
                 stored_delta_wh: t.stored_delta_wh,
                 losses_estimate_wh: t.losses_estimate_wh,
-                missing_s: if no_data { to - from } else { t.missing_s },
+                missing_s: if no_data {
+                    to.saturating_sub(from)
+                } else {
+                    t.missing_s
+                },
                 no_data,
                 counter_in_wh: delta(COUNTER_IN),
                 counter_out_wh: delta(COUNTER_OUT),
@@ -187,7 +191,7 @@ pub fn lifetime(conn: &Connection) -> anyhow::Result<Vec<(String, f64, f64)>> {
 fn outage(e: GridEventRow, now: i64) -> Outage {
     Outage {
         ongoing: e.ended_at.is_none(),
-        duration_s: e.ended_at.unwrap_or(now) - e.started_at,
+        duration_s: e.ended_at.unwrap_or(now).saturating_sub(e.started_at),
         id: e.id,
         scope: e.scope,
         started_at: e.started_at,

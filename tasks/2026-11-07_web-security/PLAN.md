@@ -218,7 +218,7 @@ None is pending; no step is blocked.
   under `script-src 'self'`); `pages/tests.rs` sees the logout form. — check:
   the new tests red then green, `make check`.
 
-- [ ] 8. [parallel: A] Query-span caps (`spec §8.2`, SECURITY.md limitation 3):
+- [x] 8. [parallel: A] Query-span caps (`spec §8.2`, SECURITY.md limitation 3):
   `api.rs` `window()` takes a max span: `from ≥ 0` and `to − from ≤ MAX_SPAN_S`
   (= today's `CHART_MAX_S`, renamed) for `/api/series` and `/api/outages` too,
   with `checked_sub` on every request bound; `src/web/history.rs` and
@@ -227,7 +227,7 @@ None is pending; no step is blocked.
   400 in debug and release, a 1-year span → 200. — check: the new tests red
   then green, `make check`.
 
-- [ ] 9. [parallel: A] Printable advertised names (SECURITY.md limitation 5):
+- [x] 9. [parallel: A] Printable advertised names (SECURITY.md limitation 5):
   `pub fn printable(name: &str) -> String` in `src/cli/mod.rs` replacing every
   `char::is_control` with U+FFFD; used in `scan.rs`, `detect.rs` and every other
   print of `advert.name` (`grep -rn "advert.name\|\.name" src/cli
@@ -394,3 +394,6 @@ None is pending; no step is blocked.
   or each survivor killed by a new test — survivors listed in LOG.
   Also settles A3 and A4. — check: the new gate red before the tests, green after; `make check`; the
   mutation run's summary in LOG.
+- A5 · 2026-11-10 · MEDIUM `src/cli/mod.rs:98` — `printable` replaces only `char::is_control` (Cc); the bidi
+  controls U+202A–U+202E and U+2066–U+2069 are Cf and pass through, so step 10a's "bidi overrides (U+202E) in
+  advertised names" exploit test cannot pass until `printable` also replaces them · disposition: open

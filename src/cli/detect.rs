@@ -9,7 +9,7 @@ use bluetti_controller::transport::Advert;
 use bluetti_controller::transport::read::ReadPolicy;
 use bluetti_controller::transport::station::{self, Identity};
 
-use super::{Context, scan, session};
+use super::{Context, printable, scan, session};
 
 pub async fn run(ctx: &Context<'_>, target: &str) -> anyhow::Result<()> {
     session::run(ctx, target, async |gatt, advert| {
@@ -41,7 +41,7 @@ pub(super) fn line(advert: &Advert, anonymise: bool) -> String {
     let flag = advert
         .manufacturer_data
         .get(..7)
-        .map_or("?".into(), String::from_utf8_lossy);
+        .map_or("?".into(), |flag| printable(&String::from_utf8_lossy(flag)));
     format!(
         "{}  protocol={protocol}  flag={flag}",
         scan::line(advert, anonymise)

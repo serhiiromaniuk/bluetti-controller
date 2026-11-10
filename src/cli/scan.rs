@@ -7,6 +7,8 @@ use bluetti_controller::protocol::device::{Model, is_encrypted};
 use bluetti_controller::transport::anonymise::{mask_macs, mask_name};
 use bluetti_controller::transport::{self, Advert};
 
+use super::printable;
+
 pub async fn run(ble: &BleConfig, timeout_secs: u64, anonymise: bool) -> anyhow::Result<()> {
     let adverts = transport::scan(&ble.adapter, Duration::from_secs(timeout_secs)).await?;
     if adverts.is_empty() {
@@ -29,9 +31,9 @@ pub(super) fn line(advert: &Advert, anonymise: bool) -> String {
     };
     let rssi = advert.rssi.map_or("?".into(), |r| r.to_string());
     let (address, name) = if anonymise {
-        (mask_macs(&advert.address), mask_name(name))
+        (mask_macs(&advert.address), printable(&mask_name(name)))
     } else {
-        (advert.address.clone(), name.to_string())
+        (advert.address.clone(), printable(name))
     };
     format!("{address}  {name}  {rssi} dBm  {model}  encrypted={encrypted}")
 }
