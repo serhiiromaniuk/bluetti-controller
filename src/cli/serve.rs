@@ -21,6 +21,8 @@ use tokio::sync::{broadcast, mpsc, oneshot, watch};
 
 /// Records queued between the collector and the writer: a few rounds' worth.
 const QUEUE: usize = 256;
+/// Output switch requests queued for the collector; each waits for a round's end.
+const COMMANDS: usize = 8;
 /// Updates buffered per SSE client; a slower client skips the missed ones (§8.4 g).
 const UPDATES: usize = 64;
 
@@ -81,6 +83,8 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     let mut server = tokio::spawn(web::serve(listener, router, async {
         let _ = server_stopped.await;
     }));
+    // The sender is unused until the web control route (R3 step 10).
+    let (_commands, commands) = mpsc::channel(COMMANDS);
     let collector = Collector {
         connect: BluezConnect {
             ble: config.ble.clone(),
@@ -90,6 +94,7 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         interval,
         policy: ReadPolicy::from_ble(&config.ble),
         records,
+        commands,
     };
     let polling = collector.run(control_rx);
     tokio::pin!(polling);

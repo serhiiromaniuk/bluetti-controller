@@ -249,3 +249,51 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 8 ✓ 2026-11-10 — the collector executes commands between rounds (`src/collector/control.rs`)
+
+**Changed:** `Collector.commands: mpsc::Receiver<Request>`; `run(mut self)` loops its tick `select!`
+over sleep / shutdown / `commands.recv()`, so a request runs only between rounds and one sent
+during a round waits in the channel. `control.rs`: `execute` drops a closed-reply request before
+any link, answers `"polling paused"` / `"shutting down"` without `connect.open`, else opens with
+`retry` from the run loop's `failures` (passed as `&[u32]`, index resolved by name), runs
+`with_disconnect { set_output(command.switch(), …) }` under the poll deadline and a shutdown
+`select!`, releases when not disconnected, logs station/output/state/read-back (no MAC).
+`serve` creates the channel (`COMMANDS = 8`), keeps the sender unused until step 10.
+`tests/collector.rs` and the unit fake gained the field (dropped sender: no requests).
+**Check:** failing first — 5/5 `collector::tests::control` panicked (`unimplemented!`). Then green:
+between rounds one exact `01 06 0B BF 00 01 7B CA` + read-back true; during a 30 s stalled round
+the request opens at t=30 after the round (fake panics on two links); unreachable answers
+`connect failed`, no frame; paused answers `polling paused`, no open; closed reply, no open.
+All 36 collector tests green.
+
+**Reviewer (risky, before the commit):** 0 CRITICAL / 0 HIGH / 3 MEDIUM · INTENT satisfied; the
+`failures: &[u32]`, "shutting down" answers, `run(mut self)` and `tests/collector.rs` field judged
+justified, not creep. A7 holds at this call site (`command.switch()`). M1 (no unreachable-station
+`retry == false` test) → A8; M2 (no handshake retry on the command path) → A9; M3 (release by address
+on a cut command untested) → A10.
+**Decision:** none. **Carry-forward:** none.
+**Next:** group C — steps 9 (CLI `set`) and 10 (web control route).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:00:05Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

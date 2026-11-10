@@ -4,7 +4,9 @@
 //! deadline and ends with a disconnect: its own, or one by address on error,
 //! deadline or shutdown (golden rule #5). A `watch` channel pauses or stops it. The first
 //! successful poll of each UTC hour also sends every profile block as a
-//! register snapshot (§6).
+//! register snapshot (§6). Between rounds it also runs output switch
+//! requests from its command channel over the same one-link discipline
+//! (§R3, `control.rs`).
 
 use std::future::Future;
 use std::time::Duration;
@@ -13,6 +15,7 @@ use tokio::sync::{mpsc, watch};
 use tokio::time::Instant;
 
 use crate::config::StationConfig;
+use crate::control::Request;
 use crate::protocol::device;
 use crate::store::{Failure, Record, Sample, Stage};
 use crate::transport::read::{ReadError, ReadPolicy, read_profile, read_slow};
@@ -20,6 +23,7 @@ use crate::transport::station::Poll;
 use crate::transport::{self, Gatt};
 
 pub mod bluez;
+mod control;
 
 pub use bluez::BluezConnect;
 
@@ -102,12 +106,14 @@ pub struct Collector<C> {
     pub interval: Duration,
     pub policy: ReadPolicy,
     pub records: mpsc::Sender<Record>,
+    /// Output switch requests, run between rounds (§R3).
+    pub commands: mpsc::Receiver<Request>,
 }
 
 impl<C: Connect + Sync> Collector<C> {
     /// Polls until [`Control::Shutdown`], the control sender is dropped, or
     /// the writer is gone. A round that overruns skips the ticks it missed.
-    pub async fn run(self, mut control: watch::Receiver<Control>) {
+    pub async fn run(mut self, mut control: watch::Receiver<Control>) {
         // §5.4 per-round budget: a round of n stations fits one interval.
         let deadline =
             self.interval / u32::try_from(self.stations.len().max(1)).unwrap_or(u32::MAX);
@@ -124,9 +130,16 @@ impl<C: Connect + Sync> Collector<C> {
         let mut clock = Clock::new(self.stations.len());
         loop {
             let at = start + self.interval.saturating_mul(tick);
-            tokio::select! {
-                () = tokio::time::sleep_until(at) => {}
-                () = shutdown(&mut control) => return,
+            // No round runs here, so a request runs at once; one that arrives
+            // during a round waits in the channel for its end (§R3).
+            loop {
+                tokio::select! {
+                    () = tokio::time::sleep_until(at) => break,
+                    () = shutdown(&mut control) => return,
+                    Some(request) = self.commands.recv() => {
+                        self.execute(request, &failures, deadline, &mut control).await;
+                    }
+                }
             }
             let stations = self.stations.iter().zip(&mut failures).zip(&mut hours);
             for (i, ((target, failed), hour)) in stations.enumerate() {

@@ -177,7 +177,7 @@ delegated defaults the owner accepted).
   enabled + listed builds with the right switch. — check: the new tests red
   then green, `make check`.
 
-- [ ] 8. Collector executes commands between rounds (`spec §R3`, `spec §5.4`,
+- [x] 8. Collector executes commands between rounds (`spec §R3`, `spec §5.4`,
   golden rule #5): `Collector` gains `commands: mpsc::Receiver<Request>`; the
   tick `select!` gains a branch that receives a request and runs it at once
   (no round is in progress then); requests arriving during a round wait for
@@ -426,3 +426,13 @@ delegated defaults the owner accepted).
   only: `set_output` and `switches()` are `pub`, so `set_output(gatt, &switches(model)[0], …)` compiles without a
   `Command`. Reword the doc, and the reviews of steps 8, 9 and 13b check every `set_output` call takes
   `command.switch()` (or `set_output` takes `&Command`) · disposition: open
+- A8 · 2026-11-10 · MEDIUM `src/collector/tests/control.rs:76` (step-8 review M1) — no test reaches `failures[i] >=
+  UNREACHABLE_AFTER`, and no test asserts the `retry` field of `opens`, so "retry per the station's failure count" and the
+  index into `failures` are unchecked. Add a request to a station past 3 misses (`opens.last()` has `retry == false`, no
+  write) and assert `retry == true` in the between-rounds test · disposition: open
+- A9 · 2026-11-10 · MEDIUM `src/collector/control.rs:97` (step-8 review M2) — commands call `connect.open` once; polls retry
+  a failed key exchange once on a fresh connection (A23). §R3 says "the station's normal retry". Share the handshake-retry
+  block between `poll` and the command path, or state in §R3 that commands skip it · disposition: open
+- A10 · 2026-11-10 · MEDIUM `src/collector/control.rs:78-80` (step-8 review M3) — the release-by-address branch of a command
+  (deadline or shutdown mid-write) has no test. Add one: open, then a stalled read-back; `Err` names the poll deadline,
+  `releases == 1`, `live == None`, the next round opens · disposition: open

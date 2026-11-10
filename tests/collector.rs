@@ -197,6 +197,7 @@ async fn replayed_rounds_land_samples_failures_and_unreachable() {
         interval: INTERVAL,
         policy: policy(),
         records: tx,
+        commands: mpsc::channel(1).1,
     };
     let (control, watch_rx) = watch::channel(Control::Run);
     let collecting = tokio::spawn(collector.run(watch_rx));

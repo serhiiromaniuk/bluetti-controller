@@ -45,6 +45,8 @@ struct State {
     opens: Vec<(String, bool, u64)>,
     disconnects: usize,
     releases: usize,
+    /// Every 0x06 write frame, as sent.
+    writes: Vec<Vec<u8>>,
 }
 
 #[derive(Clone)]
@@ -130,6 +132,13 @@ impl Connect for Fake {
 impl Gatt for FakeGatt {
     /// Queues a Modbus reply to a read request: every register `fill`.
     async fn write(&mut self, data: &[u8]) -> Result<(), TransportError> {
+        if data[1] == 0x06 {
+            self.state.lock().unwrap().writes.push(data.to_vec());
+            // The echo; the read-back then holds the written value.
+            self.fill = Some(u16::from_be_bytes([data[4], data[5]]));
+            self.replies.push_back(data.to_vec());
+            return Ok(());
+        }
         let Some(fill) = self.fill else {
             return Ok(());
         };
@@ -222,6 +231,8 @@ fn collector_of(
             backoff: Duration::ZERO,
         },
         records,
+        // The sender is dropped: no requests unless a test swaps in its own.
+        commands: mpsc::channel(1).1,
     };
     (collector, state, rx)
 }
@@ -493,6 +504,7 @@ fn a_clock_stepped_back_still_gives_each_station_a_new_ts() {
     assert_eq!(ts, [0, 0, 1, 1, 2]);
 }
 
+mod control;
 mod retry;
 mod snapshot;
 
