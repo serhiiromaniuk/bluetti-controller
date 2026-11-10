@@ -144,3 +144,52 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 3 ✓ 2026-11-10 — config: `password_hash`, `allowed_hosts`, Q7 rules, mode warning
+
+**Changed:**
+- `src/config/web.rs` (new): `WebConfig` moved here with `password_hash: Option<String>` and
+  `allowed_hosts: Vec<String>` (`serde(default)`); `validate(control_enabled)` holds every `[web]` rule:
+  empty token, hash must be an argon2id PHC string with salt, tag and argon2-valid params (stricter than
+  "parses as PHC": any other string never verifies at login), non-loopback listen ⇒ hash, `control.enabled`
+  ⇒ token and hash, each `allowed_hosts` entry `[A-Za-z0-9.-]+`. No error quotes the token or the hash.
+  `Debug` prints `password_hash: <set>`. PHC type path in argon2 0.6: `password_hash::phc::PasswordHash`.
+- `src/config/mode.rs` (new): `warn_loose` — one `warn!` when `mode & 0o027 != 0` (amendment 2026-11-10);
+  an unstattable file stays silent (its reader reports it). `load` calls it for the config and `keys_file`.
+  `main.rs` initialises tracing before `config::load` (L39–47), so no warning list is returned.
+- `src/config.rs`: `mod web; mod mode; pub use web::WebConfig`; web tests moved out; 395 → 335 lines.
+- `config.example.toml`: `listen = "127.0.0.1:8080"`, LAN form, `password_hash`, `allowed_hosts` commented;
+  `[control]` note names both keys.
+
+**Check:** `cargo test --lib config` — 6 failed first against a no-op `validate` / `None` `loose_mode`
+(hash, LAN listener, hosts, token, control, mode), then 28/28 green. Test hash is `hash-password` of `"test"`.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM (INTENT: satisfied). Stricter hash check judged in scope (also
+covers step 2's note on hand-edited params). Known risk restated: the homelab's LAN listener fails fast
+until the owner adds `password_hash` — step 10 upgrade note, deploy stays the owner's.
+
+**Carry-forward:** none
+**Next:** step 4 — session store + lockout.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:03:53Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

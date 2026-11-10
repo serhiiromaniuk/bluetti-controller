@@ -16,13 +16,20 @@ raw_retention_days = 30
 
 [web]
 # `serve` serves the status page `/`, `/telemetry`, the JSON API, `/events`
-# (SSE) and `/healthz` here. Bind to a LAN address only (ROADMAP.md §8.3): GET
-# has no auth, and the host firewall must block other networks.
-listen = "0.0.0.0:8080"
-# Optional bearer token for POST /api/polling/pause. Unset: the POST is open
-# (it only pauses polling for up to 60 min, never writes to a station). Set: a
-# non-empty string, sent as `Authorization: Bearer <token>`; never commit it.
-# Required when `control.enabled = true`, and for schedule edits in the UI.
+# (SSE) and `/healthz` here (ROADMAP.md §8). Loopback needs no login (dev
+# mode). The LAN form needs `password_hash`; the host firewall must still
+# block other networks.
+listen = "127.0.0.1:8080"
+# listen = "0.0.0.0:8080"
+# The owner login: an argon2id PHC string from `bluetti-controller
+# hash-password` (reads the password from stdin). Never commit it.
+# password_hash = "$argon2id$v=19$m=19456,t=2,p=1$…"
+# DNS names the server may be reached by (Host rule); IP literals and
+# `localhost` need none.
+# allowed_hosts = ["ideapad.lan"]
+# Optional bearer token for scripts, sent as `Authorization: Bearer <token>`;
+# a non-empty string, never committed. Required when `control.enabled = true`,
+# and for schedule edits in the UI.
 # token = "change-me"
 
 [ble]
@@ -46,8 +53,8 @@ usable_capacity_factor = 0.85
 
 [control]
 enabled = false                    # RULES.md golden rule #2 — never default true
-# `true` (owner only) needs `web.token`. AC/DC output control and its daily
-# schedule are driven from the web UI; there is no config block for either.
+# `true` (owner only) needs `web.token` and `web.password_hash`. AC/DC
+# output control and its daily schedule are driven from the web UI; there is no config block for either.
 
 [[station]]
 name = "router"

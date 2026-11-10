@@ -5,7 +5,6 @@
 
 use std::collections::HashSet;
 use std::fmt;
-use std::net::SocketAddr;
 use std::num::{NonZeroU32, NonZeroU64};
 use std::path::{Path, PathBuf};
 
@@ -16,6 +15,10 @@ use serde::{Deserialize, Deserializer};
 use crate::protocol::device::Model;
 
 mod keys;
+mod mode;
+mod web;
+
+pub use web::WebConfig;
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -48,30 +51,6 @@ pub struct GeneralConfig {
 pub struct StorageConfig {
     pub path: PathBuf,
     pub raw_retention_days: NonZeroU32,
-}
-
-/// `Debug` hides the token (golden rule #3).
-#[derive(Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct WebConfig {
-    pub listen: SocketAddr,
-    /// Bearer token for POST endpoints. Unset = the POST is open (ROADMAP.md
-    /// §9, §8.4 h); an empty token is rejected at load.
-    pub token: Option<String>,
-}
-
-impl fmt::Debug for WebConfig {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let token = if self.token.is_some() {
-            "<set>"
-        } else {
-            "None"
-        };
-        f.debug_struct("WebConfig")
-            .field("listen", &self.listen)
-            .field("token", &format_args!("{token}"))
-            .finish()
-    }
 }
 
 /// BLE adapter and timing (golden rule #5: every GATT operation is bounded).
@@ -169,7 +148,12 @@ fn timezone_from_str<'de, D: Deserializer<'de>>(de: D) -> Result<TimeZone, D::Er
 pub fn load(path: &Path) -> anyhow::Result<Config> {
     let text = std::fs::read_to_string(path)
         .with_context(|| format!("cannot read config file {}", path.display()))?;
-    parse(&text).with_context(|| format!("invalid config file {}", path.display()))
+    let config = parse(&text).with_context(|| format!("invalid config file {}", path.display()))?;
+    mode::warn_loose(path, "config file");
+    if let Some(crypto) = &config.crypto {
+        mode::warn_loose(&crypto.keys_file, "crypto.keys_file");
+    }
+    Ok(config)
 }
 
 /// Parses and validates config text.
@@ -194,18 +178,7 @@ impl Config {
                 );
             }
         }
-        if self
-            .web
-            .token
-            .as_deref()
-            .is_some_and(|t| t.trim().is_empty())
-        {
-            bail!("web.token must not be empty; remove it to leave the POST open");
-        }
-        // A write to a station is not a pause: no open write route (ROADMAP.md §9).
-        if self.control.enabled && self.web.token.is_none() {
-            bail!("control.enabled = true requires web.token to be set");
-        }
+        self.web.validate(self.control.enabled)?;
         let m = &self.metrics;
         if !(m.usable_capacity_factor > 0.0 && m.usable_capacity_factor <= 1.0) {
             bail!("metrics.usable_capacity_factor must be in (0, 1]");
@@ -244,7 +217,6 @@ mod tests {
         assert_eq!(config.stations.len(), 3);
         assert_eq!(config.stations[0].model, Model::Eb3a);
         assert_eq!(config.stations[2].model, Model::Elite200V2);
-        assert_eq!(config.web.token, None);
     }
 
     #[test]
@@ -304,14 +276,8 @@ mod tests {
     }
 
     #[test]
-    fn debug_masks_address_and_token() {
-        let mut config = parse(EXAMPLE).unwrap();
-        assert!(!format!("{config:?}").contains("DD:EE:01"));
-        config.web.token = Some("s3cret-token".into());
-        let debug = format!("{config:?}");
-        assert!(!debug.contains("s3cret-token"), "{debug}");
-        assert!(debug.contains("token: <set>"), "{debug}");
-        assert!(format!("{:?}", parse(EXAMPLE).unwrap().web).contains("token: None"));
+    fn debug_masks_address() {
+        assert!(!format!("{:?}", parse(EXAMPLE).unwrap()).contains("DD:EE:01"));
     }
 
     #[test]
@@ -359,32 +325,6 @@ mod tests {
             err.contains("general.timezone") && err.contains("Mars/Base"),
             "{err}"
         );
-    }
-
-    #[test]
-    fn rejects_empty_token() {
-        for token in ["\"\"", "\"  \""] {
-            let text = EXAMPLE.replace("# token = \"change-me\"", &format!("token = {token}"));
-            assert_ne!(text, EXAMPLE);
-            assert!(error_of(&text).contains("web.token"), "{token}");
-        }
-        let text = EXAMPLE.replace("# token = \"change-me\"", "token = \"t\"");
-        assert_eq!(parse(&text).unwrap().web.token.as_deref(), Some("t"));
-    }
-
-    #[test]
-    fn control_needs_token() {
-        let enabled = EXAMPLE.replace("enabled = false ", "enabled = true ");
-        assert_ne!(enabled, EXAMPLE);
-        let err = error_of(&enabled);
-        assert!(
-            err.contains("control.enabled") && err.contains("web.token"),
-            "{err}"
-        );
-        let with_token = enabled.replace("# token = \"change-me\"", "token = \"t\"");
-        let config = parse(&with_token).unwrap();
-        assert!(config.control.enabled);
-        assert_eq!(config.web.token.as_deref(), Some("t"));
     }
 
     #[test]

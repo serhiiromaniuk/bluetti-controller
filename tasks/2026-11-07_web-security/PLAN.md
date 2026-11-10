@@ -122,7 +122,7 @@ None is pending; no step is blocked.
   carries `m=19456,t=2,p=1`. — check: the new tests red then green, `make
   check`; `cargo tree -e normal -i argon2` shows no GPL crate.
 
-- [ ] 3. Config (`spec §9`; risky — validation): `WebConfig` gains
+- [x] 3. Config (`spec §9`; risky — validation): `WebConfig` gains
   `password_hash: Option<String>` and `allowed_hosts: Vec<String>` (default
   empty). Validation moves into a new `src/config/web.rs` (keeps `config.rs`
   ≤ ~400 lines): `password_hash` must parse as a PHC string (`argon2::
