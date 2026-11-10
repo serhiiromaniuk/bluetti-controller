@@ -185,6 +185,34 @@ mod tests {
     }
 
     #[test]
+    fn rejects_other_hash_kinds_hostile_hosts_and_unknown_keys() {
+        // Security suite type 1 (step 10a): the wrong argon2 variant, params
+        // argon2 refuses, a look-alike host name and a misspelt key.
+        for bad in [
+            "$argon2i$v=19$m=19456,t=2,p=1$XYoC+IyxSMsuKhoGWisQFA$FYfUAw0rj87Ga04AeeadC8HcSCwM0Q++Dl9U0gVQ67w",
+            "$argon2d$v=19$m=19456,t=2,p=1$XYoC+IyxSMsuKhoGWisQFA$FYfUAw0rj87Ga04AeeadC8HcSCwM0Q++Dl9U0gVQ67w",
+            "$argon2id$v=19$m=1,t=2,p=1$XYoC+IyxSMsuKhoGWisQFA$FYfUAw0rj87Ga04AeeadC8HcSCwM0Q++Dl9U0gVQ67w",
+            "$argon2id$v=19$m=19456,t=2,p=1$XYoC+IyxSMsuKhoGWisQFA",
+        ] {
+            let text = with(LISTEN, &format!("{LISTEN}\npassword_hash = \"{bad}\""));
+            assert!(error_of(&text).contains("web.password_hash"), "{bad}");
+        }
+        for bad in [
+            "\"ideapad_lan\"",
+            "\"\u{0456}deapad.lan\"",
+            "\"ideapad.lan\\u0000\"",
+        ] {
+            let text = with(
+                "# allowed_hosts = [\"ideapad.lan\"]",
+                &format!("allowed_hosts = [{bad}]"),
+            );
+            assert!(error_of(&text).contains("web.allowed_hosts"), "{bad}");
+        }
+        let text = with(LISTEN, &format!("{LISTEN}\npasword_hash = \"{HASH}\""));
+        assert!(error_of(&text).contains("pasword_hash"));
+    }
+
+    #[test]
     fn rejects_empty_token() {
         for token in ["\"\"", "\"  \""] {
             let text = with("# token = \"change-me\"", &format!("token = {token}"));

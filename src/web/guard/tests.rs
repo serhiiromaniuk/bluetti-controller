@@ -71,6 +71,21 @@ async fn send_all(
     replies
 }
 
+/// Serves `state`, runs `client` off the runtime against its address, then
+/// stops the server.
+async fn with_server<T: Send + 'static>(
+    state: &Arc<AppState>,
+    client: impl FnOnce(std::net::SocketAddr) -> T + Send + 'static,
+) -> T {
+    let (addr, stop, server) = start_shared(Arc::clone(state)).await;
+    let out = tokio::task::spawn_blocking(move || client(addr))
+        .await
+        .unwrap();
+    stop.send(()).unwrap();
+    server.await.unwrap().unwrap();
+    out
+}
+
 fn concrete(path: &str) -> String {
     path.replace("{name}", "app.js")
 }
@@ -393,3 +408,9 @@ async fn every_response_carries_the_security_headers() {
         );
     }
 }
+
+// Step 10a.2 (amendment A10): the negative, exploit and boundary suites.
+mod boundary;
+mod exploits;
+mod login_exploits;
+mod negative;

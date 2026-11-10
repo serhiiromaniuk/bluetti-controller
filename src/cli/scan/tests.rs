@@ -66,3 +66,23 @@ fn printable_replaces_every_bidi_control() {
         assert_eq!(super::super::printable(&text), text);
     }
 }
+
+#[test]
+fn a_hostile_advertised_name_cannot_drive_the_terminal() {
+    // Security suite type 2 (step 10a): a station name is attacker input to
+    // `scan`. OSC 8 hyperlink, OSC 0 title, clear screen, the C1 CSI and a
+    // right-to-left override that would show `exe.txt` as `txt.exe`.
+    for (name, shown) in [
+        (
+            "\x1b]8;;http://evil.example\x1b\\EB3A\x1b]8;;\x1b\\",
+            "\u{fffd}]8;;http://evil.example\u{fffd}\\EB3A\u{fffd}]8;;\u{fffd}\\",
+        ),
+        ("\x1b]0;pwned\x07EB3A", "\u{fffd}]0;pwned\u{fffd}EB3A"),
+        ("\x1b[2J\x1b[HEB3A", "\u{fffd}[2J\u{fffd}[HEB3A"),
+        ("\u{9b}31mEB3A", "\u{fffd}31mEB3A"),
+        ("EB3A\u{202e}txt.exe", "EB3A\u{fffd}txt.exe"),
+        ("EB3A\u{2066}x\u{2069}", "EB3A\u{fffd}x\u{fffd}"),
+    ] {
+        assert_eq!(super::super::printable(name), shown, "{name:?}");
+    }
+}

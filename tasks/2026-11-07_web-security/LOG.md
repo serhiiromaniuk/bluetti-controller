@@ -563,3 +563,56 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10a.2 ✓ 2026-11-10 — security suite types 1–3: negative, exploit catalogue, boundary (A10)
+**Changed:** tests only, no production code.
+- `src/web/guard/tests/{negative,exploits,login_exploits,boundary}.rs` (new), mounted from `guard/tests.rs`
+  (+ `with_server` helper). `src/config/web.rs`: 1 config test. `src/cli/scan/tests.rs`: 1 terminal test.
+- Through the real `router()` over a raw socket (hyper's parser), not `tower::oneshot`: no new dev-dependency,
+  and duplicate `Host`, absolute-form and non-UTF-8 bytes only exist below `http::Request`.
+- One test fn per attack family, one labelled row per attack (a failure names the row).
+**Types and counts** (tests / rows):
+- (1) negative — 7 / 45: cookie 14 (missing, empty, malformed, forged, case, ±1 char, name tricks, first cookie
+  decides), bearer 12 (`Bearer`, `bearer x`, two spaces, Basic, two headers…), no token 3, expired, logged
+  out, page redirect 3; config 8 (argon2i/argon2d/bad params/no tag, `_`/Cyrillic/NUL host, misspelt key).
+- (2) exploit — 15 / 141: path 15, method 10, CSRF 13 (incl. forced logout), rebinding 14, absolute-form and
+  missing Host 3, NUL/non-UTF-8 bytes 5, hostile spans and `days` 36; `next` 12 × login on/off, double-encoded
+  `next` 3, markup in `next` 1, fixation 2, spoofed-header brute force 1, oversized 2, form bytes 6;
+  advertised-name escapes 6 (OSC 8, OSC 0, CSI 2J, C1 CSI, U+202E, U+2066/9).
+  Already covered, not repeated: 10-way flood (verifies 5), lock refuses the right password, A3 dropped futures.
+- (3) boundary — 4 / 21: 4 failures no lock then 5 lock; lock 59 s/60 s; session TTL −1 s/0/+1 s; span cap ±1,
+  `from == to`, `from = -1`, `days` 1/30.
+**Check:** failure-first by mutation — 7 hand mutants, each run against the new suites, sources restored:
+- `same_origin` always true → CSRF test red; Host rule always true → rebinding + absolute-form red;
+  `safe_next` identity → 3 `next` tests red; lockout `>=`→`>` → 2 boundary red; session expiry `>`→`>=` →
+  TTL + expired red; lock end `<`→`<=` → lock-window red; bearer without scheme → bearer test red.
+- First run found two test bugs (HTTP/1.0 status line; `/api/chart` refuses < 1 min windows) — test fixes,
+  no product defect found. `make check` green.
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 2 MEDIUM; raw socket instead of `oneshot` accepted
+- M1 `exploits.rs:316`: the 10 `/api/series?station=x` span rows passed via "unknown station" too → fixed
+  before the commit (assert the 400 is not "unknown station"); red with `window()`'s checks disabled.
+- M2 LOG row totals did not match the itemised rows → fixed: recounted from source (47→45, 151→141, 18→21).
+**Next:** 10a.3 — types 4–6 (property-style, secret hygiene, headers on every response class).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T18:24:59Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
