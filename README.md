@@ -66,11 +66,51 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 | GET | `/api/energy?days=7` | daily energy per station and house outage totals |
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |
 | POST | `/api/polling/pause?minutes=N` | `N` 1..=60 pauses, 0 resumes; `Authorization: Bearer` when `web.token` is set |
+| POST | `/api/control/output?station=&output=ac\|dc&state=on\|off` | switch one output (bearer); `200` with the read-back state |
+| GET | `/api/schedule` | every schedule entry: `{station, output, on, off}` |
+| POST | `/api/schedule?station=&output=&on=HH:MM&off=HH:MM` | set one entry (bearer, `web.token` set); `202` |
+| DELETE | `/api/schedule?station=&output=` | remove one entry (bearer, `web.token` set); `202` |
 | GET | `/healthz` | `{"status":"ok","last_poll_age_s":…}` |
 
 `metric` is a register key such as `battery_soc` or `ac_output_power`
 (`/telemetry` lists them). A bad parameter answers `400` with
 `{"error": "…"}`. Details: ROADMAP.md §8.
+
+## Control (AC/DC outputs, R3 slice 1)
+
+Switch a station's AC or DC output on and off, by hand or on a daily schedule.
+Code only so far: no write has reached a real station yet, and every output
+register is `verified: false` until the owner's hardware checks H14–H17 in
+[`HUMAN-CHECKLIST.md`](HUMAN-CHECKLIST.md). Design: ROADMAP.md ADR-010, §4.3
+"Write allow-list", §8.2, R3.
+
+- **Off by default.** Nothing is written unless `[control] enabled = true`
+  (owner only, RULES.md golden rule #2). Only the output switches in
+  `src/protocol/control.rs` can ever be written: EB3A 3007 AC / 3008 DC, AC180
+  2011 AC / 2012 DC. The Elite 200 V2 has none until H16 confirms its pair.
+- **Token.** `control.enabled = true` without `web.token` fails at startup.
+  Every control POST and every schedule edit needs `Authorization: Bearer
+  <token>`; schedule edits need `web.token` set even while control is off.
+- **Control panel.** Each station card on `/` has one row per allowed output: a
+  toggle that shows the last known state ("—" when unknown) and the read-back
+  after a click, and the output's daily `on` / `off` times (`HH:MM`,
+  `general.timezone`, either optional) with Save and Clear. The bearer comes
+  from the pause form's token field. With control disabled the toggles are
+  greyed out and the schedule does not run; the times stay editable.
+- **Missed runs: catch up, once.** Every 60 s the service applies each
+  output's latest due time (today's or yesterday's) unless it already ran. A
+  restart or a host that was off never repeats or drops a run: the latest due
+  state is applied when the service next runs. A new entry (or enabling
+  control) applies its latest due state at once — e.g. "off 23:00" saved at
+  23:30 switches the output off within a minute. A failed run is retried each
+  minute, at most 10 times per due slot; a pause does not count.
+- **No protected outputs** (owner's choice): the router's outlet can be
+  switched off from the LAN, and then only the station's button turns it on.
+- **CLI `set`, for the hardware checks.** `bluetti-controller --config
+  config.toml set router ac off` takes a config station name, checks the gate
+  first, then opens its own BLE session and prints the read-back. With `serve`
+  running on the same host, **pause polling first**: the two would fight for
+  the link, and the service refuses commands while paused.
 
 ## Deploy
 

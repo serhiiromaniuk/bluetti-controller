@@ -1674,19 +1674,23 @@ RSS ≤ 50 MB, status page and every API route ≤ 1 s on LAN, `make check` gree
 
 ### R3 — Device control (post-MVP)
 
-- [ ] Write path (0x06) with an allow-list per model; `control.enabled` +
+- [x] Write path (0x06) with an allow-list per model; `control.enabled` +
       mandatory token (golden rule #2). *(slice 1)*
 - [ ] Confirm write frames for encrypted stations (bt PR #59 / forks).
       *(HUMAN-CHECKLIST H14–H16)*
-- [ ] UI toggles: AC/DC output. *(slice 1)*
-- [ ] Daily `on`/`off` schedule per station output, edited in the UI.
+- [x] UI toggles: AC/DC output. *(slice 1)*
+- [x] Daily `on`/`off` schedule per station output, edited in the UI.
       *(slice 1)*
-- [ ] CLI `set <station> ac|dc on|off` for the hardware checks. *(slice 1)*
+- [x] CLI `set <station> ac|dc on|off` for the hardware checks. *(slice 1)*
 - [ ] UI toggle: charging mode.
 - [ ] Schedule-aware charging: Turbo before a planned outage when SOC < 100%,
       Silent otherwise.
 - [ ] Staggered charging after the grid returns (one station in Turbo at a time,
       keeps the total under the 16 A breaker).
+
+Slice 1 boxes are ticked for the code (task `2026-11-07_r3-control-schedule`,
+tests with fake transports). Every switch stays `verified: false` and no write
+has reached a real station until H14–H17 pass.
 
 **Slice 1 runtime rules (2026-11-10, ADR-010; owner answers Q1–Q5 of task
 `2026-11-07_r3-control-schedule`).**

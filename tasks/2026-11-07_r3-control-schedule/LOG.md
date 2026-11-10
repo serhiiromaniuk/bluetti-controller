@@ -544,3 +544,55 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 14 ✓ 2026-11-10 — docs batch + close evidence
+
+**Changed:** `README.md` "Control" section (off by default + allow-list, token rule, control
+panel, missed-run catch-up incl. A5's "a past-due new entry fires at once", no protected outputs,
+CLI `set` + pause-first) and 4 rows in the API table; `HUMAN-CHECKLIST.md` H14–H17 (H16 starts
+with a read-only `dump living-room --from 2011 --to 2012`, A2); `ROADMAP.md` R3: the 4 slice-1
+boxes ticked, a note that every switch stays `verified: false` until H14–H17.
+**Done-when → tests:**
+- 2 (disabled refuses everywhere): `control::tests::disabled_refuses_every_station_and_output`,
+  `config::control_defaults_to_disabled` (7); `cli::set::tests::a_disabled_config_is_refused_before_ble`
+  (9); `web::control::tests::disabled_control_is_403_and_sends_nothing` (10);
+  `control::schedule::tests::disabled_control_sends_nothing` (13b).
+- 3 (enabled + fake sends 0x06, reads back): `transport::write::tests::echo_and_read_back_return_the_state`,
+  `off_writes_zero_and_reads_back_zero` (6); `collector::tests::control::a_request_between_rounds_writes_once_and_reads_back`
+  (8); `cli::set::tests::apply_writes_the_switch_and_returns_the_read_back` (9, `ReplayGatt`);
+  `web::control::tests::an_allowed_request_returns_the_read_back` (10);
+  `control::schedule::tests::a_due_entry_sends_one_request_and_one_run_record` (13b).
+- 4 (restart neither repeats nor drops): `store::writer::tests::schedule::set_run_update_and_delete`,
+  `store::schema::tests::version_1_file_migrates_to_2_and_keeps_its_rows` (5);
+  `control::schedule::tests::restart_after_a_missed_off_is_due_once`, `restart_after_a_recorded_run_is_not_due`,
+  `both_missed_applies_only_the_latest` (13a).
+- 5: H14–H17 rows + README section (this step). 6: gate block below (coverage line).
+**Check:** doc-only; `make loop-hygiene` OK; `make check` via step-done.
+**Reviewer (batch, before the push):** INTENT satisfied · 0 CRITICAL / 0 HIGH / 2 MEDIUM; 16 cited
+test names exist, doc facts checked against code. M1 (README example `set router ac off` cuts the
+router) → A14; M2 (README missed-run bullet drops "latest slot only" and "cap per service run") → A15.
+**Decision:** none. **Carry-forward:** none.
+**Next:** task close (`make amendments`, OUTCOME.md, close-reviewer).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:41:11Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -301,7 +301,7 @@ delegated defaults the owner accepted).
   `control.enabled = false` sends nothing. — check: the new tests red then
   green, `make check`.
 
-- [ ] 14. Docs batch + close evidence: README "Control" section (enable rule,
+- [x] 14. Docs batch + close evidence: README "Control" section (enable rule,
   token rule, the control panel: toggle + times per output, the missed-run
   rule, `set` for hardware checks, the pause-first rule, every register
   `verified: false`, Q4: no protected outputs); `HUMAN-CHECKLIST.md` rows H14
@@ -448,3 +448,9 @@ delegated defaults the owner accepted).
   pruned, so an entry deleted and re-added (new row, `last_due = NULL`) inherits the old slot: off 23:00 runs, at 23:30 the
   owner re-adds `on 08:00` only, and today's 08:00 slot (older than 23:00) is never applied. Keep only keys present in the
   read and drop a key once the row's `last_due` ≥ it; test delete + re-insert then tick sends · disposition: open
+- A14 · 2026-11-10 · MEDIUM `README.md` Control "CLI `set`" bullet (step-14 review M1) — the example `set router ac off`
+  switches off the EB3A AC outlet that powers the router (Q4), contradicting H14's "a lamp, not the router". Use
+  `set router dc on` in the example · disposition: open
+- A15 · 2026-11-10 · MEDIUM `README.md` Control "Missed runs" bullet (step-14 review M2) — omits that only the latest due
+  slot is applied (a missed `on` then a missed `off` applies `off` only) and that the 10-failure cap is per service run
+  (a restart retries the slot), both stated in ROADMAP §R3 · disposition: open
