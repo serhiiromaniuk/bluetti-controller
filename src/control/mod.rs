@@ -18,8 +18,9 @@ pub enum Refused {
     NotAllowed { model: Model, output: Output },
 }
 
-/// One allowed output switch request. Private fields, one constructor: the
-/// gate cannot be skipped.
+/// One allowed output switch request. Private fields, one constructor. The
+/// gate holds by convention: `set_output` and `switches` are public, so every
+/// caller must pass `command.switch()` (collector, CLI `set`, scheduler).
 #[derive(Debug)]
 pub struct Command {
     station: String,

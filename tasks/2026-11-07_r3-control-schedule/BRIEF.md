@@ -46,18 +46,18 @@ blocks device control; golden rule #2 governs every write.
 - Notifications, multi-user auth, cloud.
 
 ## Done when
-- [ ] ROADMAP.md holds the R3 control + schedule decision (registers, frames,
+- [x] ROADMAP.md holds the R3 control + schedule decision (registers, frames,
       allow-list, schedule format, missed-run rule, auth) — doc section filled
-- [ ] With `control.enabled = false` (default) no code path builds or sends a
+- [x] With `control.enabled = false` (default) no code path builds or sends a
       write frame: tests prove CLI, web and scheduler all refuse (`make check`)
-- [ ] With control enabled and a fake transport: manual CLI, web toggle and a
+- [x] With control enabled and a fake transport: manual CLI, web toggle and a
       scheduled run each send the right 0x06 frame and read back the state
       (`make check`)
-- [ ] A restart around a scheduled time neither repeats nor silently drops a run:
+- [x] A restart around a scheduled time neither repeats nor silently drops a run:
       test green (`make check`)
-- [ ] `HUMAN-CHECKLIST.md` lists the hardware checks for each station; README /
+- [x] `HUMAN-CHECKLIST.md` lists the hardware checks for each station; README /
       config example document how to use it
-- [ ] `make check` green; `src/protocol/` coverage ≥ 80%
+- [x] `make check` green; `src/protocol/` coverage ≥ 80%
 
 ## References
 - Governing spec: `ROADMAP.md`

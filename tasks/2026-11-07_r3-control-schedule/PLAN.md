@@ -404,53 +404,53 @@ delegated defaults the owner accepted).
   Step 1's `spec §8.2` states the rule. Does not depend on the web-security task landing first.
 - A1 · 2026-11-07 · MEDIUM `PLAN.md` step 12 vs `tasks/2026-11-07_web-security/PLAN.md` step 7 — R3's panel reads
   the bearer from the pause form's token field, which web-security step 7 removes. Step 12 sends the bearer only
-  when that field exists and is non-empty, so either task order works (web-security A1 covers its side) · disposition: open
+  when that field exists and is non-empty, so either task order works (web-security A1 covers its side) · disposition: fixed in a9f2abc (`templates/status.html`: bearer sent only when the token field exists and is set)
 - A2 · 2026-11-07 · MEDIUM `PLAN.md` step 1 (`spec §4.3`), BRIEF :26-27 — the Elite 200 V2's 2011/2012 write and
   read-back are extrapolated from the AC180 / V2 base map; ROADMAP §4.3 has no Elite source. Step 1 marks the Elite
   pair `verified: false` with that source, and the Elite stays out of `switches()` until H16 confirms the pair, so no
-  read-back failure can make the scheduler resend a write up to 10 times per slot · disposition: open
+  read-back failure can make the scheduler resend a write up to 10 times per slot · disposition: fixed in 20e8d1d (`switches(Elite200V2)` is empty until H16)
 - A3 · 2026-11-10 · MEDIUM `tasks/2026-10-27_ble-reliability/BUG-station-ble-invisible.md:100-101` (batch review of a650183) —
   the verdict's "(fewer aborted connects, no burst before it)" is unsupported: the journal was not read (line 92) and
-  daily misses rose to 30/47/51. Delete the clause or mark the abort count unknown · disposition: open
+  daily misses rose to 30/47/51. Delete the clause or mark the abort count unknown · disposition: fixed in the close commit (`docs(docs): close R3 output control + schedule task`)
 - A4 · 2026-11-10 · MEDIUM `tasks/2026-10-27_ble-reliability/BUG-station-ble-invisible.md:97` (batch review of a650183) —
   "Station uptime … 47 h (10-25)" is time since adverts resumed on 10-23 10:19 (~46 h), not a power-on; relabel or
-  drop it · disposition: open
+  drop it · disposition: fixed in the close commit (`docs(docs): close R3 output control + schedule task`)
 - A5 · 2026-11-10 · MEDIUM `ROADMAP.md` §R3 "Scheduler" + §8.2 panel (step-1 review M1) — a new entry has `last_due = NULL`,
   so saving a single past-due time (e.g. "router AC off 23:00" saved at 23:30) switches the output within 60 s while
   control is enabled, and with no `on` time nothing turns it back on. State it in the panel note / ADR-010, or ask the
-  owner to refine Q3 (seed `last_due` on first save so an entry fires from its next slot) · disposition: open
+  owner to refine Q3 (seed `last_due` on first save so an entry fires from its next slot) · disposition: fixed in 0c7ef3b (ROADMAP §R3: a new entry applies its latest due state at once) and 24533c2 (README example)
 - A6 · 2026-11-10 · MEDIUM `PLAN.md` step 12 (step-1 review M2) — step 12's "an AC row and a DC row" and its test "both rows
   for every station" contradict spec §8.2 / §4.3 (A2): rows only for outputs in `switches(model)`, none for the Elite until
-  H16. Step 12 renders and tests rows per `switches(model)` · disposition: open
+  H16. Step 12 renders and tests rows per `switches(model)` · disposition: fixed in a9f2abc (rows per `switches(model)`, test with the Elite's empty panel)
 - A7 · 2026-11-10 · MEDIUM `src/control/mod.rs:20` (group B review M1) — "the gate cannot be skipped" holds by convention
   only: `set_output` and `switches()` are `pub`, so `set_output(gatt, &switches(model)[0], …)` compiles without a
   `Command`. Reword the doc, and the reviews of steps 8, 9 and 13b check every `set_output` call takes
-  `command.switch()` (or `set_output` takes `&Command`) · disposition: open
+  `command.switch()` (or `set_output` takes `&Command`) · disposition: fixed in the close commit (`docs(docs): close R3 output control + schedule task`) — doc reworded; reviews of steps 8, 9, 13b found every `set_output` call takes `command.switch()`
 - A8 · 2026-11-10 · MEDIUM `src/collector/tests/control.rs:76` (step-8 review M1) — no test reaches `failures[i] >=
   UNREACHABLE_AFTER`, and no test asserts the `retry` field of `opens`, so "retry per the station's failure count" and the
   index into `failures` are unchecked. Add a request to a station past 3 misses (`opens.last()` has `retry == false`, no
-  write) and assert `retry == true` in the between-rounds test · disposition: open
+  write) and assert `retry == true` in the between-rounds test · disposition: re-targeted → `2026-11-10_r3-control-hardening`
 - A9 · 2026-11-10 · MEDIUM `src/collector/control.rs:97` (step-8 review M2) — commands call `connect.open` once; polls retry
   a failed key exchange once on a fresh connection (A23). §R3 says "the station's normal retry". Share the handshake-retry
-  block between `poll` and the command path, or state in §R3 that commands skip it · disposition: open
+  block between `poll` and the command path, or state in §R3 that commands skip it · disposition: re-targeted → `2026-11-10_r3-control-hardening`
 - A10 · 2026-11-10 · MEDIUM `src/collector/control.rs:78-80` (step-8 review M3) — the release-by-address branch of a command
   (deadline or shutdown mid-write) has no test. Add one: open, then a stalled read-back; `Err` names the poll deadline,
-  `releases == 1`, `live == None`, the next round opens · disposition: open
+  `releases == 1`, `live == None`, the next round opens · disposition: re-targeted → `2026-11-10_r3-control-hardening`
 - A11 · 2026-11-10 · MEDIUM `src/web/control.rs:151` (group C review M1) — a shutdown landing after the handler's
   `Control::Shutdown` check makes the collector answer `Err("shutting down")`, which the route maps to `502`, not §8.2's
   `503`. Type the collector's error (a `Shutdown` variant → 503) or re-check `Control::Shutdown` in the `Err` arm; test
-  a fake answering "shutting down" while control is `Shutdown` · disposition: open
+  a fake answering "shutting down" while control is `Shutdown` · disposition: re-targeted → `2026-11-10_r3-control-hardening`
 - A12 · 2026-11-10 · MEDIUM `templates/status.html:74-94` (step-12 review M1) — an auto-refresh during a control/schedule
   request swaps `#live`: the new row is enabled again (a second write can queue), the reply/error lands on detached
   elements, unsaved typed times are replaced. Keep a pending set keyed by station+output, ignore clicks on a pending
-  row, and on completion re-find the row by `data-station`/`data-output` before writing label and output · disposition: open
+  row, and on completion re-find the row by `data-station`/`data-output` before writing label and output · disposition: re-targeted → `2026-11-10_r3-control-hardening`
 - A13 · 2026-11-10 · MEDIUM `src/control/schedule.rs:161-169` (step-13b review M1) — the in-memory `applied` map is never
   pruned, so an entry deleted and re-added (new row, `last_due = NULL`) inherits the old slot: off 23:00 runs, at 23:30 the
   owner re-adds `on 08:00` only, and today's 08:00 slot (older than 23:00) is never applied. Keep only keys present in the
-  read and drop a key once the row's `last_due` ≥ it; test delete + re-insert then tick sends · disposition: open
+  read and drop a key once the row's `last_due` ≥ it; test delete + re-insert then tick sends · disposition: re-targeted → `2026-11-10_r3-control-hardening`
 - A14 · 2026-11-10 · MEDIUM `README.md` Control "CLI `set`" bullet (step-14 review M1) — the example `set router ac off`
   switches off the EB3A AC outlet that powers the router (Q4), contradicting H14's "a lamp, not the router". Use
-  `set router dc on` in the example · disposition: open
+  `set router dc on` in the example · disposition: fixed in the close commit (`docs(docs): close R3 output control + schedule task`)
 - A15 · 2026-11-10 · MEDIUM `README.md` Control "Missed runs" bullet (step-14 review M2) — omits that only the latest due
   slot is applied (a missed `on` then a missed `off` applies `off` only) and that the 10-failure cap is per service run
-  (a restart retries the slot), both stated in ROADMAP §R3 · disposition: open
+  (a restart retries the slot), both stated in ROADMAP §R3 · disposition: fixed in the close commit (`docs(docs): close R3 output control + schedule task`)

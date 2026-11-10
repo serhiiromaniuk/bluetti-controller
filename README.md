@@ -102,12 +102,14 @@ register is `verified: false` until the owner's hardware checks H14–H17 in
   restart or a host that was off never repeats or drops a run: the latest due
   state is applied when the service next runs. A new entry (or enabling
   control) applies its latest due state at once — e.g. "off 23:00" saved at
-  23:30 switches the output off within a minute. A failed run is retried each
-  minute, at most 10 times per due slot; a pause does not count.
+  23:30 switches the output off within a minute. Only the latest due slot is
+  applied: a missed `on` then a missed `off` applies `off` only. A failed run
+  is retried each minute, at most 10 times per due slot per service run (a
+  restart retries the slot); a pause does not count.
 - **No protected outputs** (owner's choice): the router's outlet can be
   switched off from the LAN, and then only the station's button turns it on.
 - **CLI `set`, for the hardware checks.** `bluetti-controller --config
-  config.toml set router ac off` takes a config station name, checks the gate
+  config.toml set router dc on` takes a config station name, checks the gate
   first, then opens its own BLE session and prints the read-back. With `serve`
   running on the same host, **pause polling first**: the two would fight for
   the link, and the service refuses commands while paused.

@@ -596,3 +596,42 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-11-10 — task done
+
+**Changed:** `make amendments` 15 open → all disposed. Fixed now: A3, A4 (BUG file), A7 (`src/control/mod.rs`
+doc: gate holds by convention), A14, A15 (README). Already fixed: A1, A6 (a9f2abc), A2 (20e8d1d), A5
+(0c7ef3b, 24533c2). A8–A13 re-targeted → new todo task `2026-11-10_r3-control-hardening` (BRIEF + INDEX row).
+OUTCOME.md written; BRIEF done-when 6/6 ticked; INDEX row done; STATE "Blocked?" names the next tasks.
+**Close-reviewer:** `VERDICT: close` · 0 CRITICAL / 0 HIGH / 1 MEDIUM · 0 TREE-CHANGED. Re-ran `make check`
+(EXIT 0, protocol 98.82%), all 16 cited tests pass; ran `set` (disabled → "control is disabled", exit 1, no
+BLE), control-enabled-without-token config rejected, `serve` with 0 stations (401/400/200 as spec'd).
+M1 (README/§R3 "new entry fires at once" false after delete + re-add until A13) → OUTCOME Pending.
+**Reviewer (close fixes, before the push):** INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM; all
+`set_output` call sites pass `command.switch()`. M1 (A4 relabel "not a power-on" false for the 76 h run,
+67 h unanchored) → fixed: each run length names its start point, 67 h marked "start point not recorded".
+**Decision:** none. **Carry-forward:** none raised or discharged.
+**Next:** next todo task in `tasks/INDEX.md` (`2026-11-07_web-security`).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:46:55Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

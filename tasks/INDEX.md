@@ -26,9 +26,10 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | 2026-10-15 | ad hoc | R1 battery health + R1a telemetry extras | [2026-10-15_r1-battery-telemetry](./2026-10-15_r1-battery-telemetry/) | done | `v1.2.0` |
 | 2026-10-16 | ad hoc | R1b dashboard panels for the extras | [2026-10-16_r1b-panels](./2026-10-16_r1b-panels/) | done | `v1.3.1` |
 | 2026-10-27 | ad hoc | BLE reliability fixes (session leak, backoff) | [OUTCOME](./2026-10-27_ble-reliability/OUTCOME.md) | done | `v1.3.3` |
-| 2026-11-07 | ad hoc | R3 AC/DC control + scheduled switching | [2026-11-07_r3-control-schedule](./2026-11-07_r3-control-schedule/) | in-progress | — |
+| 2026-11-07 | ad hoc | R3 AC/DC control + scheduled switching | [OUTCOME](./2026-11-07_r3-control-schedule/OUTCOME.md) | done | — |
 | 2026-11-07 | ad hoc | Web security: login, CSRF/Host checks, headers | [2026-11-07_web-security](./2026-11-07_web-security/) | todo | — |
 | 2026-11-07 | ad hoc | Elite read stalls (dropped while connected) | [2026-11-07_elite-read-stalls](./2026-11-07_elite-read-stalls/) | todo | — |
+| 2026-11-10 | ad hoc | R3 control hardening (A8–A13) | [2026-11-10_r3-control-hardening](./2026-11-10_r3-control-hardening/) | todo | — |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:

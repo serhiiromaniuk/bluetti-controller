@@ -94,13 +94,14 @@ station's own behaviour.
 - Missed polls per day climbed before it: 30 (11-07), 47 (11-08), 51 (11-09)
   against 5–7 per day on 10-21 – 10-23. Before the 10-25 silence: 18 (10-24).
   Source: raw `battery_soc` timestamps from `/api/series`, gaps of 90 s – 60 min.
-- Station uptime before each silence does not line up: 47 h (10-25) and 67 h
-  (11-10) went silent, a 76 h run (10-27 – 10-30) did not.
+- Run length before each silence does not line up: ~46 h (10-25, since the
+  self-recovery at 10-23 10:19) and 67 h (11-10, start point not recorded)
+  went silent; a 76 h run since the 10-27 power cycle (to 10-30) did not.
 
-**Verdict by step 5 above:** it recurred with 1.3.3+ deployed (fewer aborted
-connects, no burst before it), so the silence is station-side. Working
-reading: the Elite's BLE module hangs; a short hang is a read stall ("dropped
-while connected", `2026-11-07_elite-read-stalls`), a long one stops
-advertising until the module restarts (by itself after ~10 h once, by a power
-cycle otherwise). No host-side change can reach a station that does not
-advertise.
+**Verdict by step 5 above:** it recurred with 1.3.3+ deployed (the
+aborted-connect count before it is unknown: the journal was not read), so the
+silence is station-side. Working reading: the Elite's BLE module hangs; a
+short hang is a read stall ("dropped while connected",
+`2026-11-07_elite-read-stalls`), a long one stops advertising until the
+module restarts (by itself after ~10 h once, by a power cycle otherwise). No
+host-side change can reach a station that does not advertise.
