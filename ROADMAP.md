@@ -1313,8 +1313,11 @@ Settles how ADR-011 is built. Each item is the recommendation the code follows.
     semaphore), so a flood holds at most one 19 MiB hash in memory and runs at
     most 5 verifications per lock window.
   - Success: `303` to `next` with the cookie of (b). `next` is used only when
-    it starts with `/` and its second byte is neither `/` nor `\`; otherwise
-    `/`. Failure: `401` with the form again.
+    it starts with `/`, its second byte is neither `/` nor `\`, and every byte
+    is visible ASCII (`0x21`–`0x7e`: a browser strips the tab of `/<TAB>/evil`
+    and reads `//evil`); otherwise `/`. Failure: `401` with the form again.
+  - Without `web.password_hash` (dev mode, h) `GET` and `POST /login` only
+    redirect to `next`.
   - The log line for a login names the outcome only, never the password or the
     hash. The hash is shown as `<set>` in every `Debug`.
 - **(d) CSRF: an exact-origin check.**

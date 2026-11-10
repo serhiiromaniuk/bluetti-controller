@@ -14,6 +14,7 @@ use crate::collector::{Control, Target};
 use crate::config::{Config, ControlConfig};
 use crate::control::Request;
 use crate::store::{Record, Update};
+use crate::web::auth::Auth;
 
 /// The read-only connection, shared by handlers through `spawn_blocking` (§5.3).
 pub type Db = Arc<Mutex<Connection>>;
@@ -54,6 +55,9 @@ pub struct AppState {
     /// once the collector drops its sender, and this state lives as long as
     /// the sample counter task does.
     pub records: mpsc::WeakSender<Record>,
+    /// The login state from `web.password_hash`; `None` = dev mode, no login
+    /// (§8.5 h).
+    pub auth: Option<Auth>,
 }
 
 impl AppState {
@@ -82,6 +86,7 @@ impl AppState {
             control_config: config.control.clone(),
             stations,
             records,
+            auth: config.web.password_hash.clone().map(Auth::new),
         }))
     }
 
@@ -106,7 +111,7 @@ impl AppState {
 
     /// A state over `reader` with test defaults: 60 s interval, factor 0.9,
     /// 30 days of raw retention, `Europe/Kyiv`, no token, control disabled, no
-    /// stations, a command channel nobody reads, a closed record channel. Tests change fields,
+    /// stations, a command channel nobody reads, a closed record channel, no login. Tests change fields,
     /// then wrap it in an `Arc`.
     #[cfg(test)]
     pub fn for_tests(reader: Connection) -> Self {
@@ -125,6 +130,14 @@ impl AppState {
             control_config: ControlConfig::default(),
             stations: Vec::new(),
             records: mpsc::channel(1).0.downgrade(),
+            auth: None,
         }
+    }
+
+    /// Turns the login on with the throwaway password `"test"`.
+    #[cfg(test)]
+    pub fn with_test_password(mut self) -> Self {
+        self.auth = Some(Auth::new(crate::web::auth::TEST_HASH.to_owned()));
+        self
     }
 }

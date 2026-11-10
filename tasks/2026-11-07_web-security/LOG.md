@@ -238,3 +238,58 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 5 ✓ 2026-11-10 — login and logout handlers
+
+**Changed:**
+- `src/web/auth/mod.rs`: `GET /login` (form), `POST /login` (`lockout.begin()` → `429`; one-permit
+  `verify_slot`; `verify` in `spawn_blocking`; ok → `Set-Cookie: session=<id>; HttpOnly; SameSite=Strict;
+  Path=/; Max-Age=2592000` + `303 next`; wrong → `401` + form), `POST /logout` (revoke, `Max-Age=0`, `303
+  /login`). `safe_next` keeps `/…` only: second byte not `/`/`\`, every byte visible ASCII (A2).
+  `session_id(headers)` parses the `Cookie` header (step 6 reuses it). Log lines name the outcome only.
+- `templates/login.html`: standalone page, no inline script (CSP-ready for step 7).
+- `AppState.auth: Option<Auth>` from `web.password_hash`; `with_test_password()` (hash of `"test"`,
+  `auth::TEST_HASH`); `Auth.verified` counter `#[cfg(test)]`. Router: `/login`, `/logout` (unguarded until
+  step 6). `web/tests.rs`: `request_with`, `header`, `start_shared`.
+- ROADMAP.md §8.5 c: the `next` rule names the visible-ASCII bound; dev mode `/login` only redirects.
+  A2 → fixed.
+
+**Check:** `cargo test --lib web::auth::tests` — 9/9 failed first against stubs (`safe_next` identity,
+handlers `501`), then green: cookie fields + live session, wrong 401 no cookie, 10 concurrent wrong → exactly
+5 verified / 5×401 / 5×429 and the right password still 429 while locked, `//`, `/\`, `/%09/`, `http://`
+next → `/`, logout revokes only its id, dev mode redirects, logs hold neither password nor hash.
+- Log test was red deterministically beside the logout test: tracing-core's one-dispatcher shortcut fixes a
+  callsite first hit on another thread at "never". Fix: a second live `Dispatch` in the test; 6/6 runs of
+  `cargo test --lib web` green after.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 1 MEDIUM (INTENT: satisfied; dev-mode redirect judged not creep)
+- MEDIUM M1: permit released when a dropped connection cancels the handler while `spawn_blocking` still
+  verifies → deferred to PLAN `## Amendments` A3.
+
+**Decision:** dev mode `GET`/`POST /login` redirect to `next` (spec §8.5 c). The locked `429` renders the
+HTML form (a page route), not JSON — §8.5 g's JSON rule is for `/api/*` and `/events`.
+**Carry-forward:** none
+**Next:** step 6 — the guard layers.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:26:45Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

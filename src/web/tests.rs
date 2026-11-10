@@ -27,12 +27,46 @@ pub(super) fn raw_request(
     method: &str,
     path: &str,
 ) -> (String, Vec<String>, Vec<u8>) {
+    exchange(addr, method, path, &[], b"")
+}
+
+/// A raw HTTP/1.1 request with extra header lines (`"Name: value"`) and a
+/// body; returns the status line, the header lines and the body.
+pub(super) fn request_with(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    headers: &[&str],
+    body: &str,
+) -> (String, Vec<String>, String) {
+    let (status, headers, body) = exchange(addr, method, path, headers, body.as_bytes());
+    (status, headers, String::from_utf8(body).unwrap())
+}
+
+/// The value of the first header line named `name` (case-insensitive).
+pub(super) fn header<'a>(headers: &'a [String], name: &str) -> Option<&'a str> {
+    headers.iter().find_map(|line| {
+        let (k, v) = line.split_once(": ")?;
+        k.eq_ignore_ascii_case(name).then_some(v)
+    })
+}
+
+fn exchange(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    headers: &[&str],
+    body: &[u8],
+) -> (String, Vec<String>, Vec<u8>) {
     let mut stream = TcpStream::connect(addr).unwrap();
+    let extra: String = headers.iter().map(|h| format!("{h}\r\n")).collect();
     write!(
         stream,
-        "{method} {path} HTTP/1.1\r\nHost: localhost\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+        "{method} {path} HTTP/1.1\r\nHost: localhost\r\n{extra}Content-Length: {}\r\nConnection: close\r\n\r\n",
+        body.len()
     )
     .unwrap();
+    stream.write_all(body).unwrap();
     let mut response = Vec::new();
     stream.read_to_end(&mut response).unwrap();
     let split = response
@@ -80,10 +114,21 @@ pub(super) async fn start(
     oneshot::Sender<()>,
     tokio::task::JoinHandle<anyhow::Result<()>>,
 ) {
+    start_shared(Arc::new(state)).await
+}
+
+/// [`start`] over a state the test keeps a handle to.
+pub(super) async fn start_shared(
+    state: Arc<AppState>,
+) -> (
+    SocketAddr,
+    oneshot::Sender<()>,
+    tokio::task::JoinHandle<anyhow::Result<()>>,
+) {
     let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
     let (stop, stopped) = oneshot::channel::<()>();
-    let server = tokio::spawn(serve(listener, router(Arc::new(state)), async {
+    let server = tokio::spawn(serve(listener, router(state), async {
         let _ = stopped.await;
     }));
     (addr, stop, server)

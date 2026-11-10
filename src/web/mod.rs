@@ -47,6 +47,8 @@ pub struct Health {
 pub fn router(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/", get(pages::status))
+        .route("/login", get(auth::login_page).post(auth::login))
+        .route("/logout", post(auth::logout))
         .route("/telemetry", get(telemetry::page))
         .route("/assets/{name}", get(assets::asset))
         .route("/api/status", get(api::status))

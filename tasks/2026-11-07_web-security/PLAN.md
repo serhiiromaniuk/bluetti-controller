@@ -156,7 +156,7 @@ None is pending; no step is blocked.
   the 6th `begin()` is `Locked`, 60 s later it is not; a success resets the
   count. — check: the new tests red then green, `make check`.
 
-- [ ] 5. Login and logout handlers (`spec §8.5` c, g; risky — auth): new
+- [x] 5. Login and logout handlers (`spec §8.5` c, g; risky — auth): new
   `src/web/auth/mod.rs` and `templates/login.html` (askama; `next` kept only
   when it starts with `/` and its second byte is neither `/` nor `\`): `GET
   /login` renders the form; `POST /login` (form `password`, `next`):
@@ -348,4 +348,9 @@ None is pending; no step is blocked.
 - A2 · 2026-11-10 · MEDIUM `ROADMAP.md` §8.5 (c) `next` rule — `next=/%09/evil.example` decodes to `/<TAB>/evil…`,
   passes the "second byte" check, and browsers strip the tab so `Location` resolves to `//evil.example` (open
   redirect). Step 5 must also reject any byte ≤ 0x20 or 0x7f in `next` and test `/%09/evil` beside `//evil`; the
-  spec line is corrected with it · disposition: open
+  spec line is corrected with it · disposition: fixed in step 5 (`safe_next`: visible ASCII only; spec §8.5 c)
+- A3 · 2026-11-10 · MEDIUM `src/web/auth/mod.rs:100-111` — the `verify_slot` permit belongs to the handler
+  future, but `verify` runs in `spawn_blocking`; a client that closes the socket mid-login drops the future and
+  frees the permit while the hash still runs, so up to 5 verifications (~95 MiB) can overlap (§8.5 c "one hash
+  in memory"). Fix: `Arc<Semaphore>` + `acquire_owned()`, the permit moved into the blocking closure; a test
+  that drops the handler future mid-verify · disposition: open

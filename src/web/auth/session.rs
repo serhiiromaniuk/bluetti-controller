@@ -118,6 +118,9 @@ pub struct Auth {
     pub lockout: Lockout,
     /// One permit: at most one argon2 verification (~19 MiB) runs at a time.
     pub verify_slot: Semaphore,
+    /// Verifications started, so tests can prove the lock and the slot bound them.
+    #[cfg(test)]
+    pub verified: std::sync::atomic::AtomicU32,
 }
 
 impl Auth {
@@ -128,6 +131,8 @@ impl Auth {
             sessions: Sessions::default(),
             lockout: Lockout::default(),
             verify_slot: Semaphore::new(1),
+            #[cfg(test)]
+            verified: std::sync::atomic::AtomicU32::new(0),
         }
     }
 }
