@@ -128,3 +128,81 @@ fn frame_errors_read_clearly() {
     }
     let _: &dyn std::error::Error = &FrameError::TooShort(0);
 }
+
+#[test]
+fn write_request_layout() {
+    // EB3A AC on: register 3007 (0x0BBF) = 1; CRC 0xCA7B hand-computed.
+    assert_eq!(
+        write_request(3007, 1),
+        [0x01, 0x06, 0x0B, 0xBF, 0x00, 0x01, 0x7B, 0xCA]
+    );
+    assert_eq!(
+        write_request(3007, 0),
+        [0x01, 0x06, 0x0B, 0xBF, 0x00, 0x00, 0xBA, 0x0A]
+    );
+    assert_eq!(WRITE_RESPONSE_LEN, 8);
+}
+
+#[test]
+fn write_reply_len() {
+    assert_eq!(expected_write_len(&[0x01]), None);
+    assert_eq!(expected_write_len(&[0x01, 0x06]), Some(8));
+    assert_eq!(expected_write_len(&[0x01, 0x86, 0x02]), Some(5));
+}
+
+#[test]
+fn accepts_write_echo() {
+    let echo = write_request(3007, 1);
+    assert_eq!(parse_write_response(&echo, 3007, 1), Ok(()));
+}
+
+#[test]
+fn reports_write_exception() {
+    let frame = [0x01, 0x86, 0x02, 0xC3, 0xA1];
+    assert_eq!(
+        parse_write_response(&frame, 3007, 1),
+        Err(FrameError::Exception(0x02))
+    );
+}
+
+#[test]
+fn rejects_write_echo_mismatch() {
+    // Valid CRC, wrong value and wrong register.
+    let frame = write_request(3007, 0);
+    assert_eq!(
+        parse_write_response(&frame, 3007, 1),
+        Err(FrameError::EchoMismatch)
+    );
+    let frame = write_request(3008, 1);
+    assert_eq!(
+        parse_write_response(&frame, 3007, 1),
+        Err(FrameError::EchoMismatch)
+    );
+}
+
+#[test]
+fn rejects_bad_write_reply() {
+    let mut frame = write_request(3007, 1);
+    frame[5] ^= 0xFF;
+    assert!(matches!(
+        parse_write_response(&frame, 3007, 1),
+        Err(FrameError::BadCrc { .. })
+    ));
+    assert_eq!(
+        parse_write_response(&[0x01, 0x06], 3007, 1),
+        Err(FrameError::TooShort(2))
+    );
+    let read = with_crc(&[0x01, 0x03, 0x02, 0x00, 0x01]);
+    assert_eq!(
+        parse_write_response(&read, 3007, 1),
+        Err(FrameError::UnexpectedFunction(0x03))
+    );
+    let long = with_crc(&[0x01, 0x06, 0x0B, 0xBF, 0x00, 0x01, 0x00]);
+    assert_eq!(
+        parse_write_response(&long, 3007, 1),
+        Err(FrameError::LengthMismatch {
+            expected: 8,
+            actual: 9
+        })
+    );
+}

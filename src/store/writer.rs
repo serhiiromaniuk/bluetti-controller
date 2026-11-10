@@ -15,19 +15,21 @@ use tokio::task::JoinHandle;
 use super::read::{CORE, Values, last_samples, open_event};
 use super::rollup::{compact, retention, rollup};
 use super::write::{
-    Failure, Sample, Stage, close_outage, insert_failure, insert_sample, insert_snapshot,
-    open_outage,
+    Failure, Sample, Stage, close_outage, delete_schedule, insert_failure, insert_sample,
+    insert_snapshot, open_outage, run_schedule, set_schedule,
 };
 use crate::metrics::energy::BUCKET_S;
 use crate::metrics::grid::{Grid, GridState, Params};
 #[cfg(test)]
 use crate::metrics::house::HouseState;
 use crate::metrics::house::{Event, House};
+use crate::protocol::control::Output;
 
 /// The `grid_event.scope` of the house outage log.
 const HOUSE: &str = "house";
 
-/// One message from the collector; `station` is the id `sync_stations` returned.
+/// One message from the collector, the web or the scheduler; `station` is the
+/// id `sync_stations` returned.
 #[derive(Debug, Clone, PartialEq)]
 pub enum Record {
     Sample {
@@ -44,6 +46,25 @@ pub enum Record {
         ts: i64,
         start_reg: u16,
         values: Vec<u16>,
+    },
+    /// Sets a station output's daily times (minutes after local midnight, at
+    /// least one); the entry's `last_due` is kept (§6, R3).
+    ScheduleSet {
+        station: i64,
+        output: Output,
+        on_min: Option<u16>,
+        off_min: Option<u16>,
+    },
+    /// Removes a station output's schedule entry.
+    ScheduleDelete {
+        station: i64,
+        output: Output,
+    },
+    /// The scheduler applied the slot due at `due` (unix s).
+    ScheduleRun {
+        station: i64,
+        output: Output,
+        due: i64,
     },
 }
 
@@ -201,6 +222,28 @@ impl Writer {
             } => {
                 self.index(*station)?;
                 return insert_snapshot(&self.conn, *station, *ts, *start_reg, values);
+            }
+            // Schedule records carry no sample time: no event update, no job.
+            Record::ScheduleSet {
+                station,
+                output,
+                on_min,
+                off_min,
+            } => {
+                self.index(*station)?;
+                return set_schedule(&self.conn, *station, *output, *on_min, *off_min);
+            }
+            Record::ScheduleDelete { station, output } => {
+                self.index(*station)?;
+                return delete_schedule(&self.conn, *station, *output);
+            }
+            Record::ScheduleRun {
+                station,
+                output,
+                due,
+            } => {
+                self.index(*station)?;
+                return run_schedule(&self.conn, *station, *output, *due);
             }
         };
         self.update_events(ts)?;

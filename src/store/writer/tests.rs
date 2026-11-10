@@ -378,4 +378,5 @@ fn a_failed_house_write_is_retried_next_round() {
 }
 
 mod jobs;
+mod schedule;
 mod updates;

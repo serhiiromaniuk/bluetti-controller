@@ -202,6 +202,10 @@ impl Config {
         {
             bail!("web.token must not be empty; remove it to leave the POST open");
         }
+        // A write to a station is not a pause: no open write route (ROADMAP.md §9).
+        if self.control.enabled && self.web.token.is_none() {
+            bail!("control.enabled = true requires web.token to be set");
+        }
         let m = &self.metrics;
         if !(m.usable_capacity_factor > 0.0 && m.usable_capacity_factor <= 1.0) {
             bail!("metrics.usable_capacity_factor must be in (0, 1]");
@@ -366,6 +370,21 @@ mod tests {
         }
         let text = EXAMPLE.replace("# token = \"change-me\"", "token = \"t\"");
         assert_eq!(parse(&text).unwrap().web.token.as_deref(), Some("t"));
+    }
+
+    #[test]
+    fn control_needs_token() {
+        let enabled = EXAMPLE.replace("enabled = false ", "enabled = true ");
+        assert_ne!(enabled, EXAMPLE);
+        let err = error_of(&enabled);
+        assert!(
+            err.contains("control.enabled") && err.contains("web.token"),
+            "{err}"
+        );
+        let with_token = enabled.replace("# token = \"change-me\"", "token = \"t\"");
+        let config = parse(&with_token).unwrap();
+        assert!(config.control.enabled);
+        assert_eq!(config.web.token.as_deref(), Some("t"));
     }
 
     #[test]

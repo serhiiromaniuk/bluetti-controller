@@ -136,3 +136,65 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 3 ✓ 2026-11-10 — write frame, pure (`src/protocol/modbus.rs`)
+
+**Changed:** `write_request(register, value) -> [u8; 8]` (0x06), `WRITE_RESPONSE_LEN = 8`,
+`expected_write_len(prefix)` (5 on the exception flag, else 8), `parse_write_response(frame,
+register, value)` and `FrameError::EchoMismatch`. The length/CRC/function check of
+`parse_read_response` moved into a private `checked_body`, shared by both parsers.
+**Check:** failing first — the 6 new tests in `modbus/tests.rs` did not compile (`cannot find
+function write_request`). Hand-computed vectors (python CRC-16/MODBUS): EB3A AC on
+`01 06 0B BF 00 01 7B CA`, off `… 00 00 BA 0A`, exception `01 86 02 C3 A1`. Then
+`cargo test --lib protocol::modbus` 18/18 green, existing read tests unchanged.
+
+## Step 4 ✓ 2026-11-10 — config: control needs a token (`src/config.rs`)
+
+**Changed:** `Config::validate` fails `control.enabled = true requires web.token to be set`;
+`config.example.toml` `[web]`/`[control]` comments state the rule and that control and the
+schedule live in the web UI. No new keys.
+**Check:** failing first — `config::tests::control_needs_token` FAILED (example with `enabled =
+true` parsed); then 14/14 green (example parses; enabled + no token rejected naming both keys;
+enabled + token parses).
+
+## Step 5 ✓ 2026-11-10 — schedule table in the store
+
+**Changed:** `migrations/002_schedule.sql` (spec §6 DDL verbatim), `SCHEMA_VERSION` = 2;
+`Record::ScheduleSet/ScheduleDelete/ScheduleRun` handled in `Writer::handle` (station id checked,
+no event update or §6 job: no sample time); `store::write::{set,delete,run}_schedule`;
+`store::read::{ScheduleEntry, schedule_entries}` (an unknown output key fails the read).
+`src/collector/tests.rs:252` helper arm became `_ => None` (forced by the new variants).
+**Check:** failing first — `cargo test --lib store` did not compile (9 errors: no `ScheduleSet`,
+`schedule_entries`, `ScheduleEntry`). Then 48/48 green: `writer/tests/schedule.rs` (set keeps
+`last_due`, run sets it, edit keeps it, delete, run after delete no-op, per-output rows, CHECK
+refuses no time, unknown station refused); `read/tests.rs` order + unknown key;
+`schema/tests.rs` fresh db v2 with `schedule`, a v1 file migrates to v2 keeping its rows.
+
+**Reviewer (group A + step 2, batched, `@{u}..HEAD` + working diff):** 0 CRITICAL / 0 HIGH / 0
+MEDIUM · INTENT satisfied for steps 2, 3, 4, 5; CRCs re-derived independently. Note: `read.rs` is
+408 lines (soft ~400); the 0..1439 minute range is validated at the web boundary (step 11).
+**Decision:** none. **Carry-forward:** none.
+**Next:** parallel group B — steps 6 (transport write path) and 7 (control gate), both risky.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T15:48:36Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

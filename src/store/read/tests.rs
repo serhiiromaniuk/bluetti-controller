@@ -225,3 +225,34 @@ fn series_switches_to_the_rollup_past_48_hours() {
     let s = series(&conn, 1, Metric::AcInputVoltage, 0, RAW_MAX_S + 1, 1).unwrap();
     assert_eq!(s.source, Source::Raw);
 }
+
+#[test]
+fn schedule_entries_in_station_and_output_order() {
+    use crate::protocol::control::Output;
+    let conn = db();
+    conn.execute_batch(
+        "INSERT INTO schedule VALUES (2, 'ac', 420, NULL, NULL);
+         INSERT INTO schedule VALUES (1, 'dc', NULL, 1380, 1700000000);
+         INSERT INTO schedule VALUES (1, 'ac', 0, 1439, NULL);",
+    )
+    .unwrap();
+    let entry = |station_id, output, on_min, off_min, last_due| ScheduleEntry {
+        station_id,
+        output,
+        on_min,
+        off_min,
+        last_due,
+    };
+    assert_eq!(
+        schedule_entries(&conn).unwrap(),
+        vec![
+            entry(1, Output::Ac, Some(0), Some(1439), None),
+            entry(1, Output::Dc, None, Some(1380), Some(1_700_000_000)),
+            entry(2, Output::Ac, Some(420), None, None),
+        ]
+    );
+    conn.execute("INSERT INTO schedule VALUES (2, 'usb', 1, NULL, NULL)", [])
+        .unwrap();
+    let err = schedule_entries(&conn).unwrap_err();
+    assert!(format!("{err:#}").contains("usb"), "{err:#}");
+}

@@ -8,7 +8,10 @@ use anyhow::{Context, bail, ensure};
 use rusqlite::{Connection, OpenFlags};
 
 /// Embedded migrations: entry `i` moves the schema from version `i` to `i + 1`.
-const MIGRATIONS: &[&str] = &[include_str!("../../migrations/001_init.sql")];
+const MIGRATIONS: &[&str] = &[
+    include_str!("../../migrations/001_init.sql"),
+    include_str!("../../migrations/002_schedule.sql"),
+];
 
 const BUSY_TIMEOUT: Duration = Duration::from_millis(5000);
 

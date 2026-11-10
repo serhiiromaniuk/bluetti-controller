@@ -249,7 +249,7 @@ fn summary(records: &[Record]) -> Vec<(i64, i64, &'static str)> {
             Record::Failure { station, failure } => {
                 Some((*station, failure.ts, failure.stage.as_str()))
             }
-            Record::Snapshot { .. } => None,
+            _ => None,
         })
         .collect()
 }

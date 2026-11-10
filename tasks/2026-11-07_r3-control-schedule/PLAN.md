@@ -115,7 +115,7 @@ delegated defaults the owner accepted).
   outside {3007, 3008, 2011, 2012}. — check: `cargo test protocol::control`
   red then green, `make check`.
 
-- [ ] 3. [parallel: A] Write frame, pure (`spec §4.2`): in `src/protocol/
+- [x] 3. [parallel: A] Write frame, pure (`spec §4.2`): in `src/protocol/
   modbus.rs` add `write_request(register, value) -> [u8; 8]` (function 0x06),
   `WRITE_RESPONSE_LEN = 8`, `expected_write_len(prefix) -> Option<usize>` (5 on
   the exception flag, else 8) and `parse_write_response(frame, register, value)
@@ -125,7 +125,7 @@ delegated defaults the owner accepted).
   EB3A AC on). No other file changes. — check: the new tests red then green,
   `make check`.
 
-- [ ] 4. [parallel: A] Config (`spec §9`, Q5): `Config::validate` rejects
+- [x] 4. [parallel: A] Config (`spec §9`, Q5): `Config::validate` rejects
   `control.enabled = true` without `web.token` (the error names both keys);
   `config.example.toml`'s `[control]` and `[web]` comments state the rule and
   that control and the schedule are driven from the web UI, never a config
@@ -133,7 +133,7 @@ delegated defaults the owner accepted).
   example still parses; enabled + no token is rejected; enabled + token
   parses. — check: the new tests red then green, `make check`.
 
-- [ ] 5. [parallel: A] Schedule table in the store (`spec §6`: single writer,
+- [x] 5. [parallel: A] Schedule table in the store (`spec §6`: single writer,
   numbered migrations) (needs Q1): `migrations/002_schedule.sql` creating
   `schedule (station_id INTEGER REFERENCES station, output TEXT, on_min
   INTEGER, off_min INTEGER, last_due INTEGER, PRIMARY KEY (station_id,

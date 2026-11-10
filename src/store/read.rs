@@ -4,9 +4,11 @@
 
 use std::collections::BTreeMap;
 
+use anyhow::Context;
 use rusqlite::{Connection, OptionalExtension, Row, params};
 
 use crate::metrics::capacity::{self, Bucket};
+use crate::protocol::control::Output;
 use crate::protocol::device::Metric;
 
 /// The six `sample` columns and the metric each holds (§6).
@@ -78,6 +80,41 @@ pub struct Series {
     pub source: Source,
     pub t: Vec<i64>,
     pub v: Vec<f64>,
+}
+
+/// A `schedule` row (§6, R3): daily local times in minutes after midnight.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ScheduleEntry {
+    pub station_id: i64,
+    pub output: Output,
+    pub on_min: Option<u16>,
+    pub off_min: Option<u16>,
+    /// Unix time of the due slot last applied; `None` = never run.
+    pub last_due: Option<i64>,
+}
+
+/// Every schedule entry, by station id then output key. An output key the
+/// binary does not know fails the read rather than being skipped.
+pub fn schedule_entries(conn: &Connection) -> anyhow::Result<Vec<ScheduleEntry>> {
+    let mut stmt = conn.prepare(
+        "SELECT station_id, output, on_min, off_min, last_due FROM schedule \
+         ORDER BY station_id, output",
+    )?;
+    let mut rows = stmt.query([])?;
+    let mut entries = Vec::new();
+    while let Some(row) = rows.next()? {
+        let key: String = row.get(1)?;
+        let output = Output::from_key(&key)
+            .with_context(|| format!("schedule row with unknown output `{key}`"))?;
+        entries.push(ScheduleEntry {
+            station_id: row.get(0)?,
+            output,
+            on_min: row.get(2)?,
+            off_min: row.get(3)?,
+            last_due: row.get(4)?,
+        });
+    }
+    Ok(entries)
 }
 
 /// Every station row, by id.

@@ -8,6 +8,7 @@ use anyhow::{Context, ensure};
 use rusqlite::{Connection, params};
 
 use crate::config::StationConfig;
+use crate::protocol::control::Output;
 use crate::protocol::device::{Metric, Problem};
 use crate::transport::station::Poll;
 
@@ -223,6 +224,48 @@ pub fn close_outage(conn: &Connection, id: i64, ended_at: i64) -> anyhow::Result
         params![id, ended_at],
     )?;
     ensure!(closed == 1, "grid_event {id} is not open");
+    Ok(())
+}
+
+/// Upserts a station output's schedule times (R3, §6); `last_due` is kept.
+pub fn set_schedule(
+    conn: &Connection,
+    station_id: i64,
+    output: Output,
+    on_min: Option<u16>,
+    off_min: Option<u16>,
+) -> anyhow::Result<()> {
+    conn.execute(
+        "INSERT INTO schedule (station_id, output, on_min, off_min) VALUES (?1, ?2, ?3, ?4) \
+         ON CONFLICT (station_id, output) DO UPDATE SET on_min = ?3, off_min = ?4",
+        params![station_id, output.key(), on_min, off_min],
+    )
+    .context("set schedule")?;
+    Ok(())
+}
+
+/// Removes a station output's schedule entry, if any.
+pub fn delete_schedule(conn: &Connection, station_id: i64, output: Output) -> anyhow::Result<()> {
+    conn.execute(
+        "DELETE FROM schedule WHERE station_id = ?1 AND output = ?2",
+        params![station_id, output.key()],
+    )
+    .context("delete schedule")?;
+    Ok(())
+}
+
+/// Records the due slot last applied; a no-op when the entry is gone.
+pub fn run_schedule(
+    conn: &Connection,
+    station_id: i64,
+    output: Output,
+    due: i64,
+) -> anyhow::Result<()> {
+    conn.execute(
+        "UPDATE schedule SET last_due = ?3 WHERE station_id = ?1 AND output = ?2",
+        params![station_id, output.key(), due],
+    )
+    .context("record schedule run")?;
     Ok(())
 }
 

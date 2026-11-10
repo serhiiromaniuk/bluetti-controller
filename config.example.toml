@@ -22,6 +22,7 @@ listen = "0.0.0.0:8080"
 # Optional bearer token for POST /api/polling/pause. Unset: the POST is open
 # (it only pauses polling for up to 60 min, never writes to a station). Set: a
 # non-empty string, sent as `Authorization: Bearer <token>`; never commit it.
+# Required when `control.enabled = true`, and for schedule edits in the UI.
 # token = "change-me"
 
 [ble]
@@ -45,6 +46,8 @@ usable_capacity_factor = 0.85
 
 [control]
 enabled = false                    # RULES.md golden rule #2 — never default true
+# `true` (owner only) needs `web.token`. AC/DC output control and its daily
+# schedule are driven from the web UI; there is no config block for either.
 
 [[station]]
 name = "router"
