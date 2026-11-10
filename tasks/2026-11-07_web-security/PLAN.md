@@ -419,3 +419,7 @@ None is pending; no step is blocked.
 - A11 · 2026-11-10 · MEDIUM `src/web/auth/session.rs:28-50` — the RNG test seam (`pub type Fill`, `pub fn
   with_rng`) is public library API, so any caller could swap the CSPRNG behind session ids; make both
   `pub(crate)` (or `with_rng` `#[cfg(test)]`) · disposition: open
+- A12 · 2026-11-10 · MEDIUM `tests/security_e2e/server.rs` (`Server::start`) — the port is probed, released, then
+  bound by `serve` after an argon2 `hash-password` run; two parallel tests can draw one port, and the loser's
+  `wait_ready` may see the sibling's `/healthz`, so a test runs against the wrong server (shared lockout). Fix:
+  `listen = "127.0.0.1:0"` and read the bound address from the `serving listen=…` log line · disposition: open

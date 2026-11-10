@@ -726,3 +726,64 @@ renamed file each fail (exit 5); both `.expect`s unreachable; `if` eviction equi
 ```
 
 <!-- gate:end -->
+
+## Step 10a.5 ✓ 2026-11-10 — type 7 black-box suite: the built binary over real HTTP (A10)
+**Changed:**
+- `tests/security_e2e.rs` (4 tests) + harness `tests/security_e2e/server.rs` (`#[path]` submodule, not a
+  test target). The binary hashes a throwaway password (`hash-password` on stdin), then runs `serve` from a
+  temp `0600` config: loopback port, `token`, `password_hash`, `allowed_hosts`, **no `[[station]]`** (the
+  collector iterates zero targets: no BLE, golden rule #5). Raw-socket HTTP/1.1 client; the child is killed
+  and its temp dir removed on drop.
+**Tests (6 with the S1 fix), the catalogue classes replayed:**
+- `no_credential_path_method_or_bearer_trick_reaches_a_protected_handler`: 9 path variants, HEAD/OPTIONS/
+  TRACE, `X-HTTP-Method-Override`, 6 bearer/cookie tricks (bare `Bearer`, lowercase, two spaces, wrong, two
+  `Authorization`, forged id), page `303` to `/login?next=`, 4 hostile spans (`i64::MIN`/MAX, negative,
+  huge `days`) as a JSON 400.
+- `rebinding_and_cross_site_requests_are_refused`: 6 CSRF (no/`null` Origin, other port, other scheme+port,
+  `evil-` suffix, `Referer` only) `403`; 6 rebinding Hosts (foreign, trailing dot, prefix,
+  `X-Forwarded-Host`, duplicate `Host`, IP in a name) + absolute-form + HTTP/1.0 without Host `421`/`400`;
+  uppercase allowed name, `[::1]`, `localhost` `200`; same-origin and bearer POSTs `200`.
+- `login_issues_a_fresh_strict_cookie_logout_revokes_it_and_no_secret_is_logged`: 6 hostile `next` (incl.
+  CR/LF `Set-Cookie` injection) redirect to `/`; planted cookie replaced; exact cookie attributes; the four
+  §8.5 f headers on 200 (healthz, page, asset), 303, 401, 403, 404, 421; logout `Max-Age=0` then `401`;
+  the process log holds none of password, token, hash, its salt or any of the 8 session ids.
+- `brute_force_locks_the_login_after_five_failures`: 5 × `401`, right password `429` without a cookie,
+  spoofed `X-Forwarded-For` shares the lock.
+- Not replayed (in-process only, need internals): A3 dropped future,
+  bidi names (`printable`, CLI path).
+**Check:** green on arrival, so teeth shown by sabotage (each restored): Origin check off in `guard.rs`
+→ `rebinding_and_cross_site…` red ("no Origin"); `safe_next` second-byte check off → `login_issues…` red
+(`%2F%2Fevil.example`); `X-Frame-Options: SAMEORIGIN` → red ("200 healthz: x-frame-options").
+Run time 4.5 s (6 tests); `cargo clippy --all-targets -D warnings` clean.
+**reviewer:** INTENT shortfall; 0 CRITICAL / 1 HIGH / 1 MEDIUM. GR #3, #5 (zero stations, no BLE) confirmed.
+- S1 HIGH three catalogue classes had no e2e test → fixed: `oversized_nul_and_non_utf8_input_is_refused_without_a_crash`
+  (1 MiB `401`, 3 MiB `413`/hang-up, `%00`/`%FF%FE` passwords, 6 raw NUL/0xFF requests 4xx, child alive,
+  the counted failures then lock) and `concurrent_wrong_logins_verify_at_most_five` (10 threads: 5×`401`,
+  5×`429`). Teeth: `MAX_FAILURES` 5→6 turns both red (6×401/4×429), restored.
+- M1 MEDIUM port probe race between parallel tests → deferred to amendment A12.
+- Second pass on the S1 fix: INTENT satisfied, 0 CRITICAL / 0 HIGH / 0 MEDIUM; the (5, 5) flood split is
+  deterministic (count before verify under a mutex). No third pass (§4b).
+**Next:** 10a.6 — type 8, `cargo-mutants` pinned into `.tools/` over the security files; ticks 10a.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T18:58:28Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
