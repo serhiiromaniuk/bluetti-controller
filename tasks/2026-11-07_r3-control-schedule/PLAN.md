@@ -409,3 +409,9 @@ delegated defaults the owner accepted).
   read-back are extrapolated from the AC180 / V2 base map; ROADMAP §4.3 has no Elite source. Step 1 marks the Elite
   pair `verified: false` with that source, and the Elite stays out of `switches()` until H16 confirms the pair, so no
   read-back failure can make the scheduler resend a write up to 10 times per slot · disposition: open
+- A3 · 2026-11-10 · MEDIUM `tasks/2026-10-27_ble-reliability/BUG-station-ble-invisible.md:100-101` (batch review of a650183) —
+  the verdict's "(fewer aborted connects, no burst before it)" is unsupported: the journal was not read (line 92) and
+  daily misses rose to 30/47/51. Delete the clause or mark the abort count unknown · disposition: open
+- A4 · 2026-11-10 · MEDIUM `tasks/2026-10-27_ble-reliability/BUG-station-ble-invisible.md:97` (batch review of a650183) —
+  "Station uptime … 47 h (10-25)" is time since adverts resumed on 10-23 10:19 (~46 h), not a power-on; relabel or
+  drop it · disposition: open
