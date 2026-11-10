@@ -316,3 +316,62 @@ fn dev_mode_warns_once_that_the_login_is_off() {
     assert!(logs.contains("WARN"), "{logs}");
     assert!(logs.contains("web login is off"), "{logs}");
 }
+
+/// Captures every log line of this thread until the guard drops (see
+/// `login_logs_name_the_outcome_never_the_password_or_hash` for the second
+/// dispatcher).
+fn capture_logs() -> (
+    Capture,
+    tracing::Dispatch,
+    tracing::subscriber::DefaultGuard,
+) {
+    let second = tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default());
+    let capture = Capture::default();
+    let sink = capture.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(move || sink.clone())
+        .finish();
+    (
+        capture,
+        second,
+        tracing::subscriber::set_default(subscriber),
+    )
+}
+
+#[tokio::test]
+async fn a_failed_verification_task_is_a_failed_login() {
+    let (capture, _second, _guard) = capture_logs();
+    let task = tokio::spawn(std::future::pending::<bool>());
+    task.abort();
+    assert!(!super::joined(task.await), "a cancelled task is no login");
+    assert!(super::joined(Ok(true)));
+    assert!(!super::joined(Ok(false)));
+    let logs = String::from_utf8(capture.0.lock().unwrap().clone()).unwrap();
+    assert_eq!(
+        logs.matches("web login: verification task failed").count(),
+        1,
+        "{logs}"
+    );
+}
+
+#[tokio::test]
+async fn no_session_id_without_randomness_is_a_500_without_a_cookie() {
+    let (capture, _second, _guard) = capture_logs();
+    let mut reader = rusqlite::Connection::open_in_memory().unwrap();
+    crate::store::migrate(&mut reader).unwrap();
+    let mut state = AppState::for_tests(reader).with_test_password();
+    state.auth.as_mut().unwrap().sessions =
+        super::session::Sessions::with_rng(|_| Err(getrandom::Error::UNSUPPORTED));
+    let form = LoginForm {
+        password: "test".to_owned(),
+        next: "/".to_owned(),
+    };
+    let response = login(State(Arc::new(state)), Form(form)).await;
+    assert_eq!(response.status(), StatusCode::INTERNAL_SERVER_ERROR);
+    assert!(response.headers().get("set-cookie").is_none());
+    assert!(response.headers().get("location").is_none());
+    let logs = String::from_utf8(capture.0.lock().unwrap().clone()).unwrap();
+    assert!(logs.contains("web login: no session id"), "{logs}");
+    assert!(logs.contains("session id: "), "{logs}");
+}

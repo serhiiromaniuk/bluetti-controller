@@ -2,7 +2,7 @@
 //! (ROADMAP.md ADR-011, §9). The password comes from stdin, never argv
 //! (shell history, `ps`).
 
-use std::io::BufRead;
+use std::io::{BufRead, Write};
 
 use anyhow::{Context, bail};
 use bluetti_controller::web::auth::password;
@@ -18,13 +18,15 @@ fn read_password(mut input: impl BufRead) -> anyhow::Result<String> {
     Ok(password.to_owned())
 }
 
-pub fn run() -> anyhow::Result<()> {
+/// Reads the password from `input` (stdin) and writes the PHC string and the
+/// line to paste to `out` (stdout).
+pub fn run(input: impl BufRead, out: &mut impl Write) -> anyhow::Result<()> {
     // shortcut: a terminal echoes the typed password; pipe it in (`read -rs`) to hide it.
     eprintln!("password (one line on stdin):");
-    let phc = password::hash(&read_password(std::io::stdin().lock())?)?;
-    println!("{phc}");
-    println!("# paste under [web] in config.toml:");
-    println!("password_hash = \"{phc}\"");
+    let phc = password::hash(&read_password(input)?)?;
+    writeln!(out, "{phc}")?;
+    writeln!(out, "# paste under [web] in config.toml:")?;
+    writeln!(out, "password_hash = \"{phc}\"")?;
     Ok(())
 }
 

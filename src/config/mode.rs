@@ -11,9 +11,12 @@ const LOOSE: u32 = 0o027;
 /// stat stays silent here: its reader reports that error.
 pub(super) fn warn_loose(path: &Path, key: &str) {
     if let Some(mode) = loose_mode(path) {
+        // Bound first: a call inside `warn!`'s field list counts as an
+        // uncovered line (the `COV_SECURITY` gate) even when the event fires.
+        let (file, mode) = (path.display(), format!("{mode:o}"));
         tracing::warn!(
-            file = %path.display(),
-            mode = %format_args!("{mode:o}"),
+            %file,
+            %mode,
             "{key} is group-writable or readable by other users; chmod 600 it"
         );
     }
@@ -55,5 +58,36 @@ mod tests {
         }
         std::fs::remove_file(&path).unwrap();
         assert_eq!(loose_mode(&path), None, "missing file stays silent");
+    }
+
+    #[test]
+    fn warns_once_naming_the_key_the_file_and_the_mode() {
+        let path = std::env::temp_dir().join(format!("bluetti-warn-{}.toml", std::process::id()));
+        std::fs::write(&path, "").unwrap();
+        let _second = tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default());
+        let capture = crate::web::tests::Capture::default();
+        let sink = capture.clone();
+        let subscriber = tracing_subscriber::fmt()
+            .with_ansi(false)
+            .with_writer(move || sink.clone())
+            .finish();
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o644)).unwrap();
+        super::warn_loose(&path, "config file");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o600)).unwrap();
+        super::warn_loose(&path, "crypto.keys_file");
+        std::fs::remove_file(&path).unwrap();
+        super::warn_loose(&path, "missing");
+
+        let logs = String::from_utf8(capture.0.lock().unwrap().clone()).unwrap();
+        assert_eq!(logs.lines().count(), 1, "{logs}");
+        assert!(logs.contains("WARN"), "{logs}");
+        assert!(
+            logs.contains("config file is group-writable or readable by other users; chmod 600 it"),
+            "{logs}"
+        );
+        assert!(logs.contains(&format!("file={}", path.display())), "{logs}");
+        assert!(logs.contains("mode=644"), "{logs}");
     }
 }

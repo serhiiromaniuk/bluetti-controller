@@ -117,7 +117,7 @@ pub(super) fn send(
 
 /// Collects every formatted log line in memory (secret-hygiene tests).
 #[derive(Clone, Default)]
-pub(super) struct Capture(pub(super) Arc<std::sync::Mutex<Vec<u8>>>);
+pub(crate) struct Capture(pub(crate) Arc<std::sync::Mutex<Vec<u8>>>);
 
 impl Write for Capture {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {

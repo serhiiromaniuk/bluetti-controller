@@ -14,6 +14,12 @@ LLVM_COV := $(TOOLS_DIR)/bin/cargo-llvm-cov
 # Minimum line coverage (%) of each gated directory (RULES.md Testing).
 COV_MIN ?= 80
 COV_DIRS := src/protocol/ src/metrics/
+# Every security file must be fully covered (owner, 2026-11-10; web-security
+# step 10a): an unreachable line is restructured, never excluded.
+COV_SECURITY_MIN := 100
+COV_SECURITY := src/web/guard.rs src/web/headers.rs src/web/auth/mod.rs \
+	src/web/auth/session.rs src/web/auth/password.rs src/web/api/window.rs \
+	src/config/web.rs src/config/mode.rs src/cli/hash_password.rs src/cli/printable.rs
 COV_JSON := target/llvm-cov-summary.json
 # Unit tests live in <module>/tests.rs and are excluded, so test code never
 # covers itself. jq: summed line coverage of $dir's files against $min.
@@ -58,12 +64,14 @@ lint:                           ## clippy, warnings are errors
 tools:                          ## install pinned dev tools (cargo-llvm-cov) into .tools/
 	$(CARGO) install --locked --root $(TOOLS_DIR) cargo-llvm-cov --version $(LLVM_COV_VERSION)
 
-# Tests run once, under coverage; the gate fails below COV_MIN on any of COV_DIRS.
+# Tests run once, under coverage; the gate fails below COV_MIN on any of COV_DIRS
+# and below COV_SECURITY_MIN on any COV_SECURITY file.
 .PHONY: test
-test:                           ## run tests under coverage; fail if src/protocol/ or src/metrics/ < COV_MIN % (hardware tests are #[ignore])
+test:                           ## run tests under coverage; fail if src/protocol/ or src/metrics/ < COV_MIN %, or a security file < 100 % (hardware tests are #[ignore])
 	@test -x $(LLVM_COV) || { echo "!! $(LLVM_COV) missing — run: make tools" >&2; exit 1; }
 	PATH="$(TOOLS_DIR)/bin:$$PATH" $(CARGO) llvm-cov --all-targets --locked --ignore-filename-regex '/tests\.rs$$' --json --summary-only --output-path $(COV_JSON)
 	@for dir in $(COV_DIRS); do jq -r --arg dir "$$dir" --argjson min $(COV_MIN) "$$COV_FILTER" $(COV_JSON); done
+	@for dir in $(COV_SECURITY); do jq -r --arg dir "$$dir" --argjson min $(COV_SECURITY_MIN) "$$COV_FILTER" $(COV_JSON); done
 
 # The single sanctioned gate — the loop and every commit run THIS.
 # Gates run in parallel; cargo serialises on its build-directory lock, so they

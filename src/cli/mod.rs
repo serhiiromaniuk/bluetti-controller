@@ -11,11 +11,13 @@ use bluetti_controller::protocol::crypto::handshake::StaticKeys;
 use bluetti_controller::transport::anonymise::{anonymise_fixture, anonymise_wire};
 use bluetti_controller::transport::fixture::Fixture;
 use clap::Subcommand;
+pub(crate) use printable::printable;
 
 pub mod check;
 mod detect;
 mod dump;
 mod hash_password;
+mod printable;
 mod read;
 mod scan;
 pub mod serve;
@@ -93,22 +95,6 @@ pub enum Command {
     },
 }
 
-/// `text` with every control character (ESC, CR, C1 …) and every Unicode
-/// bidi control (U+202E …) replaced by U+FFFD, so an advertised name can
-/// neither drive the terminal nor reorder the line (SECURITY.md "Bounded
-/// queries and clean output", amendment A5).
-pub(crate) fn printable(text: &str) -> String {
-    text.chars()
-        .map(|c| {
-            let bidi = matches!(
-                c,
-                '\u{061c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
-            );
-            if c.is_control() || bidi { '\u{fffd}' } else { c }
-        })
-        .collect()
-}
-
 /// What every command shares: config, keys and the global flags.
 pub struct Context<'a> {
     pub ble: &'a BleConfig,
@@ -134,7 +120,9 @@ pub async fn run(command: Command, ctx: &Context<'_>) -> anyhow::Result<()> {
         Command::Detect { station } => detect::run(ctx, &station).await,
         Command::Read { station } => read::run(ctx, &station).await,
         Command::Dump { station, from, to } => dump::run(ctx, &station, from, to).await,
-        Command::HashPassword => hash_password::run(),
+        Command::HashPassword => {
+            hash_password::run(std::io::stdin().lock(), &mut std::io::stdout().lock())
+        }
         // main runs them with the owned config and keys.
         Command::Serve | Command::Check | Command::Set { .. } => {
             bail!("serve, check and set are dispatched by main")

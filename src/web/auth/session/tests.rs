@@ -99,3 +99,10 @@ async fn auth_allows_one_verification_at_a_time() {
     assert!(auth.verify_slot.try_acquire().is_ok());
     assert_eq!(auth.hash, "$argon2id$placeholder");
 }
+
+#[test]
+fn a_failing_rng_issues_no_id() {
+    let sessions = Sessions::with_rng(|_| Err(getrandom::Error::UNSUPPORTED));
+    let err = sessions.issue().unwrap_err();
+    assert!(format!("{err:#}").starts_with("session id: "), "{err:#}");
+}

@@ -100,12 +100,12 @@ pub async fn login(State(state): State<Arc<AppState>>, Form(form): Form<LoginFor
             "Too many failed logins. Wait a minute and try again.",
         );
     }
-    // The semaphore is never closed, so `acquire` cannot fail. The permit
-    // moves into the blocking task: dropping this future (the client hung up)
-    // leaves it held until the hash is done (amendment A3).
-    let Ok(permit) = Arc::clone(&auth.verify_slot).acquire_owned().await else {
-        return StatusCode::INTERNAL_SERVER_ERROR.into_response();
-    };
+    // The permit moves into the blocking task: dropping this future (the
+    // client hung up) leaves it held until the hash is done (amendment A3).
+    let permit = Arc::clone(&auth.verify_slot)
+        .acquire_owned()
+        .await
+        .expect("verify_slot is never closed");
     #[cfg(test)]
     auth.verified
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -113,17 +113,15 @@ pub async fn login(State(state): State<Arc<AppState>>, Form(form): Form<LoginFor
     let running = Arc::clone(&auth.running);
     let hash = auth.hash.clone();
     let password = form.password;
-    let ok = tokio::task::spawn_blocking(move || {
-        let _permit = permit;
-        #[cfg(test)]
-        let _running = Running::start(&running);
-        password::verify(&hash, &password)
-    })
-    .await
-    .unwrap_or_else(|err| {
-        tracing::warn!(error = %err, "web login: verification task failed");
-        false
-    });
+    let ok = joined(
+        tokio::task::spawn_blocking(move || {
+            let _permit = permit;
+            #[cfg(test)]
+            let _running = Running::start(&running);
+            password::verify(&hash, &password)
+        })
+        .await,
+    );
     if !ok {
         tracing::info!("web login failed: wrong password");
         return page(StatusCode::UNAUTHORIZED, next, "Wrong password.");
@@ -147,6 +145,14 @@ pub async fn login(State(state): State<Arc<AppState>>, Form(form): Form<LoginFor
             StatusCode::INTERNAL_SERVER_ERROR.into_response()
         }
     }
+}
+
+/// A verification task that panicked or was cancelled is a failed login.
+fn joined(verified: Result<bool, tokio::task::JoinError>) -> bool {
+    verified.unwrap_or_else(|err| {
+        tracing::warn!(error = %err, "web login: verification task failed");
+        false
+    })
 }
 
 /// `POST /logout` (§8.5 b): revokes the request's session and clears the
@@ -196,13 +202,9 @@ pub fn from_config(hash: Option<String>) -> Option<Auth> {
 }
 
 fn page(status: StatusCode, next: &str, error: &str) -> Response {
-    match (LoginPage { next, error }).render() {
-        Ok(html) => (status, Html(html)).into_response(),
-        Err(err) => {
-            tracing::warn!(error = %err, "login page: render failed");
-            (StatusCode::INTERNAL_SERVER_ERROR, "login page unavailable").into_response()
-        }
-    }
+    // Two escaped `&str` fields rendered into a `String`: nothing can fail.
+    let html = (LoginPage { next, error }).render();
+    (status, Html(html.expect("the login page renders"))).into_response()
 }
 
 #[cfg(test)]

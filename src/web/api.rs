@@ -18,11 +18,11 @@ use super::{AppState, chart as dash, history, status as view, unix_now};
 use crate::protocol::device::Metric;
 use crate::store::read;
 
+mod window;
+use window::window;
+
 /// The default window of `/api/series` (§8.4 f).
 const SERIES_DEFAULT_S: i64 = 24 * 3600;
-/// The longest window of every windowed route: a year, past any retention
-/// (SECURITY.md "Bounded queries and clean output").
-const MAX_SPAN_S: i64 = 366 * 86_400;
 /// The default window of `/api/outages` (§8.4 f).
 const OUTAGES_DEFAULT_S: i64 = 7 * 86_400;
 /// `/api/energy` never reaches further back than this many days (§8.4 f).
@@ -87,26 +87,6 @@ fn int(q: &HashMap<String, String>, key: &str) -> Result<Option<i64>, ApiError> 
                 .map_err(|_| bad(format!("{key} must be an integer, got {v:?}")))
         })
         .transpose()
-}
-
-/// `from`/`to` in unix seconds: `to` defaults to `now`, `from` to `to − span`
-/// (at least 0). `0 ≤ from < to` and `to − from ≤ MAX_SPAN_S`, else `400`.
-fn window(q: &HashMap<String, String>, now: i64, span: i64) -> Result<(i64, i64), ApiError> {
-    let to = int(q, "to")?.unwrap_or(now);
-    let from = match int(q, "from")? {
-        Some(from) => from,
-        None => to
-            .checked_sub(span)
-            .ok_or_else(|| bad(format!("to ({to}) is out of range")))?
-            .max(0),
-    };
-    if from < 0 || from >= to {
-        return Err(bad(format!("need 0 ≤ from < to, got {from} and {to}")));
-    }
-    to.checked_sub(from)
-        .filter(|s| *s <= MAX_SPAN_S)
-        .ok_or_else(|| bad(format!("the window must span ≤ {MAX_SPAN_S} s")))?;
-    Ok((from, to))
 }
 
 /// `GET /api/status`: the `Status` the `/` page renders (§8.4 a).

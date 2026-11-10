@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
-use anyhow::anyhow;
+use anyhow::Context;
 use tokio::sync::Semaphore;
 use tokio::time::Instant;
 
@@ -25,25 +25,44 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
     mutex.lock().unwrap_or_else(PoisonError::into_inner)
 }
 
+/// The source of session-id bytes: `getrandom::fill`, or a failing one in tests.
+pub type Fill = fn(&mut [u8]) -> Result<(), getrandom::Error>;
+
 /// Live session ids and their expiry instants.
-#[derive(Default)]
-pub struct Sessions(Mutex<HashMap<String, Instant>>);
+pub struct Sessions {
+    ids: Mutex<HashMap<String, Instant>>,
+    fill: Fill,
+}
+
+impl Default for Sessions {
+    fn default() -> Self {
+        Self::with_rng(getrandom::fill)
+    }
+}
 
 impl Sessions {
-    /// A new session id: 32 bytes from `getrandom`, as 64 lowercase hex chars.
-    /// Drops expired ids, then evicts the oldest while the store is full.
+    /// An empty store whose ids come from `fill`.
+    pub fn with_rng(fill: Fill) -> Self {
+        Self {
+            ids: Mutex::default(),
+            fill,
+        }
+    }
+
+    /// A new session id: 32 random bytes, as 64 lowercase hex chars. Drops
+    /// expired ids, then evicts the oldest when the store is full.
     pub fn issue(&self) -> anyhow::Result<String> {
         let mut bytes = [0u8; 32];
-        getrandom::fill(&mut bytes).map_err(|err| anyhow!("session id: {err}"))?;
+        (self.fill)(&mut bytes).context("session id")?;
         let id: String = bytes.iter().map(|b| format!("{b:02x}")).collect();
         let now = Instant::now();
-        let mut map = lock(&self.0);
+        let mut map = lock(&self.ids);
         map.retain(|_, expiry| *expiry > now);
-        while map.len() >= MAX_SESSIONS {
-            // Every id has the same lifetime, so the earliest expiry is the oldest.
-            let Some(oldest) = map.iter().min_by_key(|(_, e)| **e).map(|(k, _)| k.clone()) else {
-                break;
-            };
+        // Every id has the same lifetime, so the earliest expiry is the oldest.
+        // Each insert follows this check, so one eviction keeps the cap.
+        if map.len() >= MAX_SESSIONS
+            && let Some(oldest) = map.iter().min_by_key(|(_, e)| **e).map(|(k, _)| k.clone())
+        {
             map.remove(&oldest);
         }
         map.insert(id.clone(), now + SESSION_TTL);
@@ -52,14 +71,14 @@ impl Sessions {
 
     /// Whether `id` is a live, unexpired session.
     pub fn check(&self, id: &str) -> bool {
-        lock(&self.0)
+        lock(&self.ids)
             .get(id)
             .is_some_and(|expiry| *expiry > Instant::now())
     }
 
     /// Ends the session `id` (logout); an unknown id is a no-op.
     pub fn revoke(&self, id: &str) {
-        lock(&self.0).remove(id);
+        lock(&self.ids).remove(id);
     }
 }
 

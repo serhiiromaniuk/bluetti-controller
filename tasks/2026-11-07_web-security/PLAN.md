@@ -416,3 +416,6 @@ None is pending; no step is blocked.
   red then green (move `printable` and `window()` into their own files if the per-file gate needs it).
   10a.5: type 7 (`tests/security_e2e.rs`). 10a.6: type 8 (`cargo-mutants` in `.tools/`, survivors killed),
   ticks 10a · disposition: open
+- A11 · 2026-11-10 · MEDIUM `src/web/auth/session.rs:28-50` — the RNG test seam (`pub type Fill`, `pub fn
+  with_rng`) is public library API, so any caller could swap the CSPRNG behind session ids; make both
+  `pub(crate)` (or `with_rng` `#[cfg(test)]`) · disposition: open

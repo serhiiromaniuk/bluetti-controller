@@ -675,3 +675,54 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10a.4 ✓ 2026-11-10 — `COV_SECURITY` 100 % line gate in `make check` (A10)
+**Gated files (10):** `src/web/guard.rs`, `src/web/headers.rs`, `src/web/auth/{mod,session,password}.rs`,
+`src/web/api/window.rs`, `src/config/{web,mode}.rs`, `src/cli/{hash_password,printable}.rs`.
+**Changed:**
+- `Makefile`: `COV_SECURITY` + `COV_SECURITY_MIN := 100`, same `COV_FILTER` jq as the 80 % dirs (unchanged);
+  a missing/renamed file fails ("no … files in coverage").
+- Moved: `printable` → `src/cli/printable.rs` (re-exported), `window()` + `MAX_SPAN_S` → `src/web/api/window.rs`.
+- Restructured, nothing excluded. llvm-cov's JSON summary counts a never-run closure as its own line:
+  - `password.rs`, `session.rs`: `map_err(|e| anyhow!(..))` → `.context(..)`.
+  - `session.rs`: eviction `while`/let-else `break` → one `if let` chain (each insert follows the check);
+    `Sessions::with_rng(fill)` makes the RNG injectable.
+  - `auth/mod.rs`: closed-semaphore branch → `.expect` (never closed); login render error → `.expect` (two
+    escaped `&str` into a `String`); JoinError fallback → `joined()`.
+  - `hash_password::run(input, out)`: stdin/stdout passed in by `cli/mod.rs`.
+  - `mode.rs`: `warn!` fields bound first (a call in the field list reads as uncovered).
+- `web::tests` `pub(crate)` so config tests reuse `Capture`.
+**New tests (6):** `a_failed_verification_task_is_a_failed_login` (aborted task),
+`no_session_id_without_randomness_is_a_500_without_a_cookie`, `a_failing_rng_issues_no_id`,
+`prints_a_phc_string_that_verifies_and_the_line_to_paste`, `an_empty_password_prints_nothing`,
+`warns_once_naming_the_key_the_file_and_the_mode` (captured log; 0600 and missing file silent).
+**Check:** red first, gate only: `src/web/auth/mod.rs line coverage 90.17% < 100%`; before the fixes
+`hash_password` 52 %, `cli/mod.rs` (printable) 31 %, `mode.rs` 75 %, `password.rs` 85 %, `session.rs` 96 %.
+Green after: all 10 at 100 %, `make check` green.
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM. Gate re-run by the reviewer: a file < 100 % and a
+renamed file each fail (exit 5); both `.expect`s unreachable; `if` eviction equivalent; nothing excluded.
+- M1 public RNG seam in `session.rs` → deferred to amendment A11.
+**Next:** 10a.5 — type 7, `tests/security_e2e.rs` (built binary, loopback, exploit catalogue over real HTTP).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T18:49:36Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
