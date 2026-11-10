@@ -16,6 +16,7 @@ pub const BUILD: &str = match option_env!("BLUETTI_BUILD") {
 
 pub mod collector;
 pub mod config;
+pub mod control;
 pub mod metrics;
 pub mod protocol;
 pub mod store;

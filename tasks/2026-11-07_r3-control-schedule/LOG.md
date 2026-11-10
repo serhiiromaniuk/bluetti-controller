@@ -198,3 +198,54 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-11-10 — transport write path (`src/transport/write.rs`)
+
+**Changed:** `transport::write::{set_output, WriteError}` (+ `pub mod write`): one 0x06 frame, echo
+checked with `parse_write_response`, then `read_block(read_back, 1)` under the normal retry policy;
+`ReadBackMismatch { wanted, got }` when the register is not `u16::from(on)`.
+`read.rs`: drain + write + reassemble extracted into `pub(super) exchange` (`read_once` calls it) so
+the write path reuses it instead of a copy — the one file outside the step's list.
+**Check:** failing first — 8/8 `transport::write` tests panicked (`unimplemented!`). Then 8/8 green:
+EB3A AC on (echo split over two notifications, read-back 48 = 1; `eb3a_ac_on_fixture()` is
+`pub(crate)` for step 9), AC180 DC off (2012 = 0), exception `01 86 02` and echo of another value
+fail with no read-back, read-back 0 = mismatch, a lost read-back retried, a timed-out write not
+resent (fixture exhausted), a stale notification drained. Existing `transport::read` tests green.
+
+## Step 7 ✓ 2026-11-10 — the control gate (`src/control/mod.rs`)
+
+**Changed:** `control::{Command, Refused, Reply, Request}` (+ `pub mod control` in `lib.rs`).
+Private fields, one constructor: `Refused::Disabled` unless `control.enabled`, then
+`Refused::NotAllowed { model, output }` when `switches(model)` lacks the output. No I/O.
+**Check:** failing first — 3/3 `control::tests` panicked (`unimplemented!`). Then green: disabled
+refuses all 3 models × AC/DC × on/off; enabled EB3A DC → 3008/49, AC180 AC → 2011; enabled Elite
+refuses both outputs (A2: no switches until H16).
+
+**Reviewer (group B, before the commit):** 0 CRITICAL / 0 HIGH / 1 MEDIUM · INTENT satisfied
+for 6 and 7; the `read.rs` `exchange` extraction judged no-behaviour-change, not creep. M1 (`set_output`
+and `switches()` are `pub`, so the gate holds by convention only) → deferred to amendment A7.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 8 — the collector executes commands between rounds.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T15:54:20Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -19,6 +19,7 @@ pub mod read;
 pub mod record;
 pub mod replay;
 pub mod station;
+pub mod write;
 
 pub use self::bluer::gatt::{BluerGatt, connect, find, release};
 pub use self::bluer::scan::scan;

@@ -122,14 +122,29 @@ async fn read_once(
     count: u16,
     timeout: Duration,
 ) -> Result<Vec<u16>, ReadError> {
+    let frame = exchange(gatt, &read_request(start, count), timeout, |prefix| {
+        expected_frame_len(prefix, count)
+    })
+    .await?;
+    Ok(parse_read_response(&frame, count)?)
+}
+
+/// Drains, writes `request` once, and reassembles notifications until the
+/// length `expected_len` derives from the prefix, all within `timeout`.
+pub(super) async fn exchange(
+    gatt: &mut impl Gatt,
+    request: &[u8],
+    timeout: Duration,
+    expected_len: impl Fn(&[u8]) -> Option<usize>,
+) -> Result<Vec<u8>, TransportError> {
     drain(gatt).await;
-    gatt.write(&read_request(start, count)).await?;
+    gatt.write(request).await?;
     let deadline = Instant::now() + timeout;
     let mut frame = Vec::new();
-    while expected_frame_len(&frame, count).is_none_or(|len| frame.len() < len) {
+    while expected_len(&frame).is_none_or(|len| frame.len() < len) {
         let remaining = deadline.saturating_duration_since(Instant::now());
         if remaining.is_zero() {
-            return Err(TransportError::Timeout(timeout).into());
+            return Err(TransportError::Timeout(timeout));
         }
         let fragment = gatt
             .next_notification(remaining)
@@ -141,7 +156,7 @@ async fn read_once(
             })?;
         frame.extend(fragment);
     }
-    Ok(parse_read_response(&frame, count)?)
+    Ok(frame)
 }
 
 /// Drops notifications already queued, so a late reply (or fragment) to an

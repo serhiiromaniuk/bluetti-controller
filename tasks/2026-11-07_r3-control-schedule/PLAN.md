@@ -150,7 +150,7 @@ delegated defaults the owner accepted).
   no-op, migration from version 1. — check: the new tests red then green,
   `make check`.
 
-- [ ] 6. [parallel: B] Transport write path (`spec §4.2`, golden rule #5): new
+- [x] 6. [parallel: B] Transport write path (`spec §4.2`, golden rule #5): new
   `src/transport/write.rs` with `set_output(gatt, switch: &OutputSwitch, on:
   bool, policy: &ReadPolicy) -> Result<bool, WriteError>`: drain, one write
   attempt (no retry on the write itself: a timed-out write may have landed),
@@ -163,7 +163,7 @@ delegated defaults the owner accepted).
   mismatch; timeout. Only this file and `transport/mod.rs` (`pub mod write`)
   change. — check: the new tests red then green, `make check`.
 
-- [ ] 7. [parallel: B] The gate (`spec §R3`, golden rule #2): new
+- [x] 7. [parallel: B] The gate (`spec §R3`, golden rule #2): new
   `src/control/mod.rs` (+ `pub mod control` in `src/lib.rs`) with `Command {
   station: String, output: Output, on: bool, switch: &'static OutputSwitch }`
   whose fields are private and whose only constructor `Command::new(control:
@@ -422,3 +422,7 @@ delegated defaults the owner accepted).
 - A6 · 2026-11-10 · MEDIUM `PLAN.md` step 12 (step-1 review M2) — step 12's "an AC row and a DC row" and its test "both rows
   for every station" contradict spec §8.2 / §4.3 (A2): rows only for outputs in `switches(model)`, none for the Elite until
   H16. Step 12 renders and tests rows per `switches(model)` · disposition: open
+- A7 · 2026-11-10 · MEDIUM `src/control/mod.rs:20` (group B review M1) — "the gate cannot be skipped" holds by convention
+  only: `set_output` and `switches()` are `pub`, so `set_output(gatt, &switches(model)[0], …)` compiles without a
+  `Command`. Reword the doc, and the reviews of steps 8, 9 and 13b check every `set_output` call takes
+  `command.switch()` (or `set_output` takes `&Command`) · disposition: open
