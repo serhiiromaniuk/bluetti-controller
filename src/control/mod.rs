@@ -7,6 +7,8 @@ use crate::config::{ControlConfig, StationConfig};
 use crate::protocol::control::{Output, OutputSwitch, switches};
 use crate::protocol::device::Model;
 
+pub mod schedule;
+
 /// Why no [`Command`] was built.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 pub enum Refused {

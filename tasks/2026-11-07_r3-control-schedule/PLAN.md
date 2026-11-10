@@ -267,7 +267,7 @@ delegated defaults the owner accepted).
   station, the toggles are disabled and the note shown only when control is
   disabled. — check: the new tests red then green, `make check`.
 
-- [ ] 13a. Scheduler arithmetic, pure (`spec §R3`, Q3) (needs Q1): new
+- [x] 13a. Scheduler arithmetic, pure (`spec §R3`, Q3) (needs Q1): new
   `src/control/schedule.rs` with `fn due(entries: &[ScheduleEntry], now:
   Zoned) -> Vec<(station_id, Output, on: bool, due_ts)>` — per entry the
   latest `on`/`off` occurrence ≤ now (today's time in `general.timezone`, else

@@ -450,3 +450,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 13a ✓ 2026-11-10 — scheduler arithmetic, pure
+
+**Changed:** new `src/control/schedule.rs` (69 lines): `Due { station_id, output, on, due_ts }`,
+`pub fn due(entries, now: &Zoned) -> Result<Vec<Due>, jiff::Error>` — per entry the latest
+`on`/`off` occurrence ≤ now (today's, else yesterday's, compatible DST disambiguation), kept when
+newer than `last_due` (`None` = never run). `src/control/mod.rs`: `pub mod schedule`.
+Deviations: (a) named `Due` struct, not a tuple; `Result` because a minute ≥ 1440 errs
+(`Time::checked_add`) instead of wrapping into a valid time; (b) `now` by reference.
+**Check:** 9 tests in `src/control/schedule/tests.rs`, Kyiv instants hand-computed from
+2026-01-01T00:00Z = 1767225600: due exactly at `off` (and not 1 s before); restart 30 min after a
+missed `off` due once, not with `last_due` = that slot; restart 5 min after a recorded run not due;
+both missed → only the latest; `off` moved earlier due at once; never run → yesterday's latest,
+second entry already current skipped; DST gap 03:30 on 2026-03-29 → 04:30 EEST = 01:30Z (and
+yesterday's slot at 01:00Z); minute 1440 errs; local-midnight constant cross-checked by jiff.
+Red first against a stub returning empty: 6 FAILED. Mutations `due_ts > last` → `>=` (5 FAILED),
+`today <= now` → `<` (1 FAILED), restored. `make format` then `make check` green.
+**Reviewer (risky, before the commit):** INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM;
+deviations (a)–(b) accepted, instants re-derived. Note for 13b: one `Err` aborts the whole
+`due` call (migration 002 has no minute-range CHECK) — 13b logs it, never panics.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 13b — scheduler task + `serve` wiring.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:29:29Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
