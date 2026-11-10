@@ -65,13 +65,13 @@ pub async fn pause(
     )
 }
 
-fn error(status: StatusCode, message: &str) -> (StatusCode, Json<Value>) {
+pub(super) fn error(status: StatusCode, message: &str) -> (StatusCode, Json<Value>) {
     (status, Json(json!({ "error": message })))
 }
 
 /// Constant-time equality (§8.4 h): the length first, then one XOR fold over
 /// every byte, so the time does not tell how many leading bytes matched.
-fn same(a: &[u8], b: &[u8]) -> bool {
+pub(super) fn same(a: &[u8], b: &[u8]) -> bool {
     a.len() == b.len() && a.iter().zip(b).fold(0, |acc, (x, y)| acc | (x ^ y)) == 0
 }
 

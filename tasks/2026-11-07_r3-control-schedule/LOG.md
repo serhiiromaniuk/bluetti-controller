@@ -297,3 +297,61 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 9 ✓ 2026-11-10 — CLI `set <station> ac|dc on|off` behind the gate (`src/cli/set.rs`)
+
+**Changed:** `cli::Command::Set { station, output, state }` (clap parsers `parse_output` /
+`parse_state`); `main.rs` dispatches it with `config.control` after `ctx` (`set needs --config`);
+`set.rs`: `command()` = config station name only, then `control::Command::new` — both before
+`session::run`; `apply` calls `set_output(command.switch(), …)` (A7 holds), prints the read-back.
+`main.rs` module doc and `cli/mod.rs` doc name the gate instead of "only 0x03".
+Deviation: `eb3a_ac_on_fixture()` is `cfg(test)` in the lib, unreachable from bin tests, so
+`set/tests.rs` rebuilds the same 4 frames from public items (`write_request`, `read_request`, `crc16`).
+**Check:** tests written with the code; `parses_station_output_and_state` failed first on a real bug
+(clap: "Argument 'state' is positional … action is SetTrue" — a `bool` positional), fixed with
+`action = Set`. Then 4/4 green: parse; MAC + unknown name refused; disabled → `Refused::Disabled`;
+`apply` over `ReplayGatt` → `true`. Smoke (example config, no keys): `set router ac on` → `Error:
+control is disabled` exit 1; MAC → `set takes a station name from the config`; no `--config` → exit 1.
+
+## Step 10 ✓ 2026-11-10 — `POST /api/control/output` + `ac_output_on`/`dc_output_on` on the cards
+
+**Changed:** `AppState` + `commands`, `control_config` (name: `control` is the pause watch sender),
+`stations: Vec<Target>`; `serve` creates the command channel before the state and passes
+`targets.clone()`. `web/control.rs`: 401 (also with no `web.token`) → 400 station/output/state →
+gate (`Disabled` 403, `NotAllowed` 400) → 503 on `Shutdown` → send + reply under `timeout(interval/n
++ interval)`: 504 / 503 (channel gone) / 502 collector error / 200 read-back (§8.2). `pause.rs`:
+`same`, `error` `pub(super)`; its test `post` helper moved to `web/tests.rs`. `status.rs`: one
+`latest_extras` read per card; output states only from extras at the newest sample's ts.
+**Check:** 7 route tests + 1 status test green; mutation (bearer check off, 403→200, output-state
+ts filter off) → 3 FAILED (`…401…`, `…403…`, `output_states_come_from_the_newest_sample_only`),
+restored. Steps 9+10 ran serially in one tree (disjoint files), no worktree.
+
+**Reviewer (group C, risky, before the commit):** 0 CRITICAL / 0 HIGH / 1 MEDIUM · INTENT satisfied for 9
+and 10; deviations (a)–(f) judged acceptable. A7 holds at both `set_output` callers (`cli/set.rs`,
+`collector/control.rs`). M1 (late shutdown answers 502, not 503) → deferred to amendment A11.
+Reviewer note for step 12: after a 504 the switch may still have happened; show the card's next state.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 11 — web schedule routes.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:09:30Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

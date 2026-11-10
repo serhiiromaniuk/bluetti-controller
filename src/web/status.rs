@@ -2,7 +2,6 @@
 //! card per station with its runtime forecast, and `paused_until`. `/` and
 //! `/api/status` serialise the same struct, so the field names are the API.
 
-use std::collections::BTreeMap;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use jiff::Timestamp;
@@ -97,6 +96,10 @@ pub struct Card {
     /// R1b, unverified: the station's own `time_to_empty`, e.g. `4 h 09 min`;
     /// only while discharging (output > 0 W, input = 0 W).
     pub station_left: Option<String>,
+    /// R3, unverified: the AC / DC output state in the newest sample; `None`
+    /// when that sample lacks it (e.g. the Elite's profile reads no 2011 block).
+    pub ac_output_on: Option<bool>,
+    pub dc_output_on: Option<bool>,
 }
 
 /// Builds the status view at `now` (unix seconds) from the read connection.
@@ -244,8 +247,19 @@ fn card(
     let in_w = sum(Metric::AcInputPower, Metric::DcInputPower);
     let out_w = sum(Metric::AcOutputPower, Metric::DcOutputPower);
     let discharging = matches!((in_w, out_w), (Some(i), Some(o)) if i == 0.0 && o > 0.0);
-    let extras = fresh_extras(conn, row.id, now)?;
-    let extra = |m: Metric| extras.get(m.key()).copied();
+    let extras = read::latest_extras(conn, row.id)?;
+    let newest = |m: Metric| extras.get(m.key()).copied();
+    let extra = |m: Metric| {
+        newest(m)
+            .filter(|(ts, _)| now - ts <= EXTRA_MAX_AGE_S)
+            .map(|(_, v)| v)
+    };
+    // From the newest sample only: an older state would mislead the toggle.
+    let output_on = |m: Metric| {
+        newest(m)
+            .filter(|&(ts, _)| Some(ts) == last_seen)
+            .map(|(_, v)| v >= 1.0)
+    };
     let card = Card {
         name: row.name.clone(),
         model: row.model.clone(),
@@ -272,21 +286,10 @@ fn card(
         station_left: extra(Metric::TimeToEmpty)
             .filter(|&min| discharging && min <= 60_000.0)
             .map(|min| duration((min * 60.0) as i64)),
+        ac_output_on: output_on(Metric::AcOutputOn),
+        dc_output_on: output_on(Metric::DcOutputOn),
     };
     Ok((card, grid))
-}
-
-/// The newest value of each extra key no older than [`EXTRA_MAX_AGE_S`].
-fn fresh_extras(
-    conn: &Connection,
-    station_id: i64,
-    now: i64,
-) -> anyhow::Result<BTreeMap<String, f64>> {
-    Ok(read::latest_extras(conn, station_id)?
-        .into_iter()
-        .filter(|(_, (ts, _))| now - ts <= EXTRA_MAX_AGE_S)
-        .map(|(key, (_, v))| (key, v))
-        .collect())
 }
 
 /// `charging_mode` (160) by the R3 map of register 2020, assumed (ROADMAP §2.2 R1b).

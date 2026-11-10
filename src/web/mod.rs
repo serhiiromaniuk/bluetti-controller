@@ -1,6 +1,7 @@
-//! The web server (ROADMAP.md §8): the pages, the JSON API, SSE and the pause
-//! POST, one module each (§8.4 a). Handlers read through the read-only
-//! connection in `spawn_blocking` (§5.3), never through the writer's.
+//! The web server (ROADMAP.md §8): the pages, the JSON API, SSE, the pause
+//! POST and the output control POST (§R3), one module each (§8.4 a). Handlers
+//! read through the read-only connection in `spawn_blocking` (§5.3), never
+//! through the writer's.
 
 use std::future::Future;
 use std::sync::Arc;
@@ -17,6 +18,7 @@ use tokio::net::TcpListener;
 pub mod api;
 pub mod assets;
 pub mod chart;
+pub mod control;
 pub mod history;
 pub mod pages;
 pub mod pause;
@@ -51,6 +53,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/outages", get(api::outages))
         .route("/api/energy", get(api::energy))
         .route("/api/polling/pause", post(pause::pause))
+        .route("/api/control/output", post(control::output))
         .route("/events", get(sse::events))
         .route("/healthz", get(healthz))
         .with_state(state)

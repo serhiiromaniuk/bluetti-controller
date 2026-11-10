@@ -201,7 +201,7 @@ delegated defaults the owner accepted).
   frame; a closed-reply request opens no link. —
   check: the new tests red then green, `make check`.
 
-- [ ] 9. [parallel: C] CLI `set`, minimal (`spec §R3`): `Command::Set { station,
+- [x] 9. [parallel: C] CLI `set`, minimal (`spec §R3`): `Command::Set { station,
   output, state }` (`bluetti-controller set router ac off`, needs `--config`;
   `station` is a config station name only — a MAC or an unknown name exits
   non-zero before any BLE), dispatched from `main.rs` with the owned config
@@ -218,7 +218,7 @@ delegated defaults the owner accepted).
   read-back `true` (the CLI line of done-when 3). — check: the new tests red
   then green, `make check`.
 
-- [ ] 10. [parallel: C] Web control route (`spec §8.2`): `AppState` gains
+- [x] 10. [parallel: C] Web control route (`spec §8.2`): `AppState` gains
   `commands: mpsc::Sender<Request>`, `control: ControlConfig` and `stations:
   Vec<Target>` (the `targets` `serve` already builds before `AppState::new`,
   `src/cli/serve.rs`; the id ↔ name/model map every later step uses); new
@@ -436,3 +436,7 @@ delegated defaults the owner accepted).
 - A10 · 2026-11-10 · MEDIUM `src/collector/control.rs:78-80` (step-8 review M3) — the release-by-address branch of a command
   (deadline or shutdown mid-write) has no test. Add one: open, then a stalled read-back; `Err` names the poll deadline,
   `releases == 1`, `live == None`, the next round opens · disposition: open
+- A11 · 2026-11-10 · MEDIUM `src/web/control.rs:151` (group C review M1) — a shutdown landing after the handler's
+  `Control::Shutdown` check makes the collector answer `Err("shutting down")`, which the route maps to `502`, not §8.2's
+  `503`. Type the collector's error (a `Shutdown` variant → 503) or re-check `Control::Shutdown` in the `Err` arm; test
+  a fake answering "shutting down" while control is `Shutdown` · disposition: open

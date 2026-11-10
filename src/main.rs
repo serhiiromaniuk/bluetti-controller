@@ -1,5 +1,7 @@
 //! `bluetti-controller` command line: read-only station tools (`ROADMAP.md`
-//! §12 M1) and the `serve` monitor (M3). Only function 0x03 frames are ever sent (golden rule #2).
+//! §12 M1), the `serve` monitor (M3) and `set` (§R3). Only `set` sends a write
+//! frame (0x06), and only through the control gate: `control.enabled = true`
+//! and an allow-listed output (golden rule #2).
 
 use std::path::PathBuf;
 
@@ -77,5 +79,14 @@ async fn main() -> anyhow::Result<()> {
         record: args.record.as_deref(),
         record_wire: args.record_wire.as_deref(),
     };
+    if let cli::Command::Set {
+        station,
+        output,
+        state,
+    } = &args.command
+    {
+        let config = config.as_ref().context("set needs --config")?;
+        return cli::set::run(&ctx, &config.control, station, *output, *state).await;
+    }
     cli::run(args.command, &ctx).await
 }

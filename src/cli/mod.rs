@@ -1,10 +1,12 @@
 //! The subcommands. Each one reaches a station only through
-//! [`bluetti_controller::transport`].
+//! [`bluetti_controller::transport`]; only `set` writes, through the control
+//! gate (golden rule #2).
 
 use std::path::{Path, PathBuf};
 
 use anyhow::bail;
 use bluetti_controller::config::{BleConfig, StationConfig};
+use bluetti_controller::protocol::control::Output;
 use bluetti_controller::protocol::crypto::handshake::StaticKeys;
 use bluetti_controller::transport::anonymise::{anonymise_fixture, anonymise_wire};
 use bluetti_controller::transport::fixture::Fixture;
@@ -17,6 +19,7 @@ mod read;
 mod scan;
 pub mod serve;
 mod session;
+pub mod set;
 
 #[derive(Debug, Subcommand)]
 pub enum Command {
@@ -58,6 +61,20 @@ pub enum Command {
     /// Poll every configured station, store the readings and serve
     /// `/healthz` until SIGINT/SIGTERM (`ROADMAP.md` §5.3). Needs `--config`.
     Serve,
+    /// Switch one output on or off and print the read-back state, for the
+    /// hardware checks (`ROADMAP.md` §R3). Refused before any BLE unless
+    /// `control.enabled = true` and the model allow-lists the output (golden
+    /// rule #2). Needs `--config`; with `serve` running, pause polling first.
+    Set {
+        /// A station name from the config (never a MAC address).
+        station: String,
+        /// `ac` or `dc`.
+        #[arg(value_parser = set::parse_output)]
+        output: Output,
+        /// `on` or `off`.
+        #[arg(value_parser = set::parse_state, action = clap::ArgAction::Set)]
+        state: bool,
+    },
     /// Mask a capture for commit under `tests/frames/` (RULES.md golden rule
     /// #3). No station is touched.
     Anonymise {
@@ -98,7 +115,9 @@ pub async fn run(command: Command, ctx: &Context<'_>) -> anyhow::Result<()> {
         Command::Read { station } => read::run(ctx, &station).await,
         Command::Dump { station, from, to } => dump::run(ctx, &station, from, to).await,
         // main runs them with the owned config and keys.
-        Command::Serve | Command::Check => bail!("serve and check are dispatched by main"),
+        Command::Serve | Command::Check | Command::Set { .. } => {
+            bail!("serve, check and set are dispatched by main")
+        }
         Command::Anonymise {
             input,
             output,

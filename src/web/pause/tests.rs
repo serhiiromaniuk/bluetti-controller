@@ -1,5 +1,3 @@
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream};
 use std::time::Duration;
 
 use tokio::sync::watch;
@@ -9,23 +7,7 @@ use crate::collector::Control;
 use crate::store::open_reader;
 use crate::store::temp_db::TempDb;
 use crate::web::AppState;
-use crate::web::tests::start;
-
-/// A raw HTTP/1.1 POST with an optional `Authorization` header; returns the
-/// status line and the body.
-fn post(addr: SocketAddr, path: &str, auth: Option<&str>) -> (String, String) {
-    let mut stream = TcpStream::connect(addr).unwrap();
-    let auth = auth.map_or(String::new(), |a| format!("Authorization: {a}\r\n"));
-    write!(
-        stream,
-        "POST {path} HTTP/1.1\r\nHost: localhost\r\n{auth}Content-Length: 0\r\nConnection: close\r\n\r\n"
-    )
-    .unwrap();
-    let mut response = String::new();
-    stream.read_to_string(&mut response).unwrap();
-    let (head, body) = response.split_once("\r\n\r\n").unwrap();
-    (head.lines().next().unwrap().to_owned(), body.to_owned())
-}
+use crate::web::tests::{post, start};
 
 /// Serves a test state (with `token`, starting at `control`), sends each
 /// `(path, auth)` POST in order, and returns the replies plus the final

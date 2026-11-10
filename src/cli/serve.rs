@@ -64,7 +64,15 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         updates.clone(),
     )?;
     let (control, control_rx) = watch::channel(Control::Run);
-    let state = web::AppState::new(open_reader(path)?, config, control, updates)?;
+    let (commands_tx, commands) = mpsc::channel(COMMANDS);
+    let state = web::AppState::new(
+        open_reader(path)?,
+        config,
+        control,
+        updates,
+        commands_tx,
+        targets.clone(),
+    )?;
     state.spawn_sample_counter();
     let router = web::router(Arc::clone(&state));
     let listener = TcpListener::bind(config.web.listen)
@@ -83,8 +91,6 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     let mut server = tokio::spawn(web::serve(listener, router, async {
         let _ = server_stopped.await;
     }));
-    // The sender is unused until the web control route (R3 step 10).
-    let (_commands, commands) = mpsc::channel(COMMANDS);
     let collector = Collector {
         connect: BluezConnect {
             ble: config.ble.clone(),

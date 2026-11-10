@@ -341,3 +341,30 @@ fn the_forecast_load_is_the_pack_draw_while_nothing_charges() {
         assert_eq!(card.forecast, want, "charging: {charging}");
     }
 }
+
+#[test]
+fn output_states_come_from_the_newest_sample_only() {
+    let conn = db();
+    sample(&conn, 1, NOW - 60, 80.0, 9.0, 220.0);
+    sample(&conn, 1, NOW, 80.0, 9.0, 220.0);
+    conn.execute_batch(&format!(
+        "INSERT INTO sample_extra VALUES (1, {now}, 'ac_output_on', 1);
+         INSERT INTO sample_extra VALUES (1, {old}, 'dc_output_on', 1);
+         INSERT INTO sample_extra VALUES (2, {now}, 'dc_output_on', 0);",
+        now = NOW,
+        old = NOW - 60
+    ))
+    .unwrap();
+    office_sample(&conn, 0.0);
+    let status = view(conn, NOW);
+    let (router, office) = (&status.stations[0], &status.stations[1]);
+    // The DC state is one sample old: not shown.
+    assert_eq!(
+        (router.ac_output_on, router.dc_output_on),
+        (Some(true), None)
+    );
+    assert_eq!(
+        (office.ac_output_on, office.dc_output_on),
+        (None, Some(false))
+    );
+}
