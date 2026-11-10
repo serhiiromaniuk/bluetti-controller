@@ -86,8 +86,8 @@ device write frames (golden rule #2 in [`RULES.md`](./RULES.md)).
   keys file with a group-write or any other-user mode bit is warned about.
 - **Bounded queries and clean output.** `/api/series`, `/api/outages` and
   `/api/chart` refuse a span over 366 days or a negative bound, with checked
-  arithmetic. Advertised names have their control characters replaced before
-  `scan`, `detect` or the session banner prints them.
+  arithmetic. Advertised names have their control characters and Unicode bidi
+  controls replaced before `scan`, `detect` or the session banner prints them.
 - **Service hardening.** The system unit
   (`deploy/bluetti-controller.system.service`) runs as a dedicated user, with
   an empty capability set, `NoNewPrivileges`, `ProtectSystem=strict`,
@@ -102,7 +102,7 @@ From the audit of 2026-11-05 (commit `e8331a9`), updated by task
 `2026-11-07_web-security`. None is a confirmed vulnerability; each depends on
 how the service is deployed. Closed by that task: unauthenticated reads and no
 Host/Origin check, the open pause endpoint, unbounded history queries, and raw
-advertised names.
+advertised names (control characters, then bidi controls).
 
 1. **BLE replies are not bound to requests.** A late reply within the same
    connection can be accepted as the answer to a newer read. Exploiting this
@@ -116,9 +116,6 @@ advertised names.
 4. **One global lockout.** Five wrong passwords from any LAN client lock the
    login for everyone for 60 s. A LAN attacker can keep the owner locked out,
    but cannot guess faster than five tries a minute.
-5. **Bidi controls pass through advertised names.** Only control characters
-   (Cc) are replaced; Unicode bidi overrides such as U+202E (Cf) still reach
-   the terminal (task amendment A5).
 
 ## Deployment recommendations
 
@@ -142,9 +139,8 @@ advertised names.
 
 ## Planned hardening
 
-- Replace Unicode bidi controls in advertised names, and the security test
-  suite with a 100 % line-coverage gate on the security files (task
-  `2026-11-07_web-security`, step 10a).
+- The security test suite with a 100 % line-coverage gate on the security
+  files (task `2026-11-07_web-security`, step 10a).
 - Add a whole-body deadline to `with_disconnect`, and reopen the D-Bus session
   after a bus loss.
 - In `bluetti-update`: copy the release to a root-owned staging directory

@@ -45,3 +45,24 @@ fn control_characters_in_the_name_never_reach_the_terminal() {
     assert!(!masked.chars().any(char::is_control), "{masked:?}");
     assert_eq!(super::super::printable("EB3A2235000123"), "EB3A2235000123");
 }
+
+#[test]
+fn printable_replaces_every_bidi_control() {
+    // Amendment A5: the Unicode Bidi_Control set is Cf, not Cc.
+    for bidi in [
+        '\u{061c}', '\u{200e}', '\u{200f}', '\u{202a}', '\u{202b}', '\u{202c}', '\u{202d}',
+        '\u{202e}', '\u{2066}', '\u{2067}', '\u{2068}', '\u{2069}',
+    ] {
+        assert_eq!(
+            super::super::printable(&format!("EB3A{bidi}x")),
+            "EB3A\u{fffd}x"
+        );
+    }
+    // Neighbours of the ranges, and other Cf such as ZWJ, stay.
+    for kept in [
+        '\u{2029}', '\u{202f}', '\u{2065}', '\u{206a}', '\u{200d}', 'é',
+    ] {
+        let text = format!("EB3A{kept}");
+        assert_eq!(super::super::printable(&text), text);
+    }
+}

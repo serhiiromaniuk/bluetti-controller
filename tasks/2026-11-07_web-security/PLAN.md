@@ -335,7 +335,7 @@ None is pending; no step is blocked.
 - A1 · 2026-11-07 · MEDIUM `PLAN.md` steps 1 (d), 6, 7 vs `tasks/2026-11-07_r3-control-schedule/PLAN.md` step 12 —
   step 7 removes the pause form's token field, which R3's panel reads; the "R3 ordering" risk covers only R3
   step 10. The guard (step 1 (d), step 6) treats an empty or absent `Authorization` bearer as no bearer, so a
-  valid session cookie still passes; R3 A1 covers the panel side · disposition: open
+  valid session cookie still passes; R3 A1 covers the panel side · disposition: fixed in 10a.1 (guard side: A4's test; panel side: R3 A1, a9f2abc; `control.js` sends no bearer)
 - 2026-11-10 — plan: R3 landed before this task. Step 6 therefore also removes the per-handler bearer checks in
   `src/web/control.rs` and `src/web/schedule.rs` (moving their 401 tests to `guard/tests.rs`) and lists R3's
   `/api/control/*` and `/api/schedule*` routes in `PROTECTED`; R3's own rules ("`web.token` set" → `403` for
@@ -353,10 +353,10 @@ None is pending; no step is blocked.
   future, but `verify` runs in `spawn_blocking`; a client that closes the socket mid-login drops the future and
   frees the permit while the hash still runs, so up to 5 verifications (~95 MiB) can overlap (§8.5 c "one hash
   in memory"). Fix: `Arc<Semaphore>` + `acquire_owned()`, the permit moved into the blocking closure; a test
-  that drops the handler future mid-verify · disposition: open
+  that drops the handler future mid-verify · disposition: fixed in 10a.1 (`Arc<Semaphore>` + `acquire_owned`, permit moved into the blocking task; test drops 5 handler futures mid-verify)
 - A4 · 2026-11-10 · MEDIUM `src/web/guard/tests.rs:253` — A1 (an empty or wrong bearer plus a valid session
   still passes) has no login-mode test; add `Authorization: Bearer ` and `Bearer wrong`, each with a valid
-  session + same Origin on `POST /api/polling/pause` → `200` · disposition: open
+  session + same Origin on `POST /api/polling/pause` → `200` · disposition: fixed in 10a.1 (`a_bad_bearer_beside_a_valid_session_still_passes`, token set and unset)
 - 2026-11-10 — plan: owner requirement (recorded at the owner's request): "security posture and modules
   should be tested by 100%… a lot of different tests… negative, exploitive test types (and other)". New
   step 10a below, after the docs step and before the close; the close needs it ticked. Hard gate added by
@@ -396,10 +396,10 @@ None is pending; no step is blocked.
   mutation run's summary in LOG.
 - A5 · 2026-11-10 · MEDIUM `src/cli/mod.rs:98` — `printable` replaces only `char::is_control` (Cc); the bidi
   controls U+202A–U+202E and U+2066–U+2069 are Cf and pass through, so step 10a's "bidi overrides (U+202E) in
-  advertised names" exploit test cannot pass until `printable` also replaces them · disposition: open
+  advertised names" exploit test cannot pass until `printable` also replaces them · disposition: fixed in 10a.1 (`printable` also replaces the Bidi_Control set; SECURITY.md limitation 5 closed)
 - A6 · 2026-11-10 · HIGH→re-targeted `src/cli/serve.rs:97` — spec §8.5 (h) "`serve` logs one `warn!` at start:
   the web login is off" was never built (steps 2–9); step 10 dropped the claim from SECURITY.md. Step 10a adds
-  the `warn!` with a captured-log test · disposition: open
+  the `warn!` with a captured-log test · disposition: fixed in 10a.1 (`auth::from_config` logs the `warn!`; captured-log test)
 - A7 · 2026-11-10 · MEDIUM `deploy/HOMELAB.md` §7a, `SECURITY.md` "Deployment recommendations" — the proxy setup
   moves the app to loopback, where the hash is no longer required; both must say `password_hash` stays set, else
   the proxy serves an open UI to the LAN · disposition: open
@@ -407,4 +407,12 @@ None is pending; no step is blocked.
   fast and `bluetti-update` rolls back"; the preflight `check` exits 4 and nothing changes (HOMELAB upgrade note)
   · disposition: open
 - A9 · 2026-11-10 · MEDIUM `src/web/api.rs:24`, `src/cli/mod.rs:97` — comments cite "SECURITY.md limitation 3/5",
-  renumbered by step 10 (now closed items) · disposition: open
+  renumbered by step 10 (now closed items) · disposition: fixed in 10a.1 (comments cite SECURITY.md "Bounded queries and clean output")
+- A10 · 2026-11-10 · split step 10a — eight test types, a coverage gate and a mutation run do not fit one
+  increment (precedent: phase-4 A21). Each sub-step is risky (reviewed before the commit) and committed with
+  `--no-tick`; the last ticks 10a. 10a.1 (this): A3, A4, A5, A6, A9 — the fixes the catalogue needs.
+  10a.2: types 1–3 (negative, exploit catalogue via `oneshot`, boundary). 10a.3: types 4–6 (property-style,
+  secret hygiene, headers on every response class). 10a.4: the `COV_SECURITY` 100 % gate in `make check`,
+  red then green (move `printable` and `window()` into their own files if the per-file gate needs it).
+  10a.5: type 7 (`tests/security_e2e.rs`). 10a.6: type 8 (`cargo-mutants` in `.tools/`, survivors killed),
+  ticks 10a · disposition: open

@@ -514,3 +514,52 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10a.1 ✓ 2026-11-10 — prerequisite fixes A3, A4, A5, A6, A9 (A10 splits 10a into 10a.1–10a.6)
+**Changed:**
+- `PLAN.md` A10: 10a split (eight test types + gate + mutation run exceed one increment; phase-4 A21
+  precedent). Each sub-step risky, `--no-tick`; 10a.6 ticks 10a.
+- A3 `src/web/auth/{mod,session}.rs`: `verify_slot: Arc<Semaphore>`, `acquire_owned`, permit moved into the
+  `spawn_blocking` closure; test-only `running` (now, peak) counter around `verify`.
+- A6 `auth::from_config`: builds `Option<Auth>` from `web.password_hash`, logs one `warn!` when unset;
+  `AppState::new` uses it (once per `serve`).
+- A5 `src/cli/mod.rs` `printable`: also replaces the Bidi_Control set (U+061C, U+200E/F, U+202A–E,
+  U+2066–9). `SECURITY.md`: limitation 5 closed, controls line and planned-hardening bullet updated.
+- A9 `src/web/api.rs`, `src/cli/mod.rs` comments cite SECURITY.md "Bounded queries and clean output".
+- A1 settled: guard side proven by A4's test; panel side R3 A1 (a9f2abc).
+**Check:** new tests
+- `a_dropped_login_keeps_its_slot_until_the_hash_ends` — red with the permit left in the handler
+  (`left: 5, right: 0`: five verifications running at once), green after.
+- `printable_replaces_every_bidi_control` — red with the bidi arm disabled (`"EB3A\u{61c}x"`), green after.
+- `a_bad_bearer_beside_a_valid_session_still_passes` (token set and unset), `dev_mode_warns_once_that_the_login_is_off`
+  — green on arrival (A4 pins existing behaviour; A6 asserts exactly one WARN line).
+- `make check` green.
+**reviewer:** INTENT satisfied; 0 CRITICAL / 0 HIGH / 1 MEDIUM
+- MEDIUM M1: A1's disposition landed in the HTML-comment template line, not the real A1 entry → fixed
+  before the commit (mechanical: template restored, real entry carries it; `make amendments` 3 open: A7 A8 A10).
+**Decision:** 10a runs as 10a.1–10a.6 (A10); none of A7/A8 (docs) belongs to 10a — settled at the close.
+**Carry-forward:** none
+**Next:** 10a.2 — negative, exploit catalogue (`oneshot`), boundary tests.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:59:05Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

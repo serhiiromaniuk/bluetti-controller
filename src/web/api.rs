@@ -21,7 +21,7 @@ use crate::store::read;
 /// The default window of `/api/series` (§8.4 f).
 const SERIES_DEFAULT_S: i64 = 24 * 3600;
 /// The longest window of every windowed route: a year, past any retention
-/// (SECURITY.md limitation 3).
+/// (SECURITY.md "Bounded queries and clean output").
 const MAX_SPAN_S: i64 = 366 * 86_400;
 /// The default window of `/api/outages` (§8.4 f).
 const OUTAGES_DEFAULT_S: i64 = 7 * 86_400;

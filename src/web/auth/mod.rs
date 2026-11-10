@@ -100,21 +100,30 @@ pub async fn login(State(state): State<Arc<AppState>>, Form(form): Form<LoginFor
             "Too many failed logins. Wait a minute and try again.",
         );
     }
-    // The semaphore is never closed, so `acquire` cannot fail.
-    let Ok(_permit) = auth.verify_slot.acquire().await else {
+    // The semaphore is never closed, so `acquire` cannot fail. The permit
+    // moves into the blocking task: dropping this future (the client hung up)
+    // leaves it held until the hash is done (amendment A3).
+    let Ok(permit) = Arc::clone(&auth.verify_slot).acquire_owned().await else {
         return StatusCode::INTERNAL_SERVER_ERROR.into_response();
     };
     #[cfg(test)]
     auth.verified
         .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    #[cfg(test)]
+    let running = Arc::clone(&auth.running);
     let hash = auth.hash.clone();
     let password = form.password;
-    let ok = tokio::task::spawn_blocking(move || password::verify(&hash, &password))
-        .await
-        .unwrap_or_else(|err| {
-            tracing::warn!(error = %err, "web login: verification task failed");
-            false
-        });
+    let ok = tokio::task::spawn_blocking(move || {
+        let _permit = permit;
+        #[cfg(test)]
+        let _running = Running::start(&running);
+        password::verify(&hash, &password)
+    })
+    .await
+    .unwrap_or_else(|err| {
+        tracing::warn!(error = %err, "web login: verification task failed");
+        false
+    });
     if !ok {
         tracing::info!("web login failed: wrong password");
         return page(StatusCode::UNAUTHORIZED, next, "Wrong password.");
@@ -153,6 +162,37 @@ pub async fn logout(State(state): State<Arc<AppState>>, headers: HeaderMap) -> R
         Redirect::to("/login"),
     )
         .into_response()
+}
+
+/// Counts one running verification for the amendment A3 test: `.0` now
+/// running, `.1` the peak.
+#[cfg(test)]
+struct Running<'a>(&'a (std::sync::atomic::AtomicU32, std::sync::atomic::AtomicU32));
+
+#[cfg(test)]
+impl<'a> Running<'a> {
+    fn start(counts: &'a (std::sync::atomic::AtomicU32, std::sync::atomic::AtomicU32)) -> Self {
+        use std::sync::atomic::Ordering::SeqCst;
+        let now = counts.0.fetch_add(1, SeqCst) + 1;
+        counts.1.fetch_max(now, SeqCst);
+        Self(counts)
+    }
+}
+
+#[cfg(test)]
+impl Drop for Running<'_> {
+    fn drop(&mut self) {
+        self.0.0.fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+    }
+}
+
+/// The login state from `web.password_hash`. Without one (dev mode, §8.5 h)
+/// every GET is open, so this logs one `warn!`; `serve` calls it once.
+pub fn from_config(hash: Option<String>) -> Option<Auth> {
+    if hash.is_none() {
+        tracing::warn!("web login is off: web.password_hash is unset (dev mode)");
+    }
+    hash.map(Auth::new)
 }
 
 fn page(status: StatusCode, next: &str, error: &str) -> Response {

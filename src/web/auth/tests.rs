@@ -282,3 +282,52 @@ async fn login_logs_name_the_outcome_never_the_password_or_hash() {
         assert!(!logs.contains(secret), "{secret:?} in {logs}");
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_dropped_login_keeps_its_slot_until_the_hash_ends() {
+    // Amendment A3: five wrong logins, each dropped (the client hung up) as
+    // soon as its verification started. The task owns the permit, so the
+    // verifications still run one at a time (~19 MiB each, §8.5 c).
+    use std::sync::atomic::Ordering::SeqCst;
+    let state = state(true);
+    for started in 1..=5 {
+        let form = LoginForm {
+            password: "wrong".to_owned(),
+            next: String::new(),
+        };
+        let mut handler = Box::pin(login(State(Arc::clone(&state)), Form(form)));
+        while auth(&state).verified.load(Ordering::Relaxed) < started {
+            // `timeout` polls the handler once before it checks the deadline.
+            let _ = tokio::time::timeout(std::time::Duration::ZERO, &mut handler).await;
+            tokio::time::sleep(std::time::Duration::from_millis(1)).await;
+        }
+        drop(handler);
+    }
+    // The slot frees only once the last verification ends.
+    let slot = Arc::clone(&auth(&state).verify_slot);
+    let _permit = slot.acquire_owned().await.unwrap();
+    let running = &auth(&state).running;
+    assert_eq!(running.0.load(SeqCst), 0);
+    assert_eq!(running.1.load(SeqCst), 1, "verifications overlapped");
+}
+
+#[test]
+fn dev_mode_warns_once_that_the_login_is_off() {
+    // Amendment A6, spec §8.5 h. See the login-log test for the second dispatcher.
+    let _second = tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default());
+    let capture = Capture::default();
+    let sink = capture.clone();
+    let subscriber = tracing_subscriber::fmt()
+        .with_ansi(false)
+        .with_writer(move || sink.clone())
+        .finish();
+    let _guard = tracing::subscriber::set_default(subscriber);
+
+    assert!(super::from_config(Some(super::TEST_HASH.to_owned())).is_some());
+    assert!(capture.0.lock().unwrap().is_empty());
+    assert!(super::from_config(None).is_none());
+    let logs = String::from_utf8(capture.0.lock().unwrap().clone()).unwrap();
+    assert_eq!(logs.lines().count(), 1, "{logs}");
+    assert!(logs.contains("WARN"), "{logs}");
+    assert!(logs.contains("web login is off"), "{logs}");
+}

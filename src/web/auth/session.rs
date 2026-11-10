@@ -3,7 +3,7 @@
 //! HTTP. Every instant is `tokio::time::Instant`, so tests can pause time.
 
 use std::collections::HashMap;
-use std::sync::{Mutex, MutexGuard, PoisonError};
+use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::time::Duration;
 
 use anyhow::anyhow;
@@ -117,10 +117,15 @@ pub struct Auth {
     /// The failed-login counter.
     pub lockout: Lockout,
     /// One permit: at most one argon2 verification (~19 MiB) runs at a time.
-    pub verify_slot: Semaphore,
+    /// The verification task owns the permit, so a client that hangs up
+    /// mid-login cannot free it early (amendment A3).
+    pub verify_slot: Arc<Semaphore>,
     /// Verifications started, so tests can prove the lock and the slot bound them.
     #[cfg(test)]
     pub verified: std::sync::atomic::AtomicU32,
+    /// Verifications running now and the most ever at once (amendment A3 test).
+    #[cfg(test)]
+    pub running: Arc<(std::sync::atomic::AtomicU32, std::sync::atomic::AtomicU32)>,
 }
 
 impl Auth {
@@ -130,9 +135,11 @@ impl Auth {
             hash,
             sessions: Sessions::default(),
             lockout: Lockout::default(),
-            verify_slot: Semaphore::new(1),
+            verify_slot: Arc::new(Semaphore::new(1)),
             #[cfg(test)]
             verified: std::sync::atomic::AtomicU32::new(0),
+            #[cfg(test)]
+            running: Arc::default(),
         }
     }
 }

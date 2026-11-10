@@ -150,6 +150,26 @@ async fn a_session_cookie_or_the_bearer_passes_every_protected_route() {
     }
 }
 
+/// Amendment A1/A4: a valid session passes beside an empty or wrong bearer,
+/// with or without `web.token`.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_bad_bearer_beside_a_valid_session_still_passes() {
+    for token in [Some("s3cret"), None] {
+        let (_db, state) = state("guard-bad-bearer", true, token);
+        let pause = "/api/polling/pause?minutes=0";
+        let calls = ["Authorization: Bearer ", "Authorization: Bearer wrong"]
+            .into_iter()
+            .map(|bearer| {
+                let headers = vec![session(&state), ORIGIN.to_owned(), bearer.to_owned()];
+                ("POST", pause.to_owned(), headers)
+            })
+            .collect();
+        for (status, _, body) in send_all(&state, calls).await {
+            assert_eq!(status, "HTTP/1.1 200 OK", "{token:?}: {body}");
+        }
+    }
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn public_routes_answer_without_a_credential() {
     let (_db, state) = state("guard-public", true, None);

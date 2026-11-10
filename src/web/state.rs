@@ -88,7 +88,7 @@ impl AppState {
             control_config: config.control.clone(),
             stations,
             records,
-            auth: config.web.password_hash.clone().map(Auth::new),
+            auth: super::auth::from_config(config.web.password_hash.clone()),
             allowed_hosts: config.web.allowed_hosts.clone(),
         }))
     }
