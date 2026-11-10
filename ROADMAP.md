@@ -211,8 +211,9 @@ internet down.
 ### 2.3 Not planned (decided, revisit only on request)
 
 Notifications (Telegram, ntfy), Prometheus `/metrics`, Grafana, Bluetti cloud
-access, a native Android app, ESP32 BLE proxies, multi-user auth, HTTPS on the
-LAN. Each is listed in Appendix B with the reason it was parked.
+access, a native Android app, ESP32 BLE proxies, multi-user auth (single-user
+login done, ADR-011); HTTPS on the LAN (proxy documented). Each is listed in
+Appendix B with the reason it was parked.
 
 ---
 
@@ -306,6 +307,43 @@ would silently drop one); a protected-output list (owner, Q4: "allow all").
 *Consequences:* a second write path into the store (web → writer `Record`s);
 any output, the router's included, can be switched off from the LAN; the write
 frames on encrypted stations stay an assumption until H14.
+
+**ADR-011 — Web login and request guard.** *Context:* the UI and API are open
+to every LAN client (SECURITY.md "Known limitations" 1–2): any page can be
+read, DNS rebinding can read it from a foreign site, and a cross-site form can
+pause polling. R3 (ADR-010) adds device writes and a schedule editor, which
+raises the stakes. ADR-006's "no auth in the MVP" is superseded here. The owner
+asked for "super simple and effective" (task `2026-11-07_web-security`).
+*Decision:* one password, one session cookie, two guard layers on the router
+(§8.5).
+- *Login:* a login page checks one password against an argon2id PHC string in
+  `web.password_hash` (§9). `bluetti-controller hash-password` makes the string
+  from a password read on stdin, never argv. Parameters are the `argon2`
+  crate's defaults, which are OWASP's recommendation: m = 19 MiB (19456 KiB),
+  t = 2, p = 1, a 16-byte salt, a 32-byte tag. Verifications run one at a time,
+  so login adds at most ~19 MiB of peak memory: inside `MemoryMax=128M` and the
+  50 MB gate of RULES.md.
+- *Sessions:* a random 32-byte id in an `HttpOnly; SameSite=Strict` cookie,
+  held in memory for 30 days. A restart ends every session.
+- *Scripts:* the bearer `web.token` stays optional for `curl` and scripts.
+- *Lockout:* 5 consecutive failed logins lock login for 60 s (one counter for
+  the single user).
+- *Requests:* a Host allow-list against DNS rebinding, an exact-origin check on
+  every unsafe method, and security headers on every response.
+- *Config:* a listener that is not loopback needs `password_hash`, and so does
+  `control.enabled = true` (§9).
+- *TLS:* none in-app. A reverse proxy (Caddy with its internal CA, or Tailscale
+  Serve) is documented in `deploy/HOMELAB.md` for anyone who wants HTTPS.
+*Rejected:* bearer-only kept in a cookie (the browser would store the
+credential itself); a signed cookie that survives restarts (a key in config and
+a MAC crate, for a rare event); in-app TLS (three new crates, a certificate
+warning on every phone, the Wi-Fi link is already encrypted); auth checks per
+handler (a new route would be open until someone remembers the check).
+*Consequences:* one new crate (`argon2`, RustCrypto, MIT/Apache, pure Rust,
+pinned); the owner logs in again after each restart; the cookie is not
+`Secure` without a TLS proxy; the homelab `config.toml` must gain
+`password_hash` before the next deploy, or the unit fails fast and
+`bluetti-update` rolls back.
 
 ---
 
@@ -1067,24 +1105,32 @@ runtime_h   = remaining_wh / max(load_w, 1)
 
 ### 8.2 API
 
-| Method | Path | Returns |
-|---|---|---|
-| GET | `/api/status` | current state of all stations + house |
-| GET | `/api/series?station=&metric=&from=&to=&step=` | time series (raw or rollup by range) |
-| GET | `/api/chart?from=&to=&step=` | every station's SOC, in W, out W on one axis per station, plus the window's outages (§8.4 j) |
-| GET | `/api/outages?from=&to=` | grid events |
-| GET | `/api/energy?days=7` | daily energy per station |
-| GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |
-| POST | `/api/polling/pause?minutes=N` | pause polling (token if configured) |
-| GET | `/healthz` | liveness + last successful poll age: JSON `{status, last_poll_age_s}`, 200 while the process runs (`last_poll_age_s` null before the first poll); recommended over 503-on-stale so a slow BLE round never restarts the process |
-| POST | `/api/control/output?station=&output=ac\|dc&state=on\|off` | switch one output (R3, bearer required); `200 {station, output, state}` with the read-back |
-| GET | `/api/schedule` | every schedule entry: `{station, output, on, off}` (`HH:MM` or `null`) |
-| POST | `/api/schedule?station=&output=&on=HH:MM&off=HH:MM` | set one entry (bearer, `web.token` must be set); `202` with the entry |
-| DELETE | `/api/schedule?station=&output=` | remove one entry (bearer, `web.token` must be set); `202` |
+| Method | Path | Returns | Auth (§8.5) |
+|---|---|---|---|
+| GET | `/login` | the login form | public |
+| POST | `/login` | form `password`, `next`: `303 next` with the session cookie; `401` with the form on a wrong password; `429` while locked | public |
+| POST | `/logout` | revokes the session, clears the cookie, `303 /login` | session + Origin, or bearer |
+| GET | `/assets/{name}` | embedded static file (§8.4 i) | public |
+| GET | `/api/status` | current state of all stations + house | session or bearer |
+| GET | `/api/series?station=&metric=&from=&to=&step=` | time series (raw or rollup by range) | session or bearer |
+| GET | `/api/chart?from=&to=&step=` | every station's SOC, in W, out W on one axis per station, plus the window's outages (§8.4 j) | session or bearer |
+| GET | `/api/outages?from=&to=` | grid events | session or bearer |
+| GET | `/api/energy?days=7` | daily energy per station | session or bearer |
+| GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` | session or bearer |
+| POST | `/api/polling/pause?minutes=N` | pause polling | session + Origin, or bearer |
+| GET | `/healthz` | liveness + last successful poll age: JSON `{status, last_poll_age_s}`, 200 while the process runs (`last_poll_age_s` null before the first poll); recommended over 503-on-stale so a slow BLE round never restarts the process | public, Host rule exempt |
+| POST | `/api/control/output?station=&output=ac\|dc&state=on\|off` | switch one output (R3); `200 {station, output, state}` with the read-back | session + Origin, or bearer |
+| GET | `/api/schedule` | every schedule entry: `{station, output, on, off}` (`HH:MM` or `null`) | session or bearer |
+| POST | `/api/schedule?station=&output=&on=HH:MM&off=HH:MM` | set one entry (`web.token` must be set); `202` with the entry | session + Origin, or bearer |
+| DELETE | `/api/schedule?station=&output=` | remove one entry (`web.token` must be set); `202` | session + Origin, or bearer |
+
+Pages `/` and `/telemetry` (§8.1) need a session too; without one they answer
+`303 /login?next=<path>` (§8.5 g).
 
 **R3 slice 1 (2026-11-10, ADR-010).** Errors are `{"error": "<message>"}` as in §8.4 f.
 
-- *Control route.* `401` without the right bearer; `403 "control is disabled"`
+- *Control route.* `401` without a credential (session + Origin, or bearer;
+  §8.5, ADR-011); `403 "control is disabled"`
   while `control.enabled = false`; `400` for an unknown station, an output not
   in `switches(model)` or a bad `state`. Then the request goes to the collector
   (§12 R3) and the route waits at most one poll deadline + one interval:
@@ -1092,7 +1138,8 @@ runtime_h   = remaining_wh / max(load_w, 1)
   write or read-back fails (e.g. `"polling paused"`). `station` is a config
   station name; a MAC is never accepted or returned.
 - *Schedule routes.* `POST`/`DELETE` need `web.token` to be **set** (else `403
-  "schedule edits need web.token"`) and the bearer (else `401`), whatever
+  "schedule edits need web.token"`) and a credential (else `401`: session +
+  Origin, or bearer; §8.5), whatever
   `control.enabled` is: an entry saved by anyone on the LAN while control is
   off would fire as a real write once the owner enables control. Validated at
   the boundary, each failure a `400` naming the field: station known, output
@@ -1105,9 +1152,9 @@ runtime_h   = remaining_wh / max(load_w, 1)
   `switches(model)` (none for the Elite until H16, §4.3): a toggle labelled
   with the last known state (the card's field, then the POST's read-back; "—"
   when unknown) and the row's `on`/`off` time inputs with Save (POST) and Clear
-  (DELETE). The bearer comes from the pause form's token field, sent only when
-  that field exists and is non-empty. A row is disabled while its request runs;
-  an error reply shows inline. With `control.enabled = false` the toggles are
+  (DELETE). The panel's requests carry the session cookie and the page's own
+  `Origin` (§8.5 d; ADR-011 replaced the pause form's token field). A row
+  is disabled while its request runs; an error reply shows inline. With `control.enabled = false` the toggles are
   disabled with the note "control disabled — the schedule will not run"; the
   times stay editable. Plain DOM, no framework.
 - **Recommendation:** these four routes and one panel per card; nothing else in
@@ -1118,7 +1165,8 @@ runtime_h   = remaining_wh / max(load_w, 1)
 - Server-rendered with askama; assets embedded in the binary; no JS build step;
   page weight < 100 KB.
 - Binds to `web.listen`; LAN only; the host firewall blocks other networks.
-- No auth for GET in the MVP; optional bearer `web.token` for the POST.
+- Every route needs a session or the bearer, except `/login`, `/assets/*` and
+  `/healthz`; unsafe methods also pass the Origin check (§8.5, ADR-011).
 
 ### 8.4 M4 design (phase 5, settled 2026-10-15)
 
@@ -1224,6 +1272,92 @@ recommendation the code follows.
   server-side inline-SVG sparkline over 24 h, averaged into ≤ 48 buckets
   (30 min), so the page needs no JS.
 
+### 8.5 Security design (ADR-011, task `2026-11-07_web-security`)
+
+Settles how ADR-011 is built. Each item is the recommendation the code follows.
+*Status:* spec only (2026-11-10); the code lands in that task's steps 2–9.
+
+- **(a) Two layers on the router, never checks per handler.**
+  - The outermost layer adds the headers of (f) to every response: 404s,
+    `/login`, `/assets/*` and `/healthz` included.
+  - Inside it, `host_guard` applies the Host rule (e) to every route except
+    `/healthz`, so `POST /login` is covered too.
+  - The protected routes carry `auth_guard` as a `route_layer`: the session or
+    bearer check (b) and the Origin check (d).
+  - Public: `GET /login`, `POST /login`, `/assets/{name}`, `/healthz` (Q6 of
+    the task: `bluetti-update` and the runbook `curl` it, by DNS name too; it
+    shows only the build and a poll age). Every other route is protected,
+    `/logout` and R3's `/api/control/*` and `/api/schedule` included.
+  - R3's bearer checks inside `control.rs` and `schedule.rs` move into
+    `auth_guard`. R3's own rules stay in the handlers: `403` while
+    `control.enabled = false`, and schedule edits need `web.token` to be set.
+  - A test lists every `.route(` of the router as public or protected, so a
+    new route fails the build until it is listed.
+- **(b) Session.**
+  - Credentials: a valid bearer (`Authorization: Bearer <web.token>`, compared
+    in constant time) or a valid session cookie. An empty or absent bearer
+    counts as no bearer, so the cookie still decides.
+  - Cookie: `session=<64 hex chars>; HttpOnly; SameSite=Strict; Path=/;
+    Max-Age=2592000`. The id is 32 bytes from `getrandom`. The cookie has no
+    `Secure` flag, because the app speaks plain HTTP (ADR-011).
+  - Lifetime: 30 days from login, not extended by use. Logout revokes the id
+    and sends the cookie back with `Max-Age=0`.
+  - Store: in memory, at most 16 ids; a 17th login evicts the oldest. A
+    restart ends every session.
+- **(c) Login.**
+  - `POST /login` takes the form fields `password` and `next`.
+  - The attempt is counted as a failure **before** verification and cleared
+    only when verification succeeds. After 5 consecutive failures, every
+    attempt answers `429` for 60 s without a verification.
+  - Verification runs in `spawn_blocking`, one at a time (a one-permit
+    semaphore), so a flood holds at most one 19 MiB hash in memory and runs at
+    most 5 verifications per lock window.
+  - Success: `303` to `next` with the cookie of (b). `next` is used only when
+    it starts with `/` and its second byte is neither `/` nor `\`; otherwise
+    `/`. Failure: `401` with the form again.
+  - The log line for a login names the outcome only, never the password or the
+    hash. The hash is shown as `<set>` in every `Debug`.
+- **(d) CSRF: an exact-origin check.**
+  - An unsafe method (`POST`, `PUT`, `PATCH`, `DELETE`) with a valid bearer
+    passes; scripts send no `Origin`.
+  - Without a bearer, it needs the session **and** an `Origin` header equal,
+    byte for byte, to `http://<Host header>` or `https://<Host header>`. The
+    second form is the TLS proxy of ADR-011, which passes the browser's Host
+    through. A missing `Origin` is a miss.
+  - Why exact: `SameSite=Strict` treats a page on the same IP at another port
+    as same-site and sends the cookie with its POST, so "any IP literal" would
+    not stop it. Scheme + host + port must all match.
+  - The check also runs in dev mode (h).
+- **(e) Host rule (DNS rebinding).** Accept the `Host` header when its host
+  part, without the port, is one of:
+  - an IP literal (IPv4, or IPv6 in brackets);
+  - `localhost`;
+  - an entry of `web.allowed_hosts` (§9), compared case-insensitively.
+  A rebinding attack needs a DNS name, so IP literals are safe without config.
+  The port is not compared, because a proxy may rewrite it; (d) compares it. A
+  missing or other `Host` answers `421`.
+- **(f) Headers** on every response:
+  - `Content-Security-Policy: default-src 'self'; img-src 'self' data:;
+    frame-ancestors 'none'; base-uri 'none'; form-action 'self'`
+  - `X-Frame-Options: DENY`
+  - `X-Content-Type-Options: nosniff`
+  - `Referrer-Policy: same-origin`
+  The pages keep no inline `<script>`: the theme script moves to
+  `assets/theme.js`. No nonce scheme.
+- **(g) Refusals.** Errors use `{"error": "<message>"}` (§8.4 f).
+  - No credential: `401` for `/api/*` and `/events`; pages answer `303` to
+    `/login?next=<path and query, percent-encoded>`.
+  - Origin miss: `403`. Host miss: `421`. Login locked: `429`.
+- **(h) Dev mode.** Without `web.password_hash`, `state.auth` is `None`, and
+  §9 allows only a loopback listener. Then:
+  - every GET is open;
+  - unsafe methods keep today's rule: the bearer is required when `web.token`
+    is set, else they are open;
+  - the Host rule (e) and the Origin check (d) still apply;
+  - `serve` logs one `warn!` at start: the web login is off.
+- **Recommendation:** these two layers, one password, an in-memory session
+  store; nothing per handler.
+
 ---
 
 ## 9. Configuration
@@ -1293,6 +1427,29 @@ both keys (a write to a station is not a pause). No schedule block and no
 protected-output list in the config: the schedule lives in the database and is
 edited in the UI (§6, §8.2); every output in §4.3's list may be switched (owner,
 Q4). **Recommendation:** no new config keys.
+
+*Web login (ADR-011, §8.5):* `[web]` gains two keys.
+
+```toml
+[web]
+listen = "127.0.0.1:8080"          # the LAN form ("0.0.0.0:8080") needs password_hash
+# password_hash = "$argon2id$v=19$m=19456,t=2,p=1$…"   # from `bluetti-controller hash-password`
+# allowed_hosts = ["ideapad.lan"]  # DNS names for the Host rule; IP literals need none
+```
+
+- `password_hash` must parse as a PHC string. It is never printed: `Debug`
+  shows `<set>`.
+- `web.listen` that is not loopback (`127.0.0.0/8`, `::1`) requires
+  `password_hash`. A LAN listener is never open by accident.
+- `control.enabled = true` requires `password_hash` as well as `web.token`;
+  both rules hold.
+- Each `allowed_hosts` entry is a non-empty host name without a scheme, port
+  or path. The default is empty.
+- Without `password_hash`, `serve` runs in dev mode (§8.5 h).
+- `load` warns (`tracing::warn!`) when `config.toml` or `crypto.keys_file` has
+  a mode bit in `0o027` (group write, or any bit for other). `0600` and the
+  system unit's `0640 root:bluetti` pass.
+- Each rejection names its key.
 
 ---
 
@@ -1736,7 +1893,8 @@ has reached a real station until H14–H17 pass.
   retried that tick. A successful run
   sends `Record::ScheduleRun` (sets `last_due`).
 - *Editing.* Allowed while control is disabled (the scheduler then sends
-  nothing); needs `web.token` set and the bearer (§8.2). A deleted or edited
+  nothing); needs `web.token` set and a credential (session + Origin, or
+  bearer; §8.2, §8.5). A deleted or edited
   entry is absent or new on the next tick.
 - **Recommendation:** these rules as written; the hardware checks H14–H17 in
   `HUMAN-CHECKLIST.md` gate any real use.
@@ -1874,3 +2032,6 @@ From the planning session (sources S33, S34). Useful for forecasts and alerts.
 | Bluetti cloud adapter | not planned | offline-first (golden rule #1) |
 | Native Android app | not planned | web page works on the phone |
 | ESP32 BLE proxies for range | not planned | revisit only if range fails (R5) |
+| Single-user web login, Host/Origin guard | in progress | ADR-011, task `2026-11-07_web-security` |
+| Multi-user accounts, roles | not planned | one owner; ADR-011 covers the single user |
+| HTTPS on the LAN | not planned | Wi-Fi is encrypted; a TLS proxy is documented (ADR-011) |

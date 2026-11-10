@@ -101,10 +101,19 @@ vulnerability; each depends on how the service is deployed.
 
 ## Planned hardening
 
-- Add a Host/Origin allow-list and an Origin check on the pause route.
-- Cap the time span on `/api/series` and `/api/outages`, and use checked
-  arithmetic on request bounds.
-- Strip control characters from advertised names before printing.
+- **In progress** (task `2026-11-07_web-security`; design in ROADMAP.md
+  ADR-011 and §8.5):
+  - one owner login with an argon2id password hash and a session cookie, on
+    every route except `/login`, `/assets/*` and `/healthz`;
+  - a Host allow-list against DNS rebinding;
+  - an exact-origin check on every state-changing request;
+  - security headers (CSP, `X-Frame-Options`, `X-Content-Type-Options`,
+    `Referrer-Policy`);
+  - config rules: a LAN listener or `control.enabled` needs `password_hash`,
+    and loose file modes are warned about;
+  - capped time spans on `/api/series` and `/api/outages`, with checked
+    arithmetic on request bounds;
+  - control characters stripped from advertised names before printing.
 - Add a whole-body deadline to `with_disconnect`, and reopen the D-Bus session
   after a bus loss.
 - In `bluetti-update`: copy the release to a root-owned staging directory
