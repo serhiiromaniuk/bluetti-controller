@@ -17,6 +17,7 @@ use tokio::net::TcpListener;
 
 pub mod api;
 pub mod assets;
+pub mod auth;
 pub mod chart;
 pub mod control;
 pub mod history;

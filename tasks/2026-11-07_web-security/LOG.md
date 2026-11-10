@@ -96,3 +96,51 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-11-10 — argon2id hashing + `hash-password` CLI
+
+**Changed:**
+- `Cargo.toml`: `argon2 = "=0.6.0"`, default features off (`alloc`, `password-hash`): the salt comes from
+  the existing `getrandom` 0.4, not the crate's own RNG path.
+- `src/web/auth/password.rs`: `hash` (argon2id, m = 19456 KiB, t = 2, p = 1, 32-byte tag stated explicitly,
+  16-byte `getrandom` salt) and `verify` (params from the PHC string; any error → `false`).
+- `src/web/auth/mod.rs`: module stub (step 5 adds the handlers); `src/web/mod.rs` declares it.
+- `src/cli/hash_password.rs`: first stdin line, terminator stripped, empty refused; prints the PHC string and
+  the `password_hash = "…"` line. `cli/mod.rs` dispatches `HashPassword`; `main.rs` unchanged (no config).
+- `README.md` Credits: argon2 (RustCrypto, MIT/Apache).
+
+**Check:** `cargo test --lib web::auth` — 4 of 5 failed first against a `bail!` stub (malformed passes
+trivially), then 5/5 green; `cli::hash_password` tests 2/2. Smoke: `printf 'test\n' | … hash-password`
+prints `$argon2id$v=19$m=19456,t=2,p=1$…`; empty line → `Error: empty password refused`, exit 1.
+`cargo tree -e normal -i argon2`: only `bluetti-controller` depends on it; its tree is MIT/Apache except
+`subtle` (BSD-3-Clause, already a p256 dependency) — no GPL.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM (INTENT: satisfied). Note for step 3: config validation parses
+`password_hash` but does not bound its argon2 params (a hand-edited huge `m` would be honoured at login);
+owner-controlled config, not raised as a finding.
+
+**Carry-forward:** none
+**Next:** step 3 — config (`password_hash`, `allowed_hosts`, Q7 rules, mode warning).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:59:04Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-58e9097d0cf349c8)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

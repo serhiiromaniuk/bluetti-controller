@@ -15,6 +15,7 @@ use clap::Subcommand;
 pub mod check;
 mod detect;
 mod dump;
+mod hash_password;
 mod read;
 mod scan;
 pub mod serve;
@@ -75,6 +76,9 @@ pub enum Command {
         #[arg(value_parser = set::parse_state, action = clap::ArgAction::Set)]
         state: bool,
     },
+    /// Read one password line from stdin and print its argon2id PHC string
+    /// for `web.password_hash` (`ROADMAP.md` ADR-011). No config, no station.
+    HashPassword,
     /// Mask a capture for commit under `tests/frames/` (RULES.md golden rule
     /// #3). No station is touched.
     Anonymise {
@@ -114,6 +118,7 @@ pub async fn run(command: Command, ctx: &Context<'_>) -> anyhow::Result<()> {
         Command::Detect { station } => detect::run(ctx, &station).await,
         Command::Read { station } => read::run(ctx, &station).await,
         Command::Dump { station, from, to } => dump::run(ctx, &station, from, to).await,
+        Command::HashPassword => hash_password::run(),
         // main runs them with the owned config and keys.
         Command::Serve | Command::Check | Command::Set { .. } => {
             bail!("serve, check and set are dispatched by main")

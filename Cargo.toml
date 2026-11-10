@@ -31,6 +31,7 @@ tracing = "0.1.44"
 tracing-subscriber = { version = "0.3.23", features = ["env-filter"] }
 askama = "0.16.1"
 futures-util = "0.3.34"
+argon2 = { version = "=0.6.0", default-features = false, features = ["alloc", "password-hash"] }
 
 [dev-dependencies]
 # `test-util` lets `start_paused` tests pin backoff timing in virtual time.

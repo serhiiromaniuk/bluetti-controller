@@ -146,6 +146,10 @@ The web UI charts use [uPlot](https://github.com/leeoniya/uPlot) 1.6.32
 (Leon Sorokin, MIT), vendored in `assets/` with its license as
 `assets/uPlot.LICENSE`.
 
+The web login hashes its password with
+[argon2](https://github.com/RustCrypto/password-hashes) (RustCrypto, MIT or
+Apache-2.0), a crate dependency, not vendored code.
+
 The encryption layer (`src/protocol/crypto/`: envelopes and the key-exchange
 state machine in `handshake.rs`) is ported from rustytti `crypto.rs` (MIT) and
 cross-checked against the nhurman fork's `encryption.py` (MIT); ROADMAP.md §4.4

@@ -108,7 +108,7 @@ None is pending; no step is blocked.
   on a step citing `spec §8.5` loads the section; `reviewer` pass with no
   CRITICAL/HIGH open.
 
-- [ ] 2. Password hashing + CLI (`spec §8.5` c, `spec §9`; risky — crypto):
+- [x] 2. Password hashing + CLI (`spec §8.5` c, `spec §9`; risky — crypto):
   `Cargo.toml` adds `argon2` (pinned, MIT/Apache, credited in README's
   third-party list); new `src/web/auth/password.rs` with `pub fn hash(password:
   &str) -> anyhow::Result<String>` (argon2id with the ADR-011 parameters, salt
