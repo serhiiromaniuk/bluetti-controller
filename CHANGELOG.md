@@ -5,6 +5,22 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.4.0 — 2026-11-10
+
+- **AC/DC output control and a daily schedule (R3 slice 1, ADR-010).** Each
+  station card on `/` gets a control panel: one row per allowed output with
+  an on/off toggle and daily `on`/`off` times. New CLI `set <station> ac|dc
+  on|off`, routes `POST /api/control/output` and `GET/POST/DELETE
+  /api/schedule`. The writable registers are an allow-list: EB3A 3007/3008,
+  AC180 2011/2012, none on the Elite 200 V2 yet. All stay `verified: false`
+  until HUMAN-CHECKLIST H14–H17.
+- **config:** nothing is required. Control stays off (`[control] enabled =
+  false`). Turning it on also needs `web.token`, or the service refuses to
+  start. Schedule edits need `web.token` even while control is off.
+- **host:** migration 002 adds the `schedule` table. v1.3.4 refuses the
+  migrated database, so a rollback needs the pre-update backup, which
+  `bluetti-update rollback` restores.
+
 ## 1.3.4 — 2026-10-27
 
 - **Grid uptime badge** above the dashboard charts: the share of the
