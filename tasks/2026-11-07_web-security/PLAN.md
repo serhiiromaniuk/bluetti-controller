@@ -139,7 +139,7 @@ None is pending; no step is blocked.
   tests: the example still parses; each rejection names its key; `Debug` never
   contains the hash. — check: the new tests red then green, `make check`.
 
-- [ ] 4. Session store + lockout (`spec §8.5` b–c; risky — auth state): new
+- [x] 4. Session store + lockout (`spec §8.5` b–c; risky — auth state): new
   `src/web/auth/session.rs`, no I/O, no HTTP: `Sessions` (`Mutex<HashMap<String,
   tokio::time::Instant>>`): `issue()` → 32 random bytes hex from `getrandom`,
   expiry now + 30 d, evicts the oldest past 16; `check(id)` → present and not

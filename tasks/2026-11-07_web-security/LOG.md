@@ -193,3 +193,48 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 4 ✓ 2026-11-10 — session store, lockout and one-permit verification slot
+
+**Changed:**
+- `src/web/auth/session.rs` (new, no I/O, no HTTP): `Sessions` — `issue()` 32 `getrandom` bytes as 64 hex
+  chars, expiry now + 30 d (not extended by use), drops expired ids then evicts the earliest expiry past 16;
+  `check`; `revoke`. `Lockout` — `begin()` counts before verification; the 5th failure still verifies and sets
+  `locked_until = now + 60 s`, the count restarts, so ≤ 5 verifications per lock window (§8.5 c); `succeeded()`
+  clears count and lock. `Auth { hash, sessions, lockout, verify_slot: Semaphore(1) }`, no `Debug`. Every
+  instant is `tokio::time::Instant`; a poisoned mutex is used as is (plain data), never a panic.
+- `src/web/auth/mod.rs`: `pub mod session`.
+
+**Check:** `cargo test --lib web::auth::session` — 7 failed first against a stub (zero constants, `Locked`
+always, zero-permit semaphore), then 7/7 green under `start_paused`: issue/check, 30 d − 1 s valid / + 1 s
+expired, 17th evicts oldest, revoke, 6th `begin()` locked and 60 s later not (then 5 more, locked again),
+success resets the count and lifts a lock, one verification permit.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM (INTENT: satisfied); the 5th-failure-verifies-then-locks design
+judged to match §8.5 c.
+
+**Carry-forward:** none
+**Next:** step 5 — login and logout handlers (fold A2: reject bytes ≤ 0x20 / 0x7f in `next`).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:07:20Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -2,3 +2,4 @@
 //! session store and the login handlers join in later steps.
 
 pub mod password;
+pub mod session;
