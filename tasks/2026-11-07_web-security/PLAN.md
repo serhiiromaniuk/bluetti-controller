@@ -235,7 +235,7 @@ None is pending; no step is blocked.
   them; a plain `EB3A…` name is unchanged. — check: the new test red then
   green, `make check`.
 
-- [ ] 10. Docs batch + close evidence (low-risk; one batched `reviewer` pass):
+- [x] 10. Docs batch + close evidence (low-risk; one batched `reviewer` pass):
   `SECURITY.md` — controls (login, guard, headers, caps), "Known limitations"
   renumbered (1, 2, 3, 5 closed; 4 stays; new: cookie not `Secure` without a
   TLS proxy, sessions end on restart, one global lockout), "Deployment
@@ -397,3 +397,14 @@ None is pending; no step is blocked.
 - A5 · 2026-11-10 · MEDIUM `src/cli/mod.rs:98` — `printable` replaces only `char::is_control` (Cc); the bidi
   controls U+202A–U+202E and U+2066–U+2069 are Cf and pass through, so step 10a's "bidi overrides (U+202E) in
   advertised names" exploit test cannot pass until `printable` also replaces them · disposition: open
+- A6 · 2026-11-10 · HIGH→re-targeted `src/cli/serve.rs:97` — spec §8.5 (h) "`serve` logs one `warn!` at start:
+  the web login is off" was never built (steps 2–9); step 10 dropped the claim from SECURITY.md. Step 10a adds
+  the `warn!` with a captured-log test · disposition: open
+- A7 · 2026-11-10 · MEDIUM `deploy/HOMELAB.md` §7a, `SECURITY.md` "Deployment recommendations" — the proxy setup
+  moves the app to loopback, where the hash is no longer required; both must say `password_hash` stays set, else
+  the proxy serves an open UI to the LAN · disposition: open
+- A8 · 2026-11-10 · MEDIUM `ROADMAP.md:345` — ADR-011 consequences say a deploy without `password_hash` "fails
+  fast and `bluetti-update` rolls back"; the preflight `check` exits 4 and nothing changes (HOMELAB upgrade note)
+  · disposition: open
+- A9 · 2026-11-10 · MEDIUM `src/web/api.rs:24`, `src/cli/mod.rs:97` — comments cite "SECURITY.md limitation 3/5",
+  renumbered by step 10 (now closed items) · disposition: open

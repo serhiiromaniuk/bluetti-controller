@@ -44,7 +44,25 @@ writer flushes, open `/events` streams close.
 ## Web UI and API
 
 Server-rendered, no JS build step, assets embedded in the binary, no external
-URL (it works offline during an outage). LAN only: GET has no auth.
+URL (it works offline during an outage).
+
+**Login** (ROADMAP.md ADR-011, §8.5; [`SECURITY.md`](SECURITY.md)). One owner
+password guards every page, API route and `/events`; only `/login`,
+`/assets/*` and `/healthz` are public.
+
+- Make the hash: `bluetti-controller hash-password` reads the password from
+  stdin (never argv) and prints the `password_hash = "…"` line for `[web]` in
+  `config.toml`.
+- A browser logs in at `/login` and gets a session cookie for 30 days; a
+  restart ends every session. "Log out" is in the page header. Five wrong
+  passwords lock the login for 60 s.
+- Scripts send `Authorization: Bearer <web.token>` instead; they need no
+  `Origin`. A browser POST needs its own `Origin` (CSRF check).
+- A non-loopback `web.listen` (or `control.enabled = true`) refuses to start
+  without `password_hash`. Without it the UI is open on loopback only (dev
+  mode).
+- Reached by a DNS name? Add it to `web.allowed_hosts`; IP addresses and
+  `localhost` need no entry.
 
 - `/` — a Grafana-style dashboard: house grid banner, a data-age line (STALE
   after 3 missed polls), one card per station (SOC, in/out W, grid state,
@@ -65,16 +83,19 @@ URL (it works offline during an outage). LAN only: GET has no auth.
 | GET | `/api/outages?from=&to=` | grid events, newest first (default last 7 days) |
 | GET | `/api/energy?days=7` | daily energy per station and house outage totals |
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |
-| POST | `/api/polling/pause?minutes=N` | `N` 1..=60 pauses, 0 resumes; `Authorization: Bearer` when `web.token` is set |
-| POST | `/api/control/output?station=&output=ac\|dc&state=on\|off` | switch one output (bearer); `200` with the read-back state |
+| POST | `/api/polling/pause?minutes=N` | `N` 1..=60 pauses, 0 resumes |
+| POST | `/api/control/output?station=&output=ac\|dc&state=on\|off` | switch one output; `200` with the read-back state |
 | GET | `/api/schedule` | every schedule entry: `{station, output, on, off}` |
-| POST | `/api/schedule?station=&output=&on=HH:MM&off=HH:MM` | set one entry (bearer, `web.token` set); `202` |
-| DELETE | `/api/schedule?station=&output=` | remove one entry (bearer, `web.token` set); `202` |
-| GET | `/healthz` | `{"status":"ok","last_poll_age_s":…}` |
+| POST | `/api/schedule?station=&output=&on=HH:MM&off=HH:MM` | set one entry (`web.token` must be set); `202` |
+| DELETE | `/api/schedule?station=&output=` | remove one entry (`web.token` must be set); `202` |
+| GET | `/healthz` | `{"status":"ok","last_poll_age_s":…}`; public, no login |
+| GET, POST | `/login` | the login form; `POST` takes `password` and `next` |
+| POST | `/logout` | ends the session |
 
-`metric` is a register key such as `battery_soc` or `ac_output_power`
-(`/telemetry` lists them). A bad parameter answers `400` with
-`{"error": "…"}`. Details: ROADMAP.md §8.
+Every route but `/login`, `/assets/*` and `/healthz` needs the session cookie
+or the bearer. `metric` is a register key such as `battery_soc` or
+`ac_output_power` (`/telemetry` lists them). A bad parameter or a span over
+366 days answers `400` with `{"error": "…"}`. Details: ROADMAP.md §8.
 
 ## Control (AC/DC outputs, R3 slice 1)
 
@@ -88,14 +109,15 @@ register is `verified: false` until the owner's hardware checks H14–H17 in
   (owner only, RULES.md golden rule #2). Only the output switches in
   `src/protocol/control.rs` can ever be written: EB3A 3007 AC / 3008 DC, AC180
   2011 AC / 2012 DC. The Elite 200 V2 has none until H16 confirms its pair.
-- **Token.** `control.enabled = true` without `web.token` fails at startup.
-  Every control POST and every schedule edit needs `Authorization: Bearer
-  <token>`; schedule edits need `web.token` set even while control is off.
+- **Login and token.** `control.enabled = true` without `web.token` and
+  `web.password_hash` fails at startup. Every control POST and schedule edit
+  needs the login session (or the bearer); schedule edits need `web.token` set
+  even while control is off.
 - **Control panel.** Each station card on `/` has one row per allowed output: a
   toggle that shows the last known state ("—" when unknown) and the read-back
   after a click, and the output's daily `on` / `off` times (`HH:MM`,
-  `general.timezone`, either optional) with Save and Clear. The bearer comes
-  from the pause form's token field. With control disabled the toggles are
+  `general.timezone`, either optional) with Save and Clear. The login session
+  authorises the clicks. With control disabled the toggles are
   greyed out and the schedule does not run; the times stay editable.
 - **Missed runs: catch up, once.** Every 60 s the service applies each
   output's latest due time (today's or yesterday's) unless it already ran. A

@@ -32,8 +32,11 @@ Edit `~/.config/bluetti-controller/config.toml`:
   - `storage.path = "/home/<user>/.local/share/bluetti-controller/data.db"`
   - `crypto.keys_file = "/home/<user>/.config/bluetti-controller/keys.toml"`
     (copy your local `keys.toml` there with mode 600; never commit it).
-- `web.listen = "0.0.0.0:8080"` serves the LAN only (no port forwarding).
-  Leave `web.token` unset for an open pause POST, or set a non-empty token.
+- `web.listen = "0.0.0.0:8080"` serves the LAN (no port forwarding) and needs
+  `web.password_hash`: run `~/.local/bin/bluetti-controller hash-password`,
+  type the password, paste the printed line under `[web]`. Set `web.token`
+  only if a script needs the bearer. Keep `127.0.0.1:8080` for a loopback-only
+  dev mode without a login.
 - Add one `[[station]]` per station with its MAC address.
 - Keep `control.enabled = false` (golden rule #2).
 
@@ -78,6 +81,9 @@ curl -s http://<laptop-ip>:8080/healthz
 The status page is `http://<laptop-ip>:8080/`.
 
 ## 6. Upgrade
+
+**Upgrade note — the web login release (ADR-011):** add `web.password_hash`
+(§2) to the config before upgrading, or a LAN `web.listen` refuses to start.
 
 Stop the unit, replace the binary, start it again. The database migrates on
 start.

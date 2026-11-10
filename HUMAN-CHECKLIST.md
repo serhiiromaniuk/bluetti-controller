@@ -24,6 +24,8 @@ row becomes a fix task.
 | H15 | R3 control, AC180 `mobile`: the same as H14 on write/read-back 2011 AC and 2012 DC | loop, 2026-11-10 | pending |
 | H16 | R3 control, Elite 200 V2 `living-room`: the same on 2011 / 2012, first a read-only `dump living-room --from 2011 --to 2012` (the pair is extrapolated, ROADMAP §4.3); on a pass, a follow-up task adds the Elite to `switches()` | loop, 2026-11-10 | pending |
 | H17 | R3 from the UI (after H14): one toggle click shows the read-back in the panel; one saved `on`/`off` time a minute or two ahead fires within a minute after it, once, and `GET /api/schedule` plus the `schedule` table's `last_due` show the slot recorded; a restart right after does not repeat it | loop, 2026-11-10 | pending |
+| H18 | Web login on the homelab (task 2026-11-07_web-security; owner only). Run `bluetti-controller hash-password` on the laptop, add the `password_hash` line (and `allowed_hosts` if you use a DNS name) to `/etc/bluetti-controller/config.toml` on the host, then deploy (`deploy/HOMELAB.md` upgrade note). On the phone over the home Wi-Fi: `http://192.168.0.192:8080/` redirects to `/login`; a wrong password shows the form again; the right one opens the dashboard and the charts draw; pause/resume still works; "Log out" returns to `/login`. Then `sudo systemctl restart bluetti-controller`: the phone must log in again (sessions live in memory, Q3). Note the result here | loop, 2026-11-10 | pending |
+| H19 | Enable R3 control (`control.enabled = true`) on the homelab only after H18 passes (the login must guard the control and schedule routes first) and after H14–H16 for the output in question | loop, 2026-11-10 | pending |
 
 ## Owner observations (for the loop's plausibility checks)
 

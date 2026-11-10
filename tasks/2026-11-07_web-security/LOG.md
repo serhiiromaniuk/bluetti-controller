@@ -456,3 +456,61 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 10 ✓ 2026-11-10 — docs batch + close evidence
+**Changed:**
+- `SECURITY.md`: threat model (login), controls (writes per ADR-010, login, guard, headers, config rules,
+  span caps, names); limitations renumbered — old 1, 2, 3, 5 closed; old 4 → 1; new 2 cookie not `Secure`,
+  3 sessions end on restart, 4 one global lockout, 5 bidi controls pass (A5); deployment recs; hardening trimmed.
+- `README.md`: login section (hash-password, bearer, dev mode, `allowed_hosts`), route table (login/logout,
+  no per-route bearer), R3 "Login and token". `deploy/HOMELAB.md`: upgrade note first (preflight `check` exits 4,
+  nothing changes — more precise than the plan's "rolls back"), §3 config lines, §7a Caddy, 421 row.
+  `deploy/INSTALL.md`: §2 hash, §6 upgrade note. `HUMAN-CHECKLIST.md` H18, H19. ROADMAP §8.5 status line.
+**Done-when → evidence:**
+- spec/design: ADR-011, §8.5 a–h, §9 (step 1), SECURITY.md (this step).
+- every route except login + static assets → 401/303: `guard::tests::every_route_of_the_router_is_listed_once`,
+  `without_a_credential_every_protected_route_is_refused`, `a_session_cookie_or_the_bearer_passes_every_protected_route`,
+  `public_routes_answer_without_a_credential`. `/healthz` is also public and Host-exempt (Q6: `bluetti-update`
+  and the runbook curl it, by DNS name; it shows only build + poll age).
+- foreign Origin/Host: `an_unsafe_method_needs_its_own_origin`, `the_host_rule_refuses_unknown_names_but_not_healthz`,
+  `host_rule_edge_cases`, `dev_mode_leaves_get_open_but_checks_host_and_origin`.
+- login: `a_flood_of_wrong_logins_verifies_at_most_five`, `session::tests::the_6th_attempt_is_locked_for_60_seconds`,
+  `an_id_expires_after_30_days`, `logout_revokes_the_session_and_clears_the_cookie`,
+  `login_logs_name_the_outcome_never_the_password_or_hash`, `config::web::tests::debug_hides_token_and_hash`.
+- headers / spans / names: `every_response_carries_the_security_headers`, `pages::tests::no_template_has_an_inline_script`,
+  `api::tests::every_windowed_route_caps_the_span`, `scan::tests::control_characters_in_the_name_never_reach_the_terminal`.
+- `make check` green (gate below); H18/H19 added.
+- `make test` coverage: `src/protocol/` 98.82 %, `src/metrics/` 99.53 %. Security files (baseline for 10a):
+  guard 100, headers 100, config/web 100, session 96.6, api 93.9, auth/mod 88.2, password 85, config/mode 75,
+  hash_password 52.9, cli/mod 20 (% lines).
+**Check:** `grep -n "No auth for GET" ROADMAP.md SECURITY.md` → empty (rc 1).
+**reviewer:** batched (this step only; no other unpushed commits) — INTENT satisfied; 0 CRITICAL / 1 HIGH / 3 MEDIUM
+- HIGH H1: SECURITY.md claimed a dev-mode `warn!` that `src/` lacks (spec §8.5 h unbuilt) → verified (grep);
+  claim removed here, the code re-targeted to step 10a as A6.
+- MEDIUM M1 proxy docs must keep `password_hash` → A7; M2 ADR-011 "rolls back" wording → A8; M3 stale
+  limitation numbers in code comments → A9.
+**Carry-forward:** none
+**Next:** step 10a — security test suite + 100 % gate (settles A3–A9).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T17:53:13Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-b3f51157f6d25649)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

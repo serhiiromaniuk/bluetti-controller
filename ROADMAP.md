@@ -1276,7 +1276,8 @@ recommendation the code follows.
 ### 8.5 Security design (ADR-011, task `2026-11-07_web-security`)
 
 Settles how ADR-011 is built. Each item is the recommendation the code follows.
-*Status:* spec only (2026-11-10); the code lands in that task's steps 2–9.
+*Status:* built 2026-11-10 (steps 2–9 of that task; docs step 10); not yet
+deployed to the homelab (`HUMAN-CHECKLIST.md` H18).
 
 - **(a) Two layers on the router, never checks per handler.**
   - The outermost layer adds the headers of (f) to every response: 404s,

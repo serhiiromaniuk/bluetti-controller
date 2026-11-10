@@ -6,12 +6,22 @@ command marked `[host]` runs with sudo on the host, and only the owner runs it**
 (RULES.md, human-only boundary). Commands marked `[laptop]` run in the repo on
 the dev laptop.
 
+> **Upgrade note — the web login release (task `2026-11-07_web-security`,
+> ADR-011).** Before deploying it, add `password_hash` under `[web]` in the
+> host's `/etc/bluetti-controller/config.toml` (and `allowed_hosts` if you
+> open the UI by a DNS name, §3). Make the line on the laptop with
+> `bluetti-controller hash-password` (the password on stdin). Without it the
+> LAN listener refuses to start: the preflight `check` exits 4 and nothing
+> changes, the old build keeps running. After the deploy every browser logs in
+> once at `/login`; `/healthz` stays public.
+
 Contents: [1 Host requirements](#1-host-requirements) ·
 [2 One-time host setup](#2-one-time-host-setup) ·
 [3 Config and keys](#3-config-and-keys) ·
 [4 Move from the laptop](#4-move-from-the-laptop) ·
 [5 First release](#5-first-release) · [6 Every later update](#6-every-later-update) ·
-[7 Rollback](#7-rollback) · [8 Troubleshooting](#8-troubleshooting)
+[7 Rollback](#7-rollback) · [7a TLS proxy](#7a-optional-tls-proxy-caddy) ·
+[8 Troubleshooting](#8-troubleshooting)
 
 ## 1. Host requirements
 
@@ -64,6 +74,8 @@ scp ~/.config/bluetti-controller/config.toml ~/.config/bluetti-controller/keys.t
 #   [storage] path      = "/var/lib/bluetti-controller/data.db"
 #   [crypto]  keys_file = "/etc/bluetti-controller/keys.toml"
 #   [ble]     adapter   = "hci0"   (the host's adapter: `bluetoothctl list`)
+#   [web]     password_hash = "$argon2id$…"   (`bluetti-controller hash-password` on the laptop)
+#             allowed_hosts = ["ideapad.lan"] (only for a DNS name; IPs need none)
 #   keep control.enabled = false (golden rule #2)
 nano ~/config.toml
 sudo install -m 0640 -o root -g bluetti ~/config.toml ~/keys.toml /etc/bluetti-controller/
@@ -173,6 +185,26 @@ ssh -t homelab sudo /opt/bluetti-controller/current/bluetti-update rollback
   `/var/backups/bluetti-controller/<time>-pre-rollback.config.toml`.
 - Running `rollback` again goes forward to the release you left.
 
+## 7a. Optional TLS proxy (Caddy)
+
+The app speaks plain HTTP (ADR-011). For TLS on the LAN, put Caddy in front with
+its internal CA, keep the app on loopback, and trust Caddy's root certificate on
+the phone once. Installing Caddy and its unit is a host change: owner only.
+
+```text
+# /etc/caddy/Caddyfile — app config: [web] listen = "127.0.0.1:8080",
+#                                     allowed_hosts = ["ideapad.lan"]
+ideapad.lan {
+    tls internal
+    reverse_proxy 127.0.0.1:8080
+}
+```
+
+Caddy passes the browser's `Host` through, so the Origin check accepts
+`https://ideapad.lan`. The cookie still has no `Secure` flag (SECURITY.md
+"Known limitations"). Remote access: Tailscale Serve or WireGuard, never a port
+forward.
+
 ## 8. Troubleshooting
 
 | Symptom | Do |
@@ -183,7 +215,8 @@ ssh -t homelab sudo /opt/bluetti-controller/current/bluetti-update rollback
 | "check exit 1" in the preflight | keys file or database unusable for the `bluetti` user: modes/owners (§3), disk |
 | "check exit 2" in the preflight | the build is older than the database schema: deploy a newer one |
 | "less than … free" | free disk space; old backups are in `/var/backups/bluetti-controller/` (root only) |
-| "check exit 4" in the preflight | the new build rejects the config: compare with `config.example.toml` and the CHANGELOG's **config:** lines |
+| "check exit 4" in the preflight | the new build rejects the config: compare with `config.example.toml` and the CHANGELOG's **config:** lines (the login release needs `web.password_hash`, upgrade note at the top) |
+| `421` from the UI | the `Host` is a DNS name not in `web.allowed_hosts`: add it, or use the IP |
 | "already installed" | that build is `previous` or older: `bluetti-update rollback` returns to `previous`; for an older one remove `/opt/bluetti-controller/releases/<build>` first |
 | "… is a symlink: refusing" | something replaced a file in `/var/lib/bluetti-controller` with a link: treat the host as compromised, investigate before anything else |
 | Host rebooted during an update | after the switch the new build starts without a health check: run `status`, then `rollback` if needed |
