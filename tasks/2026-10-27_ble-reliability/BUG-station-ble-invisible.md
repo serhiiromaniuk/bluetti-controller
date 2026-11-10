@@ -80,3 +80,27 @@ station's own behaviour.
    scanning device not found" — same symptom, no cause given.
 5. If it recurs with 1.3.3 deployed (fewer aborts), it is station-side
    regardless of us; if it stops recurring, the aborts were the trigger.
+
+## Third occurrence — 2026-11-10 (v1.3.4 on the host)
+
+- Last good poll 04:22:52 local; `unreachable` from 04:23, every poll fails at
+  `discover`. The station is on and in use (owner).
+- Laptop `bluetoothctl scan le` (~17:30): EB3A and AC180 heard, the Elite not,
+  under any address. Official app: not found (owner). Host `Connected` list:
+  empty.
+- Before the silence: 3 single missed polls (03:22, 03:45, 04:17), no burst.
+  The journal was not read (production reads not allowed in that session),
+  so the failure stage of those misses is unknown.
+- Missed polls per day climbed before it: 30 (11-07), 47 (11-08), 51 (11-09)
+  against 5–7 per day on 10-21 – 10-23. Before the 10-25 silence: 18 (10-24).
+  Source: raw `battery_soc` timestamps from `/api/series`, gaps of 90 s – 60 min.
+- Station uptime before each silence does not line up: 47 h (10-25) and 67 h
+  (11-10) went silent, a 76 h run (10-27 – 10-30) did not.
+
+**Verdict by step 5 above:** it recurred with 1.3.3+ deployed (fewer aborted
+connects, no burst before it), so the silence is station-side. Working
+reading: the Elite's BLE module hangs; a short hang is a read stall ("dropped
+while connected", `2026-11-07_elite-read-stalls`), a long one stops
+advertising until the module restarts (by itself after ~10 h once, by a power
+cycle otherwise). No host-side change can reach a station that does not
+advertise.
