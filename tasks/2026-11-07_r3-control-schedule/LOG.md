@@ -98,3 +98,41 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-11-10 — protocol write allow-list (`src/protocol/control.rs`)
+
+**Changed:** new `src/protocol/control.rs` + `control/tests.rs`; `pub mod control` in
+`src/protocol/mod.rs`. `Output { Ac, Dc }` with `key()`/`from_key`; `OutputSwitch` with private
+fields and getters only; `switches(model)` returns EB3A 3007→48 / 3008→49, AC180 2011 / 2012,
+Elite empty (spec §4.3 "Write allow-list", A2). All `verified: false`.
+**Check:** failing first — `switches` stubbed empty for EB3A/AC180: `cargo test --lib
+protocol::control` 2 failed (the two per-model register tests), 4 passed; then 6/6 green.
+`make check` green, `src/protocol/` coverage 98.91%.
+**Reviewer:** batched (low-risk per PLAN Risks "Parallel groups": step 2 not in the risky list).
+**Decision:** none — the Elite's empty list follows spec §4.3 (step 1), which supersedes
+step 2's "four register pairs per model" wording; A2 is satisfied for `switches()`.
+**Carry-forward:** none
+**Next:** parallel group A — steps 3 (write frame), 4 (config token rule), 5 (schedule table).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T15:42:04Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.91% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

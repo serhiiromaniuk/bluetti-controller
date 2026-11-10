@@ -103,7 +103,7 @@ delegated defaults the owner accepted).
   citing `spec §R3`; `reviewer` pass (decision record = risky) with no
   CRITICAL/HIGH open.
 
-- [ ] 2. Protocol allow-list, pure (`spec §4.3`): new `src/protocol/control.rs`
+- [x] 2. Protocol allow-list, pure (`spec §4.3`): new `src/protocol/control.rs`
   (+ `pub mod control` in `src/protocol/mod.rs`): `Output { Ac, Dc }` with
   `key()` (`"ac"`/`"dc"`) and `from_key`; `OutputSwitch` with **private**
   fields `output`, `register`, `read_back`, `verified` and getters only — no
