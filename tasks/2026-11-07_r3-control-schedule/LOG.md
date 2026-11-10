@@ -399,3 +399,54 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 12 ✓ 2026-11-10 — per-station control panel on `/`
+
+**Changed:** `templates/status.html`: per card one `<fieldset class="ctl">` per output in
+`switches(model)` (A6: none for the Elite) — legend, toggle (`data-state` on/off/—, `disabled`
+when `control.enabled = false`), `on`/`off` `<input type="time">`, Save, Clear, `<output>`; one
+note "control disabled — the schedule will not run" per card when disabled. `pages.rs`:
+`CardView.outputs` (`OutputRow`), `Page.control`; rows from `state.stations` by name (config
+station only), state from the card's `ac_output_on`/`dc_output_on`, times from
+`schedule_entries`. `schedule::hh_mm` `pub(super)`. `app.css`: `.ctl` (3 lines).
+Inline `<script>` (delegated click): toggle POSTs `/api/control/output` (opposite state; from
+"—" it sends `on`), Save POSTs `/api/schedule`, Clear DELETEs; fieldset disabled while in
+flight; reply inline; read-back sets the label; 502/504 set "—" (step-10 reviewer note);
+bearer only when the pause form's token field exists and is non-empty (A1).
+Deviations: (a) times rendered server-side from `schedule_entries` (the `GET /api/schedule`
+source), not a JS fetch: keeps app.js' one-request load and survives the `#live` swap.
+(b) JS inline, not in app.js: app.js was 11 985 / 12 000 B and the first try failed
+`assets_stay_within_the_page_weight_budget` (14 265 B); §8.4 i says trim, never the cap. The
+HTML share (≤ 18 000 B) holds it; base.html already inlines scripts. `pages.rs` 387 lines.
+**Check:** 2 new tests (`control_panel_has_one_row_per_allowed_output`,
+`disabled_control_disables_the_toggles_only`) red first (0 toggles rendered), then green.
+Mutation (toggle `disabled` dropped; rows for EB3A switches on every station) → 1 and 2
+FAILED, restored. JS: `node --check` only, no DOM run (no jsdom) — H17 (step 14) covers it.
+**Reviewer (risky, before the commit):** INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM;
+deviations (a)–(c) accepted. M1 (auto-refresh mid-request re-enables the row, loses the reply
+and typed times) → deferred to amendment A12.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 13a — scheduler arithmetic, pure.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:24:01Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test elite_200_v2_read_session_replays ... ok
+test ac180_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

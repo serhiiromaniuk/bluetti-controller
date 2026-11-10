@@ -141,6 +141,9 @@ th { background: var(--th); font-weight: 600; }
 .scroll { overflow-x: auto; }
 
 form { margin: 8px 0; }
+.ctl { margin: 6px 0 0; padding: 4px 8px; border: 1px solid var(--border); border-radius: 4px; }
+.ctl legend { font-size: 0.85em; color: var(--muted); }
+.ctl input { width: 7em; }
 output { display: block; margin-top: 4px; }
 
 @media (max-width: 600px) {

@@ -251,7 +251,7 @@ delegated defaults the owner accepted).
   with the right `Record`, GET lists what the temp db holds. — check: the new
   tests red then green, `make check`.
 
-- [ ] 12. Per-station control panel on `/` (`spec §8.2`) (needs Q1): in each
+- [x] 12. Per-station control panel on `/` (`spec §8.2`) (needs Q1): in each
   station card (`src/web/pages.rs`, the assets JS — plain DOM, no framework)
   an AC row and a DC row: a toggle button whose label shows the known state
   (the card's `ac_output_on`/`dc_output_on`, replaced by the POST's read-back
@@ -440,3 +440,7 @@ delegated defaults the owner accepted).
   `Control::Shutdown` check makes the collector answer `Err("shutting down")`, which the route maps to `502`, not §8.2's
   `503`. Type the collector's error (a `Shutdown` variant → 503) or re-check `Control::Shutdown` in the `Err` arm; test
   a fake answering "shutting down" while control is `Shutdown` · disposition: open
+- A12 · 2026-11-10 · MEDIUM `templates/status.html:74-94` (step-12 review M1) — an auto-refresh during a control/schedule
+  request swaps `#live`: the new row is enabled again (a second write can queue), the reply/error lands on detached
+  elements, unsaved typed times are replaced. Keep a pending set keyed by station+output, ignore clicks on a pending
+  row, and on completion re-find the row by `data-station`/`data-output` before writing label and output · disposition: open

@@ -252,3 +252,79 @@ fn asset_urls_carry_the_build() {
         assert!(html.contains(&url), "{url} missing");
     }
 }
+
+/// `router` (EB3A, AC on and DC unknown in its newest sample, AC scheduled
+/// 07:30–23:00) and `office` (Elite 200 V2: no switches until H16, A6).
+fn control_page(enabled: bool) -> String {
+    let conn = db();
+    conn.execute_batch(&format!(
+        "INSERT INTO sample (station_id, ts, soc, encrypted) VALUES (1, {NOW}, 80, 1);
+         INSERT INTO sample_extra VALUES (1, {NOW}, 'ac_output_on', 1);
+         INSERT INTO schedule VALUES (1, 'ac', 450, 1380, NULL);"
+    ))
+    .unwrap();
+    let mut state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    state.control_config.enabled = enabled;
+    state.stations = [
+        (1, "router", crate::protocol::device::Model::Eb3a),
+        (2, "office", crate::protocol::device::Model::Elite200V2),
+    ]
+    .into_iter()
+    .map(|(id, name, model)| crate::collector::Target {
+        id,
+        config: crate::config::StationConfig {
+            name: name.into(),
+            model,
+            address: "AA:BB:CC:00:00:00".into(),
+            grid_sensor: false,
+        },
+    })
+    .collect();
+    render(&conn, NOW, &state).unwrap()
+}
+
+#[test]
+fn control_panel_has_one_row_per_allowed_output() {
+    let html = control_page(true);
+    assert!(
+        html.contains(
+            r#"<fieldset class="ctl" data-station="router" data-output="ac"><legend>AC</legend>
+<button type="button" class="toggle" data-state="on">on</button>
+<label>on <input type="time" name="on" value="07:30"></label> <label>off <input type="time" name="off" value="23:00"></label>"#
+        ),
+        "{html}"
+    );
+    assert!(html.contains(
+        r#"<fieldset class="ctl" data-station="router" data-output="dc"><legend>DC</legend>
+<button type="button" class="toggle" data-state="—">—</button>
+<label>on <input type="time" name="on" value=""></label> <label>off <input type="time" name="off" value=""></label>"#
+    ));
+    // The Elite has no allowed output: no row (spec §4.3, A6).
+    assert_eq!(html.matches(r#"<fieldset class="ctl""#).count(), 2);
+    assert!(!html.contains(r#"data-station="office""#));
+    assert!(!html.contains("control disabled") && !html.contains(" disabled>"));
+    for route in [
+        "\"/api/control/output\"",
+        "\"/api/schedule\"",
+        "m = \"DELETE\"",
+    ] {
+        assert!(html.contains(route), "{route}");
+    }
+}
+
+#[test]
+fn disabled_control_disables_the_toggles_only() {
+    let html = control_page(false);
+    assert_eq!(
+        html.matches(r#"class="toggle" data-state="#).count(),
+        html.matches(" disabled>").count()
+    );
+    assert_eq!(html.matches(" disabled>").count(), 2);
+    assert_eq!(
+        html.matches("control disabled — the schedule will not run")
+            .count(),
+        1
+    );
+    // The times stay editable.
+    assert!(html.contains(r#"<input type="time" name="on" value="07:30">"#));
+}

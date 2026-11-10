@@ -1,6 +1,7 @@
 //! The server-rendered status page `/` (ROADMAP.md §8.1, §8.3, §8.4 b–e, h–j):
 //! the house banner, the station cards, the outage log, the energy table, the
-//! chart slots `app.js` fills, and the pause form. Times and numbers are
+//! chart slots `app.js` fills, the output control panels (§8.2, R3) and the
+//! pause form. Times and numbers are
 //! formatted here, so the templates only place strings.
 
 use std::sync::Arc;
@@ -13,7 +14,10 @@ use jiff::Timestamp;
 use jiff::tz::TimeZone;
 use rusqlite::Connection;
 
+use crate::protocol::control::{Output, switches};
+use crate::store::read::{ScheduleEntry, schedule_entries};
 use crate::web::history::{self, EnergyDay, Outage};
+use crate::web::schedule::hh_mm;
 use crate::web::status::{self, Card};
 use crate::web::{AppState, unix_now};
 
@@ -39,6 +43,8 @@ struct Page {
     lifetime: Vec<String>,
     house: Vec<HouseRow>,
     token: bool,
+    /// `control.enabled`: the toggles work only when set (golden rule #2).
+    control: bool,
 }
 
 struct CardView {
@@ -59,6 +65,19 @@ struct CardView {
     unverified: bool,
     /// The R1b extras line, e.g. `Pack 20.6 °C · mode standard`; empty = none.
     extras: String,
+    /// One control row per output in `switches(model)` (§8.2); empty = none.
+    outputs: Vec<OutputRow>,
+}
+
+/// One output's control row: its last known state and schedule times.
+struct OutputRow {
+    key: &'static str,
+    label: &'static str,
+    /// `on`, `off` or `—` (unknown).
+    state: &'static str,
+    /// `HH:MM`, or empty when unset.
+    on: String,
+    off: String,
 }
 
 struct OutageRow {
@@ -120,6 +139,7 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
     };
     let energy_days = history::energy(conn, DAYS, now, state.interval_s, tz)?;
     let newest = s.stations.iter().filter_map(|c| c.last_seen).max();
+    let schedule = schedule_entries(conn)?;
     let page = Page {
         banner_class,
         banner,
@@ -138,7 +158,7 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
         cards: s
             .stations
             .iter()
-            .map(|c| card(c, tz))
+            .map(|c| card(c, tz, state, &schedule))
             .collect::<anyhow::Result<_>>()?,
         outages: history::outages(conn, OUTAGES, now)?
             .iter()
@@ -179,11 +199,17 @@ pub fn render(conn: &Connection, now: i64, state: &AppState) -> anyhow::Result<S
             })
             .collect(),
         token: state.token.is_some(),
+        control: state.control_config.enabled,
     };
     Ok(page.render()?)
 }
 
-fn card(c: &Card, tz: &TimeZone) -> anyhow::Result<CardView> {
+fn card(
+    c: &Card,
+    tz: &TimeZone,
+    state: &AppState,
+    schedule: &[ScheduleEntry],
+) -> anyhow::Result<CardView> {
     let watts = |w: Option<f64>| w.map_or("—".to_owned(), |w| format!("{w:.0} W"));
     let mut polls = format!(
         "{} polls, {} failures in 24 h",
@@ -239,7 +265,43 @@ fn card(c: &Card, tz: &TimeZone) -> anyhow::Result<CardView> {
         .flatten()
         .collect::<Vec<_>>()
         .join(" · "),
+        outputs: outputs(c, state, schedule),
     })
+}
+
+/// The card's control rows: only a configured station's allowed outputs.
+fn outputs(c: &Card, state: &AppState, schedule: &[ScheduleEntry]) -> Vec<OutputRow> {
+    let Some(target) = state.stations.iter().find(|t| t.config.name == c.name) else {
+        return Vec::new();
+    };
+    switches(target.config.model)
+        .iter()
+        .map(|switch| {
+            let output = switch.output();
+            let known = match output {
+                Output::Ac => c.ac_output_on,
+                Output::Dc => c.dc_output_on,
+            };
+            let entry = schedule
+                .iter()
+                .find(|e| e.station_id == target.id && e.output == output);
+            let time = |m: Option<u16>| m.map(hh_mm).unwrap_or_default();
+            OutputRow {
+                key: output.key(),
+                label: match output {
+                    Output::Ac => "AC",
+                    Output::Dc => "DC",
+                },
+                state: match known {
+                    Some(true) => "on",
+                    Some(false) => "off",
+                    None => "—",
+                },
+                on: time(entry.and_then(|e| e.on_min)),
+                off: time(entry.and_then(|e| e.off_min)),
+            }
+        })
+        .collect()
 }
 
 fn outage(o: &Outage, tz: &TimeZone) -> anyhow::Result<OutageRow> {

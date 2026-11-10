@@ -193,7 +193,7 @@ fn minutes(text: &str) -> Option<u16> {
     (h < 24 && m < 60).then_some(h * 60 + m)
 }
 
-fn hh_mm(minutes: u16) -> String {
+pub(super) fn hh_mm(minutes: u16) -> String {
     format!("{:02}:{:02}", minutes / 60, minutes % 60)
 }
 
