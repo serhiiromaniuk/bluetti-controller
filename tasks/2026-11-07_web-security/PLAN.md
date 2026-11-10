@@ -336,3 +336,7 @@ None is pending; no step is blocked.
   step 7 removes the pause form's token field, which R3's panel reads; the "R3 ordering" risk covers only R3
   step 10. The guard (step 1 (d), step 6) treats an empty or absent `Authorization` bearer as no bearer, so a
   valid session cookie still passes; R3 A1 covers the panel side · disposition: open
+- 2026-11-10 — plan: R3 landed before this task. Step 6 therefore also removes the per-handler bearer checks in
+  `src/web/control.rs` and `src/web/schedule.rs` (moving their 401 tests to `guard/tests.rs`) and lists R3's
+  `/api/control/*` and `/api/schedule*` routes in `PROTECTED`; R3's own rules ("`web.token` set" → `403` for
+  schedule edits) stay, as the "R3 ordering" risk says.
