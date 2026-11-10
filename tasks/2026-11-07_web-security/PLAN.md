@@ -357,3 +357,40 @@ None is pending; no step is blocked.
 - A4 · 2026-11-10 · MEDIUM `src/web/guard/tests.rs:253` — A1 (an empty or wrong bearer plus a valid session
   still passes) has no login-mode test; add `Authorization: Bearer ` and `Bearer wrong`, each with a valid
   session + same Origin on `POST /api/polling/pause` → `200` · disposition: open
+- 2026-11-10 — plan: owner requirement (recorded at the owner's request): "security posture and modules
+  should be tested by 100%… a lot of different tests… negative, exploitive test types (and other)". New
+  step 10a below, after the docs step and before the close; the close needs it ticked. Hard gate added by
+  the owner, never lowered: 100 % line coverage on every security file.
+
+- [ ] 10a. Security test suite + 100 % gate (owner, 2026-11-10; risky — reviewed before the commit).
+  **Scope:** every file of this slice: `src/web/guard*`, `src/web/auth*` (sessions, lockout, login,
+  logout, `safe_next`), `src/web/headers*`, `src/config/web.rs`, `src/config/mode.rs`, the hash module and
+  `hash-password` CLI, the span caps (`api.rs` `window()`) and `printable()`; list the exact files in LOG.
+  **Gate:** `Makefile` gains per-directory/file minimums (e.g. `COV_SECURITY` at 100 % lines, the existing
+  80 % dirs unchanged), wired into `make check`; an unreachable line is restructured, not excluded.
+  **Test types, each present and named in LOG with its count:**
+  (1) negative: missing/empty/malformed cookie, bearer (`Bearer`, `bearer x`, extra spaces, two
+  `Authorization` headers), expired, logged-out and forged session ids; bad config values;
+  (2) exploit catalogue, one test per attack, through the real router (`oneshot`): auth bypass by path
+  (`//api/status`, `/api/../api/status`, `%2Fapi`, `/API/status`, trailing `/`), by method (HEAD, OPTIONS,
+  `X-HTTP-Method-Override`); CSRF (no `Origin`, `Origin: null`, other port/scheme, suffix trick
+  `evil-<host>`, `Referer` only); DNS rebinding (`Host: evil.example`, trailing dot, uppercase, IPv6
+  literal, duplicate `Host`, absolute-form URI, `X-Forwarded-Host` ignored); open redirect in `next`
+  (`//evil`, `/\evil`, `/%09/evil`, `%2F%2Fevil`, `https:`, `javascript:`, CR/LF header injection);
+  session fixation (a pre-set cookie is replaced at login); brute force (lockout at 5, during-lock success
+  rejected, concurrent attempts cannot exceed the permit, A3's dropped-future case); oversized password and
+  body (argon2 DoS bound); NUL and non-UTF-8 input; terminal escapes and bidi overrides (U+202E) in
+  advertised names; `i64::MIN`/negative/huge spans;
+  (3) boundary: exact lockout count, session expiry ±1 s, span cap ±1;
+  (4) property-style: `safe_next`, Host and Origin matching and `printable` over generated inputs
+  (table-driven, or `proptest` as a pinned MIT/Apache dev-dependency if justified in LOG);
+  (5) secret hygiene: token and hash never in logs, `Debug`, error bodies or redirects (captured
+  `tracing` output);
+  (6) headers on EVERY response class (200, 302, 401, 403, 404, 421, assets, `/healthz`, SSE); cookie
+  attributes; no inline `<script>` in any template;
+  (7) black-box: the built binary on a loopback port with a temp config, the exploit catalogue replayed
+  over real HTTP (`tests/security_e2e.rs`);
+  (8) mutation: `cargo-mutants` (pinned into `.tools/`) over the security files, zero surviving mutants
+  or each survivor killed by a new test — survivors listed in LOG.
+  Also settles A3 and A4. — check: the new gate red before the tests, green after; `make check`; the
+  mutation run's summary in LOG.
