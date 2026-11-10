@@ -1,5 +1,5 @@
 //! The web server (ROADMAP.md §8): the pages, the JSON API, SSE, the pause
-//! POST and the output control POST (§R3), one module each (§8.4 a). Handlers
+//! POST, the output control POST and the schedule routes (§R3), one module each (§8.4 a). Handlers
 //! read through the read-only connection in `spawn_blocking` (§5.3), never
 //! through the writer's.
 
@@ -22,6 +22,7 @@ pub mod control;
 pub mod history;
 pub mod pages;
 pub mod pause;
+pub mod schedule;
 pub mod sse;
 pub mod state;
 pub mod status;
@@ -54,6 +55,12 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/api/energy", get(api::energy))
         .route("/api/polling/pause", post(pause::pause))
         .route("/api/control/output", post(control::output))
+        .route(
+            "/api/schedule",
+            get(schedule::list)
+                .post(schedule::set)
+                .delete(schedule::delete),
+        )
         .route("/events", get(sse::events))
         .route("/healthz", get(healthz))
         .with_state(state)

@@ -65,6 +65,7 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
     )?;
     let (control, control_rx) = watch::channel(Control::Run);
     let (commands_tx, commands) = mpsc::channel(COMMANDS);
+    let (records, queue) = mpsc::channel(QUEUE);
     let state = web::AppState::new(
         open_reader(path)?,
         config,
@@ -72,6 +73,7 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         updates,
         commands_tx,
         targets.clone(),
+        records.downgrade(),
     )?;
     state.spawn_sample_counter();
     let router = web::router(Arc::clone(&state));
@@ -85,7 +87,6 @@ pub async fn run(config: &Config, keys: Option<StaticKeys>) -> anyhow::Result<()
         "serving"
     );
 
-    let (records, queue) = mpsc::channel(QUEUE);
     let writer = writer.spawn(queue);
     let (stop_server, server_stopped) = oneshot::channel::<()>();
     let mut server = tokio::spawn(web::serve(listener, router, async {

@@ -46,14 +46,24 @@ pub(super) fn raw_request(
     (status, lines.collect(), body)
 }
 
-/// A raw HTTP/1.1 POST with an optional `Authorization` header; returns the
-/// status line and the body.
+/// A raw HTTP/1.1 POST with an optional `Authorization` header.
 pub(super) fn post(addr: SocketAddr, path: &str, auth: Option<&str>) -> (String, String) {
+    send(addr, "POST", path, auth)
+}
+
+/// A raw HTTP/1.1 request with no body and an optional `Authorization`
+/// header; returns the status line and the body.
+pub(super) fn send(
+    addr: SocketAddr,
+    method: &str,
+    path: &str,
+    auth: Option<&str>,
+) -> (String, String) {
     let mut stream = TcpStream::connect(addr).unwrap();
     let auth = auth.map_or(String::new(), |a| format!("Authorization: {a}\r\n"));
     write!(
         stream,
-        "POST {path} HTTP/1.1\r\nHost: localhost\r\n{auth}Content-Length: 0\r\nConnection: close\r\n\r\n"
+        "{method} {path} HTTP/1.1\r\nHost: localhost\r\n{auth}Content-Length: 0\r\nConnection: close\r\n\r\n"
     )
     .unwrap();
     let mut response = String::new();

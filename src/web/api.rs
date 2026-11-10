@@ -61,7 +61,7 @@ impl IntoResponse for ApiError {
 }
 
 /// Runs `f` on the reader in `spawn_blocking`; its value becomes the JSON body.
-async fn read<T, F>(state: Arc<AppState>, f: F) -> Result<Json<T>, ApiError>
+pub(super) async fn read<T, F>(state: Arc<AppState>, f: F) -> Result<Json<T>, ApiError>
 where
     T: Serialize + Send + 'static,
     F: FnOnce(&Connection, &AppState) -> Result<T, ApiError> + Send + 'static,

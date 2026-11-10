@@ -236,7 +236,7 @@ delegated defaults the owner accepted).
   fake receiver task: 401, 403 when disabled, 400, 200, 504; a status test for
   the two new fields. — check: the new tests red then green, `make check`.
 
-- [ ] 11. Web schedule routes (`spec §8.2`, `spec §6`) (needs Q1): `AppState`
+- [x] 11. Web schedule routes (`spec §8.2`, `spec §6`) (needs Q1): `AppState`
   gains `records: mpsc::Sender<Record>` (`serve` creates the record channel
   before the state); new `src/web/schedule.rs`: `GET /api/schedule` (open;
   `schedule_entries` from the reader in `spawn_blocking`, station ids mapped

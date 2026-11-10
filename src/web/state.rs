@@ -1,5 +1,5 @@
 //! What every handler shares (ROADMAP.md §8.4 a): the read-only connection, the
-//! collector's `Control` sender and output switch request sender (§R3), the
+//! collector's `Control` sender, the output switch and schedule edit senders (§R3), the
 //! SSE `Update` sender, the shutdown signal and the config values the views
 //! need. No `Debug`: it would print the token.
 
@@ -13,7 +13,7 @@ use tokio::sync::{broadcast, mpsc, watch};
 use crate::collector::{Control, Target};
 use crate::config::{Config, ControlConfig};
 use crate::control::Request;
-use crate::store::Update;
+use crate::store::{Record, Update};
 
 /// The read-only connection, shared by handlers through `spawn_blocking` (§5.3).
 pub type Db = Arc<Mutex<Connection>>;
@@ -50,6 +50,10 @@ pub struct AppState {
     pub control_config: ControlConfig,
     /// The configured stations with their ids: name, model and address.
     pub stations: Vec<Target>,
+    /// Schedule edits to the writer (§R3). Weak: the writer drains and stops
+    /// once the collector drops its sender, and this state lives as long as
+    /// the sample counter task does.
+    pub records: mpsc::WeakSender<Record>,
 }
 
 impl AppState {
@@ -61,6 +65,7 @@ impl AppState {
         updates: broadcast::Sender<Update>,
         commands: mpsc::Sender<Request>,
         stations: Vec<Target>,
+        records: mpsc::WeakSender<Record>,
     ) -> anyhow::Result<Arc<Self>> {
         Ok(Arc::new(Self {
             reader: Arc::new(Mutex::new(reader)),
@@ -76,6 +81,7 @@ impl AppState {
             commands,
             control_config: config.control.clone(),
             stations,
+            records,
         }))
     }
 
@@ -100,7 +106,7 @@ impl AppState {
 
     /// A state over `reader` with test defaults: 60 s interval, factor 0.9,
     /// 30 days of raw retention, `Europe/Kyiv`, no token, control disabled, no
-    /// stations, a command channel nobody reads. Tests change fields,
+    /// stations, a command channel nobody reads, a closed record channel. Tests change fields,
     /// then wrap it in an `Arc`.
     #[cfg(test)]
     pub fn for_tests(reader: Connection) -> Self {
@@ -118,6 +124,7 @@ impl AppState {
             commands: mpsc::channel(1).0,
             control_config: ControlConfig::default(),
             stations: Vec::new(),
+            records: mpsc::channel(1).0.downgrade(),
         }
     }
 }

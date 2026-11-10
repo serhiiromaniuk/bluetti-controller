@@ -355,3 +355,47 @@ test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; fini
 ```
 
 <!-- gate:end -->
+
+## Step 11 ✓ 2026-11-10 — `GET/POST/DELETE /api/schedule` (`src/web/schedule.rs`)
+
+**Changed:** `web/schedule.rs`: `list` (open, `api::read` → `schedule_entries`, ids → names via
+`state.stations`, rows of unconfigured stations skipped, times `HH:MM`); `set` / `delete`: 403 with no
+`web.token` (amendment H1) → 401 bearer → 400 station (config name only) / output (`switches(model)`) /
+`on`·`off` `HH:MM` 00:00–23:59 (empty = unset) / at least one / `on ≠ off` → `Record::ScheduleSet` /
+`ScheduleDelete` with the target id → `202` with the entry. Accepted while control is disabled.
+`AppState.records`; `serve` creates the record channel before the state; route in `web/mod.rs`;
+`api::read` `pub(super)`; `web/tests.rs` `post` → generic `send(method, auth)`.
+Deviation: `records` is `mpsc::WeakSender<Record>`, not `Sender`: the sample counter task keeps the
+`Arc<AppState>` alive for the process, so a strong sender would keep the writer from draining on
+shutdown (`serve` awaits it after the collector drops its sender). Upgrade fails → `503`.
+**Check:** 6 tests in `web/schedule/tests.rs` (403, 401, 12 POST + 2 DELETE 400 cases naming the
+field, 202 with the exact `Record`s while disabled, GET from a temp db, `HH:MM` parse/format).
+First run failed on the GET body's field order (struct order, not alphabetical) — expectation fixed.
+Mutation (bearer check off, `on == off` check off) → 2 FAILED (`…401`, `…400_naming_it`), restored.
+**Reviewer (risky, before the commit):** INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM; the
+`WeakSender` deviation verified against `spawn_sample_counter` + `serve`'s shutdown order.
+**Decision:** none. **Carry-forward:** none.
+**Next:** step 12 — the per-station control panel on `/` (A1, A6 apply).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-10T16:16:19Z
+
+```text
+
+     Running tests/replay.rs (target/llvm-cov-target/debug/deps/replay-0cbf12f887d84999)
+
+running 3 tests
+test ac180_read_session_replays ... ok
+test elite_200_v2_read_session_replays ... ok
+test eb3a_read_session_replays ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
