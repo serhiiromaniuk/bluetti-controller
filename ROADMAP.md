@@ -185,6 +185,28 @@ internet down.
 - **R3 Device control** — AC/DC on/off, charging mode; schedule-aware charging
   (Turbo before a planned outage, Silent otherwise); staggered charging when the
   grid returns so the breaker does not trip. Needs auth on the UI.
+- **R3 slice 1: AC/DC output control + daily schedule** (owner 2026-11-07,
+  recorded at the owner's request: "super easy method of turning off and on
+  AC/DC … now just the code, we will test it later"; ADR-010; task
+  `2026-11-07_r3-control-schedule`).
+  - *Delivers:* switching each station's AC and DC output on and off, by hand
+    and on a daily schedule. The **web UI is the primary surface**: one control
+    panel per station card, a toggle and the `on`/`off` times per output
+    (§8.2). The CLI `set <station> ac|dc on|off` is minimal and exists for the
+    first hardware checks (HUMAN-CHECKLIST H14–H16).
+  - *Frames and registers:* the 0x06 write of §4.2, the allow-list of §4.3 and
+    nothing else. Every register stays `verified: false` until its hardware
+    check.
+  - *Schedule:* one entry per station output, daily local `on` and/or `off`
+    time, stored in the database (§6), edited in the UI, run by the service
+    (§12 R3: missed-run rule, retry cap, serialisation).
+  - *Code only:* this slice sends no real write frame, enables control on no
+    host and deploys nothing; those are the owner's (RULES.md human-only list).
+  - *Waits for later slices:* charging mode, ECO, power-off, LED, power lifting;
+    schedule-aware and staggered charging (need R2); weekday filters;
+    notifications.
+  - **Recommendation:** ship this slice as code with fakes, gated off by
+    default; the owner enables it per HUMAN-CHECKLIST H14–H17.
 
 ### 2.3 Not planned (decided, revisit only on request)
 
@@ -269,6 +291,22 @@ whole tzdb into the binary); a fixed UTC offset (wrong across DST).
 *Consequences:* one new runtime dependency; a host without `tzdata` fails at
 startup with a clear error instead of rendering wrong days.
 
+**ADR-010 — R3 slice 1: AC/DC output writes behind a type-enforced allow-list,
+a database schedule.** *Context:* the owner asked for "super easy" AC/DC on/off
+by hand and on a schedule (2026-11-07, §2.2). *Decision:* one 0x06 write per
+command (§4.2), only to the output registers of §4.3, reachable only through
+`protocol::control::switches()` and a `control::Command` built only when
+`control.enabled = true` (golden rule #2); `control.enabled = true` needs
+`web.token` (§9). In `serve` the collector runs commands between poll rounds on
+its own link (golden rule #5). The schedule is one database table edited in the
+UI (§6, §8.2), run by a scheduler task that catches up to the latest due state
+once per slot (§12 R3). *Rejected:* a `[[schedule]]` config block (an edit
+needs a restart; the owner wants the UI); skipping missed runs (a restart
+would silently drop one); a protected-output list (owner, Q4: "allow all").
+*Consequences:* a second write path into the store (web → writer `Record`s);
+any output, the router's included, can be switched off from the LAN; the write
+frames on encrypted stations stay an assumption until H14.
+
 ---
 
 ## 4. Research findings
@@ -297,6 +335,21 @@ startup with a clear error instead of rendering wrong days.
   Writes larger than MTU are split to `mtu − 3` (min 20), write-without-response.
   [S2][S5]
 - Implemented and tested in `src/protocol/modbus.rs` (M0).
+- **Write single register (R3 slice 1, ADR-010).** Request
+  `01 06 <reg:u16 BE> <value:u16 BE> <crc>` (8 bytes); the reply echoes the
+  request byte for byte (8 bytes); an exception reply is `01 86 <code> <crc>`
+  (5 bytes). The reply length is known from the 2nd byte: `0x86` → 5, else 8.
+  A reply whose CRC, function or echoed register/value differs is an error
+  (`EchoMismatch`). Only 0x06 is used; 0x10 stays unused.
+- **Encrypted stations** (every station of ours advertises `BLUETTF`, §4.5):
+  the same plaintext frame travels inside the existing session envelope, like a
+  read. **Assumption, `verified: false`** (S15, bt PR #59); H14 confirms it.
+- **No write retry.** A timed-out write may have landed, so the write frame is
+  sent once; the read-back register (§4.3) is read with the normal retry policy
+  and is the truth. A read-back that differs from the wanted state is an error.
+- **Recommendation:** pure builder + echo check in `src/protocol/modbus.rs`,
+  byte-vector tests (EB3A AC on: `01 06 0B BF 00 01 <crc>`); the write path in
+  `src/transport/write.rs`.
 
 ### 4.3 Register maps
 
@@ -415,6 +468,32 @@ MIT bridge exists (JordiGrasvi/bluetti-elite200v2-mqtt). [S9][S11][S14]
 No dumped value contradicts `ELITE_200_V2` in `src/protocol/device.rs`; its
 decode test uses the values above. Sweep a range only in blocks that avoid the
 exception ranges: one bad address fails the whole read.
+
+#### Write allow-list (R3 slice 1, ADR-010)
+
+The only registers this project ever writes. Value `1` = on, `0` = off. Every
+row is `verified: false` until its HUMAN-CHECKLIST check.
+
+| Model | Output | Write reg | Read-back reg | Source | In `switches()` |
+|---|---|---|---|---|---|
+| EB3A | AC | 3007 | 48 | mq, bt | yes |
+| EB3A | DC | 3008 | 49 | mq, bt | yes |
+| AC180 | AC | 2011 | 2011 | bt | yes |
+| AC180 | DC | 2012 | 2012 | bt | yes |
+| Elite 200 V2 | AC | 2011 | 2011 | extrapolated from the AC180 / v2 base map (S13); no Elite source | **no**, until H16 |
+| Elite 200 V2 | DC | 2012 | 2012 | as above | **no**, until H16 |
+
+- `protocol::control::switches(model)` lists exactly the "yes" rows. An
+  `OutputSwitch` has private fields and no public constructor, so no code path
+  can name another register (golden rule #2 enforced by the type).
+- The Elite pair stays out because no source confirms it and its profile does
+  not poll 2011 (the read-back is unknown): a read-back failure there would
+  make the scheduler resend a write up to 10 times per slot. H16 reads (2011, 2)
+  read-only beside the app; a match adds the Elite rows in a follow-up change.
+- Charging mode, ECO, power-off, LED and power lifting (the "Controls" lines
+  above) are not on the list; a later R3 slice adds them, each with its decision.
+- **Recommendation:** these four rows only; the read-back register is read after
+  every write and shown in the UI.
 
 The M0 code (`src/protocol/device.rs`) implements these maps with a
 `verified` flag per field.
@@ -873,6 +952,33 @@ of MB.
   Recommendation: hourly is enough to decode new fields later at ~24 rows per
   block per day.
 
+**R3 slice 1 (2026-11-10, ADR-010): the schedule table.**
+
+```sql
+-- migrations/002_schedule.sql
+CREATE TABLE schedule (
+  station_id INTEGER NOT NULL REFERENCES station(id),
+  output     TEXT NOT NULL,               -- 'ac' | 'dc' (Output::key())
+  on_min     INTEGER,                     -- minutes after local midnight, 0..1439
+  off_min    INTEGER,                     -- same; at least one is set
+  last_due   INTEGER,                     -- unix s of the due slot last applied; NULL = never
+  PRIMARY KEY (station_id, output),
+  CHECK (on_min IS NOT NULL OR off_min IS NOT NULL)
+);
+```
+
+- One row per station output, at most. Times are local (`general.timezone`).
+- Writes go through the single writer as `Record`s: *set* upserts `on_min` and
+  `off_min` and keeps `last_due`; *run* updates `last_due` only (a no-op when
+  the row is gone); *delete* removes the row.
+- The scheduler and the web read the table from their own read-only
+  connections. A `GET` right after an edit may lag the writer by a moment.
+- `SCHEMA_VERSION` becomes 2. An older binary refuses a version-2 file
+  ("newer than this binary"), so `bluetti-update rollback` below this release
+  restores the update's database backup (§10.6, its schema-migrated path).
+- **Recommendation:** one table, no reload signal: the scheduler reads it every
+  tick, so a UI edit takes effect within a minute.
+
 ---
 
 ## 7. Derived metrics
@@ -971,6 +1077,41 @@ runtime_h   = remaining_wh / max(load_w, 1)
 | GET | `/events` | SSE: `sample`, `grid_event`, `poll_failure` |
 | POST | `/api/polling/pause?minutes=N` | pause polling (token if configured) |
 | GET | `/healthz` | liveness + last successful poll age: JSON `{status, last_poll_age_s}`, 200 while the process runs (`last_poll_age_s` null before the first poll); recommended over 503-on-stale so a slow BLE round never restarts the process |
+| POST | `/api/control/output?station=&output=ac\|dc&state=on\|off` | switch one output (R3, bearer required); `200 {station, output, state}` with the read-back |
+| GET | `/api/schedule` | every schedule entry: `{station, output, on, off}` (`HH:MM` or `null`) |
+| POST | `/api/schedule?station=&output=&on=HH:MM&off=HH:MM` | set one entry (bearer, `web.token` must be set); `202` with the entry |
+| DELETE | `/api/schedule?station=&output=` | remove one entry (bearer, `web.token` must be set); `202` |
+
+**R3 slice 1 (2026-11-10, ADR-010).** Errors are `{"error": "<message>"}` as in §8.4 f.
+
+- *Control route.* `401` without the right bearer; `403 "control is disabled"`
+  while `control.enabled = false`; `400` for an unknown station, an output not
+  in `switches(model)` or a bad `state`. Then the request goes to the collector
+  (§12 R3) and the route waits at most one poll deadline + one interval:
+  `504` on timeout, `503` while shutting down, `502` with the error when the
+  write or read-back fails (e.g. `"polling paused"`). `station` is a config
+  station name; a MAC is never accepted or returned.
+- *Schedule routes.* `POST`/`DELETE` need `web.token` to be **set** (else `403
+  "schedule edits need web.token"`) and the bearer (else `401`), whatever
+  `control.enabled` is: an entry saved by anyone on the LAN while control is
+  off would fire as a real write once the owner enables control. Validated at
+  the boundary, each failure a `400` naming the field: station known, output
+  in `switches(model)`, `HH:MM` (00:00–23:59), at least one of `on`/`off`, `on
+  ≠ off`. Edits are accepted while control is disabled. `202`: the writer
+  applies the record in order, so a `GET` may lag by a moment.
+- *Status.* `/api/status` station cards gain `ac_output_on` / `dc_output_on`
+  (`bool`, from the last sample; `null` when the profile does not read them).
+- *Control panel on `/`.* Each station card has one row per output in
+  `switches(model)` (none for the Elite until H16, §4.3): a toggle labelled
+  with the last known state (the card's field, then the POST's read-back; "—"
+  when unknown) and the row's `on`/`off` time inputs with Save (POST) and Clear
+  (DELETE). The bearer comes from the pause form's token field, sent only when
+  that field exists and is non-empty. A row is disabled while its request runs;
+  an error reply shows inline. With `control.enabled = false` the toggles are
+  disabled with the note "control disabled — the schedule will not run"; the
+  times stay editable. Plain DOM, no framework.
+- **Recommendation:** these four routes and one panel per card; nothing else in
+  the UI changes.
 
 ### 8.3 Constraints
 
@@ -1144,6 +1285,14 @@ grid_sensor = true
 (§8.4 h); set, it requires the bearer. `general.timezone` is parsed with `jiff`
 at startup and an unknown zone fails fast (ADR-009). Paths are absolute: the
 loader does not expand `~` or `%h`.
+
+*R3 slice 1 (2026-11-10, ADR-010):* `[control]` keeps one key, `enabled`
+(default `false`, golden rule #2; only the owner sets it `true`). Validation
+fails fast on `control.enabled = true` without `web.token`; the error names
+both keys (a write to a station is not a pause). No schedule block and no
+protected-output list in the config: the schedule lives in the database and is
+edited in the UI (§6, §8.2); every output in §4.3's list may be switched (owner,
+Q4). **Recommendation:** no new config keys.
 
 ---
 
@@ -1526,13 +1675,67 @@ RSS ≤ 50 MB, status page and every API route ≤ 1 s on LAN, `make check` gree
 ### R3 — Device control (post-MVP)
 
 - [ ] Write path (0x06) with an allow-list per model; `control.enabled` +
-      mandatory token (golden rule #2).
+      mandatory token (golden rule #2). *(slice 1)*
 - [ ] Confirm write frames for encrypted stations (bt PR #59 / forks).
-- [ ] UI toggles: AC/DC output, charging mode.
+      *(HUMAN-CHECKLIST H14–H16)*
+- [ ] UI toggles: AC/DC output. *(slice 1)*
+- [ ] Daily `on`/`off` schedule per station output, edited in the UI.
+      *(slice 1)*
+- [ ] CLI `set <station> ac|dc on|off` for the hardware checks. *(slice 1)*
+- [ ] UI toggle: charging mode.
 - [ ] Schedule-aware charging: Turbo before a planned outage when SOC < 100%,
       Silent otherwise.
 - [ ] Staggered charging after the grid returns (one station in Turbo at a time,
       keeps the total under the 16 A breaker).
+
+**Slice 1 runtime rules (2026-11-10, ADR-010; owner answers Q1–Q5 of task
+`2026-11-07_r3-control-schedule`).**
+
+- *Gate.* A `control::Command` exists only when `control.enabled = true` and
+  `switches(model)` lists the output; else `Refused::Disabled` /
+  `Refused::NotAllowed`, and no frame is built. CLI, web and scheduler all go
+  through it. No output is protected (owner, Q4: "allow all"): the router's
+  outlet can be switched off from the LAN, and only the station's button turns
+  it back on.
+- *Serialisation (golden rule #5).* In `serve` the collector owns the BLE link
+  and runs commands from a channel **between poll rounds**: a request that
+  arrives during a round waits for its end. Each command: connect (with the
+  station's normal retry), write once, read back, disconnect, all under the
+  poll deadline. While polling is paused the collector answers `"polling
+  paused"` without connecting; a request whose caller gave up is dropped
+  before connecting. The log line names station, output, state and read-back,
+  never the MAC.
+- *CLI `set`.* Takes a config station name only (a MAC or unknown name exits
+  non-zero before any BLE), checks the gate first, then opens its own session.
+  With `serve` running on the same host: **pause polling first** (§8.4 h).
+- *Scheduler.* Runs in `serve` only when `control.enabled = true`; a tick every
+  60 s reads the table on its own read-only connection. Per entry, the due slot
+  is the latest `on`/`off` occurrence ≤ now (today's time in
+  `general.timezone`, else yesterday's; a time in a DST gap resolves by `jiff`'s
+  default disambiguation). It is applied when newer than `last_due` (`NULL` =
+  never run: the latest due state applies, the schedule declares the wanted
+  state).
+- *Missed runs (Q3): catch up, once.* A restart or the host being off never
+  drops a run: the latest due state is applied when the service next runs. An
+  unreachable station gets the retry cap below within one service run; a
+  restart resets the in-memory failure count, so the slot is tried again. Only
+  the latest slot counts (a missed `on` and a later missed `off` apply `off`).
+  A slot recorded in `last_due` is never repeated;
+  the scheduler also remembers its own successes in memory, so a `last_due`
+  update the writer has not yet applied cannot cause a repeat. Enabling control
+  (a restart with `enabled = true`) applies each entry's latest due state at once.
+- *Retry cap.* A failed attempt is retried on the next tick, at most 10
+  consecutive failures per due slot within one service run; then one `warn!`
+  and the slot is dropped until the next slot (or a restart). A `"polling
+  paused"` answer is not a failure and does not count: the slot waits for the
+  pause to end (≤ 60 min, §8.4 h) and then runs. A `Refused` is logged and not
+  retried that tick. A successful run
+  sends `Record::ScheduleRun` (sets `last_due`).
+- *Editing.* Allowed while control is disabled (the scheduler then sends
+  nothing); needs `web.token` set and the bearer (§8.2). A deleted or edited
+  entry is absent or new on the next tick.
+- **Recommendation:** these rules as written; the hardware checks H14–H17 in
+  `HUMAN-CHECKLIST.md` gate any real use.
 
 ---
 

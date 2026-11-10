@@ -62,7 +62,7 @@ delegated defaults the owner accepted).
 
 ## Steps
 
-- [ ] 1. Spec: record the R3 slice in ROADMAP.md before any code (RULES.md
+- [x] 1. Spec: record the R3 slice in ROADMAP.md before any code (RULES.md
   "Decision process") — a new `ADR-010` line in §3 and the design in `spec §2.2`
   (R3 slice: what this task delivers, what waits; the UI is the primary
   surface, the CLI `set` is for hardware checks), `spec §4.2` (the 0x06 frame
@@ -415,3 +415,10 @@ delegated defaults the owner accepted).
 - A4 · 2026-11-10 · MEDIUM `tasks/2026-10-27_ble-reliability/BUG-station-ble-invisible.md:97` (batch review of a650183) —
   "Station uptime … 47 h (10-25)" is time since adverts resumed on 10-23 10:19 (~46 h), not a power-on; relabel or
   drop it · disposition: open
+- A5 · 2026-11-10 · MEDIUM `ROADMAP.md` §R3 "Scheduler" + §8.2 panel (step-1 review M1) — a new entry has `last_due = NULL`,
+  so saving a single past-due time (e.g. "router AC off 23:00" saved at 23:30) switches the output within 60 s while
+  control is enabled, and with no `on` time nothing turns it back on. State it in the panel note / ADR-010, or ask the
+  owner to refine Q3 (seed `last_due` on first save so an entry fires from its next slot) · disposition: open
+- A6 · 2026-11-10 · MEDIUM `PLAN.md` step 12 (step-1 review M2) — step 12's "an AC row and a DC row" and its test "both rows
+  for every station" contradict spec §8.2 / §4.3 (A2): rows only for outputs in `switches(model)`, none for the Elite until
+  H16. Step 12 renders and tests rows per `switches(model)` · disposition: open
