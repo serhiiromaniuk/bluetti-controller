@@ -171,3 +171,56 @@
 ```
 
 <!-- gate:end -->
+
+## Step 4 ✓ 2026-11-11 — A11: a collector error during shutdown is 503
+
+**Changed** (`312d8ed`, worktree branch `ga-a11`):
+- `src/web/control.rs` — guarded arm before `Ok(Some(Err(_)))`: when `*state.control.borrow() == Control::Shutdown`, answer `503 "shutting down"`; other errors stay `502`.
+- `src/web/control/tests.rs` — `run()` clones `state.control` into the fake; `Fake::ShutDown` calls `send_replace(Control::Shutdown)`, then answers `Err("shutting down")`; test `a_shutdown_while_waiting_is_503`.
+
+**Check:**
+- Red first: `a_shutdown_while_waiting_is_503` FAILED with `HTTP/1.1 502 Bad Gateway` (6 passed, 1 failed).
+- After: `web::control::tests` 7/7 (incl. `a_collector_error_is_502`); `make check` green in the worktree.
+
+**reviewer:** batched with step 5 · INTENT satisfied · 0 CRITICAL / 0 HIGH; the shutdown race can report a real write failure as 503 — accepted, the collector logs the real error (no finding).
+
+**Decision:** none · **Carry-forward:** none
+
+## Step 5 ✓ 2026-11-11 — A13: the scheduler prunes its applied map
+
+**Changed** (`88a1158`, worktree branch `ga-a13`, landed by cherry-pick):
+- `src/control/schedule.rs` — `tick` retains an `applied` key only while its row is in the read and the row's `last_due` is `None` or older than the key's slot.
+- `src/control/schedule/tests.rs` — `a_deleted_and_re_added_entry_does_not_inherit_the_old_slot`: `off 23:00` sent, `last_due` stored, a tick prunes, re-added as `on 08:00`, next tick sends `on`.
+
+**Check:**
+- Red first: `left: [("router", Ac, false)] right: [("router", Ac, false), ("router", Ac, true)]`.
+- After: `control::schedule` 15/15 (writer-lag test stays green); `make check` green in the worktree.
+- `loop/merge-gate.sh ga-a11 ga-a13`: MERGE GATE OK (green together).
+
+**reviewer:** batched with step 4 · INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM; no double-send path; accepted re-add window can only under-send. MEDIUM (untested `last_due < slot` keep branch) deferred to amendment A1.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 6 — A12 control panel refresh race (`assets/control.js`, `assets/app.js`, H20).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T13:56:39Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
