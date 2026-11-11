@@ -29,7 +29,7 @@ See [`../AGENTS.md`](../AGENTS.md) for how tasks work,
 | 2026-11-07 | ad hoc | R3 AC/DC control + scheduled switching | [OUTCOME](./2026-11-07_r3-control-schedule/OUTCOME.md) | done | — |
 | 2026-11-07 | ad hoc | Web security: login, CSRF/Host checks, headers | [2026-11-07_web-security](./2026-11-07_web-security/) | done | — |
 | 2026-11-07 | ad hoc | Elite read stalls (dropped while connected) | [2026-11-07_elite-read-stalls](./2026-11-07_elite-read-stalls/) | todo | — |
-| 2026-11-10 | ad hoc | R3 control hardening (A8–A13) | [2026-11-10_r3-control-hardening](./2026-11-10_r3-control-hardening/) | in-progress | — |
+| 2026-11-10 | ad hoc | R3 control hardening (A8–A13) | [OUTCOME](./2026-11-10_r3-control-hardening/OUTCOME.md) | done | — |
 
 <!--
 Roadmap (RULES.md phase table, details in ROADMAP.md §12) — open a task per phase as you reach it:

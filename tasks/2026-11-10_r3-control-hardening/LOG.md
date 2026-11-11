@@ -387,3 +387,17 @@
 ```
 
 <!-- gate:end -->
+
+## Close ✓ 2026-11-11 — close-reviewer: close
+
+**close-reviewer:** VERDICT close · 0 CRITICAL / 0 HIGH / 0 MEDIUM / 0 UNVERIFIED · TREE-CHANGED none.
+- Done-when 1–3: each new test failed under its mutant in a scratch copy (retry flag, release block, `applied.retain`, shared `open`, 503 arm).
+- Done-when 4: H20 present (`HUMAN-CHECKLIST.md:29`) + string test `src/web/pages/tests.rs`; panel exercised in headless Chrome, 13 checks green.
+- Done-when 5: `make check` EXIT=0, 474 lib tests, `src/protocol/` 98.82%.
+- A4: flake gone — single test 0/320 under 16-way load, lib suite 0/48 under 8-way load; `closed_early` masks no other error.
+- A5/A6 verified; amendments 6/6 disposed; no stubs; no carry-forwards.
+
+**Changed:** BRIEF done-when ticked; OUTCOME Deliverables name `20cca40`, `98ba912`; INDEX row done; STATE Blocked line points to `elite-read-stalls`.
+**reviewer:** batched (doc-only close), before the push.
+**Decision:** none · **Carry-forward:** none
+**Next:** open `2026-11-07_elite-read-stalls` (todo). H20 stays the owner's.

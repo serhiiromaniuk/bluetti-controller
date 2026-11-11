@@ -6,8 +6,8 @@
 
 | Field | Value |
 |-------|-------|
-| **Gate status** | 🟢 MVP done (`v1.0-mvp`); `v1.3.4` runs on the homelab host (ideapad) since 2026-10-27, laptop unit removed. Updates: `make release` + `make deploy` (deploy/HOMELAB.md). Next: owner's HUMAN-CHECKLIST rows |
-| **Blocked?** | no — next: the todo tasks in `tasks/INDEX.md` order (R3 slice 1 done 2026-11-10, not deployed; `r3-control-hardening` before control is enabled); HUMAN-CHECKLIST rows stay the owner's |
+| **Gate status** | 🟢 MVP done (`v1.0-mvp`); `v1.4.0` runs on the homelab host (ideapad) since 2026-11-10 (owner deploy), laptop unit removed. Updates: `make release` + `make deploy` (deploy/HOMELAB.md). Next: owner's HUMAN-CHECKLIST rows |
+| **Blocked?** | no — next: the todo tasks in `tasks/INDEX.md` order (R3 slice 1 + `r3-control-hardening` done 2026-11-11, not deployed; next `elite-read-stalls`); HUMAN-CHECKLIST rows stay the owner's |
 
 ## Carry-forward — obligations that outlive the task that found them
 

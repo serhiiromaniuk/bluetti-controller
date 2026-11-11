@@ -22,7 +22,9 @@ deployed and no write frame was sent.
   - `bbe4b0c` — `fix(web): keep the control panel row and typed times through an auto-refresh (A12)`
   - `43182bb` — `fix(web): always swap #live and carry busy or typed control rows (A1, A2, A3)` —
     A1 test, A2 carry, A3 input-only carry
-  - the close-hold 1 fix commit — A4 `BrokenPipe`-tolerant test helper, A5 this list, A6 H20 checks
+  - `20cca40` — `docs(docs): record close-hold 1 of the R3 control hardening task (A4-A6)`
+  - `98ba912` — `test(web): tolerate an early server close in the raw-request helper; settle close-hold 1 (A4-A6)` —
+    A4 `BrokenPipe`-tolerant test helper, A5 this list, A6 H20 checks
 - Files: `src/collector/open.rs` (new, shared handshake retry), `src/collector/mod.rs`,
   `src/collector/control.rs`, `src/collector/tests.rs`, `src/collector/tests/control.rs`,
   `src/web/control.rs`, `src/web/control/tests.rs`, `src/web/pages/tests.rs`,

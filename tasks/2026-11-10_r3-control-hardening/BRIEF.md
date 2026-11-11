@@ -30,11 +30,11 @@ H14–H17 (golden rules #2 and #5). Fix them before that, not after.
 new control features (later R3 slices).
 
 ## Done when
-- [ ] A8, A10, A13: the new tests named in the findings red then green (`make check`)
-- [ ] A9: decided in ROADMAP §R3 and, if code, a test (`make check`)
-- [ ] A11: a test with a fake answering "shutting down" gets `503` (`make check`)
-- [ ] A12: a page test or a documented manual check in `HUMAN-CHECKLIST.md`
-- [ ] `make check` green; `src/protocol/` coverage ≥ 80%
+- [x] A8, A10, A13: the new tests named in the findings red then green (`make check`)
+- [x] A9: decided in ROADMAP §R3 and, if code, a test (`make check`)
+- [x] A11: a test with a fake answering "shutting down" gets `503` (`make check`)
+- [x] A12: a page test or a documented manual check in `HUMAN-CHECKLIST.md`
+- [x] `make check` green; `src/protocol/` coverage ≥ 80%
 
 ## References
 - Governing spec: `ROADMAP.md`
