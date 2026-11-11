@@ -49,19 +49,19 @@ is an owner question.
 - Deploying to the homelab (owner only).
 
 ## Done when
-- [ ] ROADMAP.md and `SECURITY.md` hold the design (auth model, session, CSRF,
+- [x] ROADMAP.md and `SECURITY.md` hold the design (auth model, session, CSRF,
       Host allow-list, headers, TLS decision, config rules), filled in as doc
       sections
-- [ ] Without a valid session or bearer, every route except login and static
+- [x] Without a valid session or bearer, every route except login and static
       assets answers 401 or redirects to login. A test walks the router's full
       route list (`make check`)
-- [ ] A POST with a foreign `Origin` or `Host` is refused, and so is a request
+- [x] A POST with a foreign `Origin` or `Host` is refused, and so is a request
       with an unlisted `Host` (tests)
-- [ ] Login: a wrong password is rate-limited, sessions expire, logout works,
+- [x] Login: a wrong password is rate-limited, sessions expire, logout works,
       and the password hash never appears in logs or `Debug` output (tests)
-- [ ] Every page carries the security headers (test). Query spans are capped
+- [x] Every page carries the security headers (test). Query spans are capped
       (test). Advertised names are sanitised (test)
-- [ ] `make check` green; `HUMAN-CHECKLIST.md` lists the hardware and browser
+- [x] `make check` green; `HUMAN-CHECKLIST.md` lists the hardware and browser
       checks (login from a phone on the LAN, the cookie survives restarts per
       the decision)
 

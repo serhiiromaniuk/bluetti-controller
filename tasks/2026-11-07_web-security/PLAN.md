@@ -402,10 +402,10 @@ None is pending; no step is blocked.
   the `warn!` with a captured-log test · disposition: fixed in 10a.1 (`auth::from_config` logs the `warn!`; captured-log test)
 - A7 · 2026-11-10 · MEDIUM `deploy/HOMELAB.md` §7a, `SECURITY.md` "Deployment recommendations" — the proxy setup
   moves the app to loopback, where the hash is no longer required; both must say `password_hash` stays set, else
-  the proxy serves an open UI to the LAN · disposition: open
+  the proxy serves an open UI to the LAN · disposition: fixed at the close (SECURITY.md, HOMELAB §7a)
 - A8 · 2026-11-10 · MEDIUM `ROADMAP.md:345` — ADR-011 consequences say a deploy without `password_hash` "fails
   fast and `bluetti-update` rolls back"; the preflight `check` exits 4 and nothing changes (HOMELAB upgrade note)
-  · disposition: open
+  · disposition: fixed at the close (ADR-011 consequences)
 - A9 · 2026-11-10 · MEDIUM `src/web/api.rs:24`, `src/cli/mod.rs:97` — comments cite "SECURITY.md limitation 3/5",
   renumbered by step 10 (now closed items) · disposition: fixed in 10a.1 (comments cite SECURITY.md "Bounded queries and clean output")
 - A10 · 2026-11-10 · split step 10a — eight test types, a coverage gate and a mutation run do not fit one
@@ -418,8 +418,8 @@ None is pending; no step is blocked.
   ticks 10a · disposition: fixed 2026-11-10 (10a.1–10a.6 done; 10a ticked by 10a.6)
 - A11 · 2026-11-10 · MEDIUM `src/web/auth/session.rs:28-50` — the RNG test seam (`pub type Fill`, `pub fn
   with_rng`) is public library API, so any caller could swap the CSPRNG behind session ids; make both
-  `pub(crate)` (or `with_rng` `#[cfg(test)]`) · disposition: open
+  `pub(crate)` (or `with_rng` `#[cfg(test)]`) · disposition: fixed at the close (both `pub(crate)`)
 - A12 · 2026-11-10 · MEDIUM `tests/security_e2e/server.rs` (`Server::start`) — the port is probed, released, then
   bound by `serve` after an argon2 `hash-password` run; two parallel tests can draw one port, and the loser's
   `wait_ready` may see the sibling's `/healthz`, so a test runs against the wrong server (shared lockout). Fix:
-  `listen = "127.0.0.1:0"` and read the bound address from the `serving listen=…` log line · disposition: open
+  `listen = "127.0.0.1:0"` and read the bound address from the `serving listen=…` log line · disposition: fixed at the close (port 0 + log line, `NO_COLOR=1`)

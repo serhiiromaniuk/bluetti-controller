@@ -342,8 +342,8 @@ handler (a new route would be open until someone remembers the check).
 *Consequences:* one new crate (`argon2`, RustCrypto, MIT/Apache, pure Rust,
 pinned); the owner logs in again after each restart; the cookie is not
 `Secure` without a TLS proxy; the homelab `config.toml` must gain
-`password_hash` before the next deploy, or the unit fails fast and
-`bluetti-update` rolls back.
+`password_hash` before the next deploy, or the preflight `check` exits 4 and
+nothing changes (the old build keeps running).
 
 ---
 

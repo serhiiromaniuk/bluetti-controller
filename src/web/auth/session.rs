@@ -26,7 +26,7 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 
 /// The source of session-id bytes: `getrandom::fill`, or a failing one in tests.
-pub type Fill = fn(&mut [u8]) -> Result<(), getrandom::Error>;
+pub(crate) type Fill = fn(&mut [u8]) -> Result<(), getrandom::Error>;
 
 /// Live session ids and their expiry instants.
 pub struct Sessions {
@@ -42,7 +42,7 @@ impl Default for Sessions {
 
 impl Sessions {
     /// An empty store whose ids come from `fill`.
-    pub fn with_rng(fill: Fill) -> Self {
+    pub(crate) fn with_rng(fill: Fill) -> Self {
         Self {
             ids: Mutex::default(),
             fill,

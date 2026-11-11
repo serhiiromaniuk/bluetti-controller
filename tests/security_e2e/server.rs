@@ -3,7 +3,7 @@
 
 use std::fs;
 use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::net::{SocketAddr, TcpStream};
 use std::os::unix::fs::PermissionsExt;
 use std::path::PathBuf;
 use std::process::{Child, Command, Stdio};
@@ -83,12 +83,6 @@ impl Server {
         let dir = std::env::temp_dir().join(format!("bluetti-e2e-{name}-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
-        // shortcut: the port is free when probed, not when `serve` binds it; a
-        // clash fails `wait_ready` with the log, re-run then.
-        let addr = TcpListener::bind("127.0.0.1:0")
-            .unwrap()
-            .local_addr()
-            .unwrap();
         let hash = hash();
         let config = dir.join("config.toml");
         let db = dir.join("data.db");
@@ -97,7 +91,7 @@ impl Server {
             format!(
                 "[general]\npoll_interval_secs = 60\ntimezone = \"UTC\"\n\
                  [storage]\npath = \"{}\"\nraw_retention_days = 1\n\
-                 [web]\nlisten = \"{addr}\"\ntoken = \"{TOKEN}\"\npassword_hash = \"{hash}\"\n\
+                 [web]\nlisten = \"127.0.0.1:0\"\ntoken = \"{TOKEN}\"\npassword_hash = \"{hash}\"\n\
                  allowed_hosts = [\"ideapad.lan\"]\n\
                  [metrics]\ngrid_voltage_min = 180.0\ndebounce_samples = 2\nusable_capacity_factor = 0.85\n",
                 db.display()
@@ -111,13 +105,17 @@ impl Server {
             .arg(&config)
             .arg("serve")
             .env_remove("RUST_LOG")
+            // plain log lines, so `wait_ready` can read the bound port
+            .env("NO_COLOR", "1")
             .stdout(log.try_clone().unwrap())
             .stderr(log)
             .spawn()
             .unwrap();
+        // `serve` binds port 0 itself, so parallel tests never share a port;
+        // the real address comes from its `serving listen=…` log line.
         let mut server = Self {
             child,
-            addr,
+            addr: SocketAddr::from(([127, 0, 0, 1], 0)),
             dir,
             hash,
         };
@@ -131,7 +129,15 @@ impl Server {
             if let Some(status) = self.child.try_wait().unwrap() {
                 panic!("serve exited ({status}):\n{}", self.logs());
             }
-            if TcpStream::connect(self.addr).is_ok() && self.get("/healthz", &[]).code() == "200" {
+            if self.addr.port() == 0
+                && let Some(addr) = bound(&self.logs())
+            {
+                self.addr = addr;
+            }
+            if self.addr.port() != 0
+                && TcpStream::connect(self.addr).is_ok()
+                && self.get("/healthz", &[]).code() == "200"
+            {
                 return;
             }
             assert!(
@@ -205,6 +211,13 @@ impl Server {
         let body = format!("password={password}&next={next}");
         self.send("POST", "/login", &all, &body)
     }
+}
+
+/// The address in `serve`'s `serving listen=<addr>` log line.
+fn bound(logs: &str) -> Option<SocketAddr> {
+    let line = logs.lines().find(|l| l.contains(" serving "))?;
+    let rest = line.split_once("listen=")?.1;
+    rest.split_whitespace().next()?.parse().ok()
 }
 
 impl Drop for Server {

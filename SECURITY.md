@@ -126,7 +126,9 @@ advertised names (control characters, then bidi controls).
   `web.allowed_hosts`; IP addresses need no entry.
 - For TLS or remote access, put a proxy in front and keep the listener on
   loopback: Caddy with its internal CA (`deploy/HOMELAB.md`), or Tailscale
-  Serve / WireGuard. Never expose the port to the internet.
+  Serve / WireGuard. Keep `web.password_hash` set behind the proxy: a loopback
+  listener starts without it, and the proxy would then serve an open UI to the
+  LAN. Never expose the port to the internet.
 - Bind `web.listen` to a specific LAN address, not `0.0.0.0`, and firewall the
   port from untrusted networks.
 - Keep `keys.toml` and `config.toml` at mode `0600` (or `0640 root:bluetti` for

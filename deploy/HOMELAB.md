@@ -189,11 +189,14 @@ ssh -t homelab sudo /opt/bluetti-controller/current/bluetti-update rollback
 
 The app speaks plain HTTP (ADR-011). For TLS on the LAN, put Caddy in front with
 its internal CA, keep the app on loopback, and trust Caddy's root certificate on
-the phone once. Installing Caddy and its unit is a host change: owner only.
+the phone once. Keep `web.password_hash` set: a loopback listener starts
+without it, and Caddy would then serve an open UI to the LAN. Installing Caddy
+and its unit is a host change: owner only.
 
 ```text
 # /etc/caddy/Caddyfile — app config: [web] listen = "127.0.0.1:8080",
-#                                     allowed_hosts = ["ideapad.lan"]
+#                                     allowed_hosts = ["ideapad.lan"],
+#                                     password_hash stays set
 ideapad.lan {
     tls internal
     reverse_proxy 127.0.0.1:8080
