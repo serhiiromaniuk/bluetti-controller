@@ -18,10 +18,15 @@ deployed and no write frame was sent.
   - `ee79981` — `fix(collector): retry a command's failed key exchange once on a fresh connection (A9)`
   - `312d8ed` — `fix(web): map a collector error during shutdown to 503, not 502 (A11)`
   - `88a1158` — `fix(control): prune the scheduler's applied map so a re-added entry starts fresh (A13)`
+  - `b3968a3` — `docs(docs): log parallel group A (A11, A13)`
   - `bbe4b0c` — `fix(web): keep the control panel row and typed times through an auto-refresh (A12)`
-  - the close commit — A1 test, A2 bounded hold
-- Files: `src/collector/open.rs` (new, shared handshake retry), `src/collector/control.rs`,
-  `src/collector/tests/control.rs`, `src/web/control.rs`, `src/control/schedule.rs`,
+  - `43182bb` — `fix(web): always swap #live and carry busy or typed control rows (A1, A2, A3)` —
+    A1 test, A2 carry, A3 input-only carry
+  - the close-hold 1 fix commit — A4 `BrokenPipe`-tolerant test helper, A5 this list, A6 H20 checks
+- Files: `src/collector/open.rs` (new, shared handshake retry), `src/collector/mod.rs`,
+  `src/collector/control.rs`, `src/collector/tests.rs`, `src/collector/tests/control.rs`,
+  `src/web/control.rs`, `src/web/control/tests.rs`, `src/web/pages/tests.rs`,
+  `src/web/tests.rs` (A4), `src/control/schedule.rs`, `src/control/schedule/tests.rs`,
   `assets/app.js`, `assets/control.js`, ROADMAP.md §R3, `HUMAN-CHECKLIST.md` H20.
 - Milestone tag: none (ad hoc task).
 
@@ -32,15 +37,22 @@ deployed and no write frame was sent.
 - [ ] Next task: `2026-11-07_elite-read-stalls` (todo).
 
 ## Amendments
-- A1 — fixed in the close commit: `a_success_newer_than_the_stored_last_due_is_not_resent`
+- A1 — fixed in `43182bb`: `a_success_newer_than_the_stored_last_due_is_not_resent`
   (`src/control/schedule/tests.rs`); red under the `last_due.is_none()` mutant (3 sends, not 2).
-- A2 — fixed in the close commit by the finding's first option: `#live` always swaps,
+- A2 — fixed in `43182bb` by the finding's first option: `#live` always swaps,
   and a busy (disabled) or focused `.ctl` row is moved into the fresh tree and keeps
   its focus. No freeze, no false STALE, typed times kept. A first try (a hold bounded
   to `stale_s / 2`) was rejected by the reviewer: at an auto-refresh of 5m or more it
   disabled the A12 guard.
 - A3 — raised by the second review pass on the A2 fix (a focused button carried its row on
-  every refresh); fixed in the close commit: only a focused input carries a row.
+  every refresh); fixed in `43182bb`: only a focused input carries a row.
+- A4 — close-hold 1 (CRITICAL, predates the task, `b3fa70e`): the 3 MiB login test flaked on
+  `BrokenPipe` when the server sent 413 and closed mid-body. Fixed: the raw-request helper in
+  `src/web/tests.rs` accepts `BrokenPipe`/`ConnectionReset` and keeps the reply that arrived.
+  Red at HEAD under 16-way load (4 of 160), 0 of 160 after; the lib suite 50 runs, 0 failures.
+- A5 — close-hold 1: Deliverables and Files above completed.
+- A6 — close-hold 1: H20 now also checks that the banner and cards update while a time input
+  holds focus (A2), and that a toggle left focused does not freeze its row (A3).
 
 ## Lessons / Notes
 - Page-weight budgets (`app.js` 12000 B, `control.js` 2000 B) bind on small JS fixes:

@@ -74,9 +74,11 @@ fn exchange(
         body.len()
     )
     .unwrap();
-    stream.write_all(body).unwrap();
+    // The server may answer (e.g. 413) and close before reading the whole
+    // body: keep whatever reply arrived instead of panicking on the write.
+    closed_early(stream.write_all(body));
     let mut response = Vec::new();
-    stream.read_to_end(&mut response).unwrap();
+    closed_early(stream.read_to_end(&mut response).map(drop));
     let split = response
         .windows(4)
         .position(|w| w == b"\r\n\r\n")
@@ -86,6 +88,14 @@ fn exchange(
     let status = lines.next().unwrap_or_default();
     let body = response.get(split + 4..).unwrap_or_default().to_vec();
     (status, lines.collect(), body)
+}
+
+/// Accepts `Ok` and a peer that closed the connection; panics on anything else.
+fn closed_early(result: std::io::Result<()>) {
+    use std::io::ErrorKind::{BrokenPipe, ConnectionReset};
+    if let Err(e) = result {
+        assert!(matches!(e.kind(), BrokenPipe | ConnectionReset), "{e}");
+    }
 }
 
 /// A raw HTTP/1.1 POST with an optional `Authorization` header.

@@ -343,3 +343,47 @@
 ```
 
 <!-- gate:end -->
+
+## Close-hold 1 fixes ✓ 2026-11-11 — A4 flaky login test, A5 OUTCOME, A6 H20
+
+**Changed:**
+- `src/web/tests.rs` — `exchange` passes the body write and the read through `closed_early`, which accepts `BrokenPipe`/`ConnectionReset` and panics on any other error; the reply bytes read before a reset are kept (A4).
+- `tasks/…/OUTCOME.md` — Deliverables name `b3968a3` and `43182bb` (A1 test, A2 carry, A3 input-only carry); Files completed; A4–A6 accounted (A5).
+- `HUMAN-CHECKLIST.md` H20 — adds (a) banner and SOC cards update while a time input holds focus, (b) a toggle left focused does not freeze its row (A6).
+- PLAN A4–A6 disposed; `make amendments`: 6 findings, all disposed.
+
+**Check (A4):**
+- `an_oversized_password_or_body_stays_bounded` alone, 60 runs: 0 failures with or without the fix (no load, no flake).
+- 16 concurrent copies × 10 rounds: 4 of 160 red at HEAD (fix stashed), 0 of 160 with the fix.
+- Full lib suite (`cargo test --lib` binary), 50 runs with the fix: 0 failures (470 s).
+- `make amendments`: 6 findings, all disposed.
+
+**reviewer:** batched pass over `@{u}..HEAD` + this diff · INTENT shortfall · 0 CRITICAL / 1 HIGH / 0 MEDIUM.
+- HIGH: OUTCOME A4 claimed the 50-run result before the loop finished → fixed: committed only after the loop ended (50 runs, 0 failures, above), so the sentence is now observed.
+- Passed: `closed_early` masks no real failure (status-checking callers still fail on an empty reply); `read_to_end` keeps partial bytes; OUTCOME matches `git log`; H20 has (a) and (b).
+
+**Decision:** none · **Carry-forward:** none
+**Next:** close-reviewer on the task close (close-hold 1 settled).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T14:37:34Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
