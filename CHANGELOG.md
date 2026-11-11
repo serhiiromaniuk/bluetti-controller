@@ -5,6 +5,31 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.5.0 — 2026-11-11
+
+- **Web login and request checks (ADR-011).** One owner login guards every
+  page and API route except `/login`, `/assets/*` and `/healthz`. The
+  password is stored as an argon2id hash. Sessions live in memory as an
+  `HttpOnly; SameSite=Strict` cookie, and 5 failed logins lock the form for
+  a while. A Host allow-list blocks DNS rebinding. An exact-origin check
+  refuses cross-site writes. Every response carries four security headers.
+  New CLI `hash-password` makes the config line. A security test suite holds
+  every security file at 100 % line coverage and zero surviving mutants
+  (`make mutants`).
+- **R3 control hardening (A8–A13).** A command retries a failed key exchange
+  once on a fresh connection and never writes before the handshake succeeds.
+  A collector error during shutdown maps to `503`. The scheduler forgets
+  removed entries. The control panel keeps its row and typed times through
+  an auto-refresh.
+- **config:** `[web] password_hash` is now required for a LAN listener. Make
+  it with `bluetti-controller hash-password` (the password on stdin). Without
+  it the preflight `check` exits 4 and the old build keeps running. Add
+  `allowed_hosts` only if the UI is opened by a DNS name. `web.token` stays
+  optional, for scripts. Control stays off.
+- **host:** no migration. Every browser logs in once at `/login` after the
+  update. 1.4.0 refuses the `password_hash` key, so a rollback relies on
+  `bluetti-update rollback` putting back the config 1.4.0 last ran with.
+
 ## 1.4.0 — 2026-11-10
 
 - **AC/DC output control and a daily schedule (R3 slice 1, ADR-010).** Each
