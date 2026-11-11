@@ -24,6 +24,7 @@ use crate::transport::{self, Gatt};
 
 pub mod bluez;
 mod control;
+mod open;
 
 pub use bluez::BluezConnect;
 
@@ -252,7 +253,7 @@ impl<C: Connect + Sync> Collector<C> {
 
     /// One poll: open, read the profile, always disconnect, decode (§5.4).
     /// A failed key exchange is retried once on a fresh connection, unless the
-    /// station is unreachable (phase-4 PLAN A23 part 2); the deadline bounds both.
+    /// station is unreachable (`open.rs`); the deadline bounds both.
     /// A sample comes with every profile block as read, `(start, values)`.
     /// With `slow_until`, the slow blocks follow the core ones, cut at that
     /// instant; whatever they miss only drops extras.
@@ -265,26 +266,10 @@ impl<C: Connect + Sync> Collector<C> {
         progress: &mut Progress,
     ) -> Result<(Sample, Vec<(u16, Vec<u16>)>), Failure> {
         let fail = |stage, error| Failure { ts, stage, error };
-        let (mut gatt, encrypted) = match self.connect.open(&target.config, retry, progress).await {
-            Err(first) if retry && progress.stage == Stage::Handshake => {
-                tracing::info!(
-                    station = target.config.name,
-                    error = first,
-                    "key exchange failed, retrying once on a fresh connection"
-                );
-                // Set before the release, so a deadline during it keeps `first` (A30).
-                progress.retrying = Some(first);
-                self.connect.release(&target.config).await;
-                progress.cached = None;
-                let opened = self.connect.open(&target.config, retry, progress).await;
-                let first = progress.retrying.take().unwrap_or_default();
-                opened.map_err(|second| {
-                    let error = format!("{first}; retry on a fresh connection: {second}");
-                    fail(Stage::Handshake, error)
-                })?
-            }
-            opened => opened.map_err(|error| fail(progress.stage, error))?,
-        };
+        let (mut gatt, encrypted) = self
+            .open(target, retry, progress)
+            .await
+            .map_err(|error| fail(progress.stage, error))?;
         progress.stage = Stage::Read;
         let profile = target.config.model.profile();
         let (read, closed) = transport::with_disconnect(&mut gatt, async |gatt| {

@@ -162,3 +162,58 @@ async fn a_request_whose_caller_gave_up_opens_no_link() {
     assert_eq!(state.opens.len(), 1);
     assert!(state.writes.is_empty());
 }
+
+/// Runs `a` (behaving as `behave`) with round 0 paused away, so the command
+/// at 10 s makes the station's first opens (A9).
+async fn command_after_pause(
+    behave: Behave,
+    secs: u64,
+) -> (Result<bool, String>, Arc<Mutex<State>>) {
+    let (mut collector, state, _rx) = collector(&[("a", behave)]);
+    let answer = send_after(&mut collector, 0, 10);
+    let until = Instant::now() + Duration::from_secs(5);
+    let (_tx, control) = watch::channel(Control::Pause { until });
+    run_for(collector, control, secs).await;
+    (answer.await.unwrap(), state)
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_command_retries_a_failed_key_exchange_once_then_writes_once() {
+    let (answer, state) = command_after_pause(Behave::FailFirst(Stage::Handshake), 30).await;
+    assert_eq!(answer, Ok(true));
+    let state = state.lock().unwrap();
+    let opens: Vec<_> = state
+        .opens
+        .iter()
+        .map(|o| (o.0.as_str(), o.1, o.2))
+        .collect();
+    assert_eq!(opens, [("a", true, 10), ("a", true, 10)]);
+    assert_eq!(state.releases, 1);
+    assert_eq!(state.writes, [EB3A_AC_ON.to_vec()]);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_command_whose_retry_fails_too_keeps_both_errors_and_writes_nothing() {
+    let (answer, state) = command_after_pause(Behave::Fail(Stage::Handshake), 30).await;
+    assert_eq!(
+        answer,
+        Err("handshake failed; retry on a fresh connection: handshake failed".to_owned())
+    );
+    let state = state.lock().unwrap();
+    assert_eq!(state.opens.len(), 2);
+    assert!(state.writes.is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_deadline_during_a_command_retry_writes_nothing() {
+    // The second open hangs until the 60 s deadline at 70 s; the round due
+    // at 60 s then opens (and hangs) without a release yet.
+    let (answer, state) = command_after_pause(Behave::FailThenHang(Stage::Handshake), 75).await;
+    assert_eq!(
+        answer,
+        Err("no result within the 60s poll deadline".to_owned())
+    );
+    let state = state.lock().unwrap();
+    assert_eq!(state.releases, 2);
+    assert!(state.writes.is_empty());
+}

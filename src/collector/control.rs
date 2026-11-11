@@ -94,7 +94,7 @@ impl<C: Connect + Sync> Collector<C> {
         retry: bool,
         progress: &mut Progress,
     ) -> Result<bool, String> {
-        let (mut gatt, _) = self.connect.open(&target.config, retry, progress).await?;
+        let (mut gatt, _) = self.open(target, retry, progress).await?;
         let (written, closed) = transport::with_disconnect(&mut gatt, async |gatt| {
             set_output(gatt, command.switch(), command.on(), &self.policy).await
         })

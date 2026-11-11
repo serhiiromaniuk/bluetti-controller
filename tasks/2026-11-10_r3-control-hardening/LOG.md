@@ -130,3 +130,44 @@
 ```
 
 <!-- gate:end -->
+
+## Step 3 ✓ 2026-11-11 — A9 code: commands retry a failed key exchange once
+
+**Changed:**
+- `src/collector/open.rs` (new) — `Collector::open`: the retry block moved out of `poll` unchanged (release by address, `cached` reset, `retrying` kept for A30); a failed retry sets `progress.stage = Handshake` and names both errors.
+- `src/collector/mod.rs` — `poll` calls `self.open` and maps to its `Failure` (423 lines, was 438).
+- `src/collector/control.rs` — `write` calls `self.open` in place of `connect.open`.
+- `src/collector/tests/control.rs` — helper `command_after_pause` (round 0 paused, command at 10 s) + 3 tests: retry then one write (opens `[(a,true,10),(a,true,10)]`, 1 release); both handshakes fail (both errors, 2 opens, no write); deadline cuts the retry (`Err` names the 60 s deadline, 2 releases, no write).
+
+**Check:**
+- Red first: all 3 new tests `Err("handshake failed")` before the refactor (7 passed, 3 failed).
+- After: `collector::` 41/41 green; `src/collector/tests/retry.rs` unchanged (`git diff --quiet`); `make check` green (below).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM; confirmed poll stage/error text, A30 `retrying` order, `cached` reset, no 0x06 before a handshake succeeds, 41/41 re-run.
+- Note: a command cut by the deadline mid-retry names only the deadline, not the first handshake error (as the step asks).
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 4 — group A (A11 web 503, A13 scheduler prune), two worktrees.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T13:46:47Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
