@@ -266,3 +266,46 @@
 ```
 
 <!-- gate:end -->
+
+## Close fixes ✓ 2026-11-11 — A1 test, A2 `#live` always swaps
+
+**Changed:**
+- `src/control/schedule/tests.rs` — `a_success_newer_than_the_stored_last_due_is_not_resent` (A1).
+- `assets/app.js` — `refresh()` always swaps `#live`. A disabled or focused `.ctl` row is moved into the fresh tree (matched by `data-station`/`data-output`), and focus is restored. `rendered` resets on every swap. Header comment and section dashes shortened: 11992 B, budget 12000 B.
+- `src/web/pages/tests.rs` — pins the carry, the unconditional swap and the focus restore.
+- PLAN A1, A2 disposed; `OUTCOME.md` drafted.
+
+**Check:**
+- A1: green, then red under the mutant `e.last_due.is_none()` (`left: [on, off, off]`, `right: [on, off]`); reverted.
+- A2: the extended page test is red against HEAD's `app.js` (`(f.disabled || f.contains(a))` missing), green after. `node --check` passes. `make check` EXIT=0.
+
+**reviewer:** pass 1 on the first A2 try (a hold bounded to `stale_s / 2` from the last swap) · INTENT satisfied · 0 CRITICAL / 1 HIGH / 1 MEDIUM.
+- HIGH H1: at an auto-refresh of 5m or more, `now - rendered` is always above the bound, so the A12 guard never fires and typed times are wiped → fixed by replacing the hold with the carry (the finding's first option).
+- MEDIUM M1: a bounded hold can still show a false STALE → fixed by the same change: `#live` is never held.
+- Pass 2 (logic changed, carry fix only) · INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM: a focused button also carried its row, freezing it → PLAN A3, fixed in this commit (`a.tagName === "INPUT"`, pinned); `app.js` 12000 B.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** close-reviewer on the task close.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T14:15:43Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

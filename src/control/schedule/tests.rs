@@ -268,6 +268,24 @@ mod task {
     }
 
     #[tokio::test]
+    async fn a_success_newer_than_the_stored_last_due_is_not_resent() {
+        let mut rig = rig("sched-older", true, vec![]);
+        let at_7 = MIDNIGHT + 7 * H;
+        assert!(rig.scheduler.tick(&kyiv(at_7 + 10)).await);
+        let conn = open_writer(&rig._db.path()).unwrap();
+        conn.execute(
+            &format!("UPDATE schedule SET last_due = {at_7} WHERE station_id = ?1"),
+            [rig.id],
+        )
+        .unwrap();
+        // 23:00 sent; the writer has not stored it, the row still says 07:00.
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 10)).await);
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 70)).await);
+        let router = |on| ("router".to_owned(), Output::Ac, on);
+        assert_eq!(sent(&rig), [router(true), router(false)]);
+    }
+
+    #[tokio::test]
     async fn a_failed_run_is_retried_next_tick_and_not_after_a_newer_slot() {
         let fail = || Err("no link".to_owned());
         let mut rig = rig("sched-retry", true, vec![fail(), fail()]);

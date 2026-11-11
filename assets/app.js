@@ -1,10 +1,8 @@
 // bluetti-controller front end (ROADMAP.md §8.4 j). Vanilla, no build step,
 // no external URL: the page must work offline in an outage.
 //
-// Lowest overhead first: after the page loads, ONE /api/chart request draws
-// every panel, and nothing else goes over the network until the owner presses
-// Refresh or picks an auto-refresh interval (paused while the tab is hidden).
-// URL state like Grafana: ?from=now-12h&to=now (or ms epochs) &refresh=5m.
+// After load, ONE /api/chart request draws every panel; nothing more until
+// Refresh or auto-refresh (paused while hidden). URL: ?from=now-12h&to=now&refresh=5m.
 //
 // DOM contract (status.html): #range #custom #from #to #apply #refresh #every,
 // #live and #tables (swapped from a fresh GET / on refresh), #age (data-ts,
@@ -78,7 +76,7 @@
     load();
   }
 
-  // --- charts -------------------------------------------------------------
+  // --- charts
   var data = null;
   var charts = [];
 
@@ -188,7 +186,7 @@
     }).catch(function (e) { if (my === seq) failed(e); });
   }
 
-  // --- data age -------------------------------------------------------------
+  // --- data age
   var rendered = Date.now() / 1000;
   function span(s) {
     if (s < 90) return s + " s";
@@ -207,7 +205,7 @@
       (stale ? " (last " : " ago (") + el.dataset.at + ")";
   }
 
-  // --- refresh --------------------------------------------------------------
+  // --- refresh
   var busy = false, timer = null, missed = false;
   function refresh() {
     if (busy) return;
@@ -218,13 +216,20 @@
       return r.text();
     }).then(function (html) {
       var doc = new DOMParser().parseFromString(html, "text/html");
-      // A12: busy row/focused time keep #live
-      var hold = document.querySelector(".ctl:disabled, .ctl input:focus");
+      // A12/A2: #live swaps; busy rows, typed times move in
+      var a = document.activeElement, live = doc.getElementById("live");
+      if (live) live.querySelectorAll(".ctl").forEach(function (n) {
+        document.querySelectorAll("#live .ctl").forEach(function (f) {
+          if ((f.disabled || f.contains(a) && a.tagName === "INPUT") && f.dataset.station === n.dataset.station &&
+            f.dataset.output === n.dataset.output) n.replaceWith(f);
+        });
+      });
       ["live", "tables"].forEach(function (id) {
         var fresh = doc.getElementById(id);
-        if (fresh && $(id) && !(hold && id === "live")) $(id).replaceWith(fresh);
+        if (fresh && $(id)) $(id).replaceWith(fresh);
       });
-      if (!hold) rendered = Date.now() / 1000;
+      if (a && a !== document.activeElement && document.contains(a)) a.focus();
+      rendered = Date.now() / 1000;
     });
     Promise.all([page, load()]).then(function () {
       broken = false;
@@ -246,7 +251,7 @@
     }, secs(every) * 1000) : null;
   }
 
-  // --- wiring ---------------------------------------------------------------
+  // --- wiring
   if ($("range")) {
     showRange();
     $("every").value = every;

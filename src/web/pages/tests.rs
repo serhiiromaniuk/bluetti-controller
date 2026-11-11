@@ -360,8 +360,16 @@ fn control_panel_has_one_row_per_allowed_output() {
         assert!(js.contains(part), "{part}");
     }
     let app = include_str!("../../../assets/app.js");
-    assert!(app.contains(r#"document.querySelector(".ctl:disabled, .ctl input:focus")"#));
-    assert!(app.contains(r#"!(hold && id === "live")"#));
+    // A12/A2: #live always swaps (no freeze, no false STALE); a busy or focused
+    // row is carried into the fresh tree and keeps its focus.
+    for part in [
+        "(f.disabled || f.contains(a) && a.tagName === \"INPUT\")",
+        "n.replaceWith(f);",
+        "if (fresh && $(id)) $(id).replaceWith(fresh);",
+        "a.focus();",
+    ] {
+        assert!(app.contains(part), "{part}");
+    }
 }
 
 #[test]
