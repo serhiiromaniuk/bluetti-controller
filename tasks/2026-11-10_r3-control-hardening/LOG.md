@@ -91,3 +91,42 @@
 ```
 
 <!-- gate:end -->
+
+## Step 2 ✓ 2026-11-11 — A8 + A10: collector command tests
+
+**Changed:** tests only, production code untouched.
+- `src/collector/tests.rs` — `Behave::StallReadBack`: reads 0, echoes the 0x06, then a read on the same link never returns (`FakeGatt::wrote`, so the next round reads normally).
+- `src/collector/tests/control.rs` — (a) `a_station_past_unreachable_after_gets_one_open_without_retry`: misses at 0/60/120 s, command at 130 s opens with `retry == false`, no write. (b) `a_request_between_rounds_writes_once_and_reads_back` asserts `retry == true`. (c) `a_deadline_mid_write_releases_by_address`: `Err` names the 60 s poll deadline, one write, `releases == 1`, `live == None`, opens at 0/10/70 s (the overdue round runs at once).
+
+**Check (red via temporary mutant, reverted; `git diff` shows no `control.rs`):**
+- `control.rs:74` `<` → `>=`: (a) and (b) FAILED, 5 passed.
+- `control.rs:80-82` release commented out: (c) FAILED, 6 passed.
+- Restored: 7/7 `collector::tests::control` green; `make check` green (below, after `make format`).
+
+**reviewer:** INTENT satisfied · 0 CRITICAL / 0 HIGH / 0 MEDIUM; re-ran both mutants (red, file restored). Note: the release mutant trips the fake's "two links open at once" panic before `releases == 1` — still red.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** step 3 — A9 code: command handshake retry via a shared `Collector` method in `src/collector/open.rs`.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T13:43:02Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

@@ -49,8 +49,13 @@ async fn a_request_between_rounds_writes_once_and_reads_back() {
     assert_eq!(answer.await.unwrap(), Ok(true));
     let state = state.lock().unwrap();
     assert_eq!(state.writes, [EB3A_AC_ON.to_vec()]);
-    let opens: Vec<_> = state.opens.iter().map(|o| (o.0.as_str(), o.2)).collect();
-    assert_eq!(opens, [("a", 0), ("a", 10)]);
+    let opens: Vec<_> = state
+        .opens
+        .iter()
+        .map(|o| (o.0.as_str(), o.1, o.2))
+        .collect();
+    // A reachable station's command may retry its key exchange (A8).
+    assert_eq!(opens, [("a", true, 0), ("a", true, 10)]);
     assert_eq!((state.disconnects, state.releases), (2, 0));
     assert_eq!(state.live, None);
 }
@@ -80,6 +85,42 @@ async fn an_unreachable_station_answers_an_error_without_a_frame() {
     let state = state.lock().unwrap();
     assert!(state.writes.is_empty());
     assert_eq!(state.opens.len(), 2);
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_station_past_unreachable_after_gets_one_open_without_retry() {
+    // Rounds at 0, 60 and 120 s fail: 3 misses, so the command opens once
+    // with `retry == false` (A8).
+    let (mut collector, state, _rx) = collector(&[("a", Behave::Fail(Stage::Connect))]);
+    let answer = send_after(&mut collector, 0, 130);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 140).await;
+    assert_eq!(answer.await.unwrap(), Err("connect failed".to_owned()));
+    let state = state.lock().unwrap();
+    let opens: Vec<_> = state.opens.iter().map(|o| (o.1, o.2)).collect();
+    assert_eq!(opens, [(true, 0), (true, 60), (true, 120), (false, 130)]);
+    assert!(state.writes.is_empty());
+}
+
+#[tokio::test(start_paused = true)]
+async fn a_deadline_mid_write_releases_by_address() {
+    // The 0x06 is echoed, then the read-back never returns: the 60 s poll
+    // deadline cuts the command at 70 s and the link is released by address
+    // (A10); the overdue round then opens at once and reads normally.
+    let (mut collector, state, _rx) = collector(&[("a", Behave::StallReadBack)]);
+    let answer = send_after(&mut collector, 0, 10);
+    let (_tx, control) = watch::channel(Control::Run);
+    run_for(collector, control, 75).await;
+    assert_eq!(
+        answer.await.unwrap(),
+        Err("no result within the 60s poll deadline".to_owned())
+    );
+    let state = state.lock().unwrap();
+    assert_eq!(state.writes, [EB3A_AC_ON.to_vec()]);
+    let opens: Vec<_> = state.opens.iter().map(|o| o.2).collect();
+    assert_eq!(opens, [0, 10, 70]);
+    assert_eq!(state.releases, 1);
+    assert_eq!(state.live, None);
 }
 
 #[tokio::test(start_paused = true)]

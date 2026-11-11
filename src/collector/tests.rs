@@ -35,6 +35,9 @@ enum Behave {
     SlowRefused,
     /// Reads 0, but the slow block at 150 never answers.
     SlowStalls,
+    /// Reads 0 and echoes a 0x06 frame; a later read on the same link never
+    /// returns (the read-back of a switch stalls, §R3 A10).
+    StallReadBack,
 }
 
 #[derive(Default)]
@@ -60,6 +63,8 @@ struct Fake {
 
 struct FakeGatt {
     stall: bool,
+    /// A 0x06 frame was sent on this link.
+    wrote: bool,
     behave: Behave,
     fill: Option<u16>,
     replies: VecDeque<Vec<u8>>,
@@ -92,7 +97,10 @@ impl Connect for Fake {
         progress.stage = Stage::Connect;
         let fill = match behave {
             Behave::Fill(value) => Some(value),
-            Behave::SlowRefused | Behave::SlowStalls | Behave::DisconnectFails => Some(0),
+            Behave::SlowRefused
+            | Behave::SlowStalls
+            | Behave::DisconnectFails
+            | Behave::StallReadBack => Some(0),
             Behave::Silent | Behave::Stall => None,
             Behave::Fail(failed) => {
                 progress.stage = failed;
@@ -113,6 +121,7 @@ impl Connect for Fake {
         self.state.lock().unwrap().live = Some(station.name.clone());
         let gatt = FakeGatt {
             stall: matches!(behave, Behave::Stall),
+            wrote: false,
             behave,
             fill,
             replies: VecDeque::new(),
@@ -134,6 +143,7 @@ impl Gatt for FakeGatt {
     async fn write(&mut self, data: &[u8]) -> Result<(), TransportError> {
         if data[1] == 0x06 {
             self.state.lock().unwrap().writes.push(data.to_vec());
+            self.wrote = true;
             // The echo; the read-back then holds the written value.
             self.fill = Some(u16::from_be_bytes([data[4], data[5]]));
             self.replies.push_back(data.to_vec());
@@ -146,6 +156,7 @@ impl Gatt for FakeGatt {
         let count = u16::from_be_bytes([data[4], data[5]]);
         match (self.behave, start) {
             (Behave::SlowStalls, 150) => self.stall = true,
+            (Behave::StallReadBack, _) if self.wrote => self.stall = true,
             (Behave::SlowRefused, 6007) => {
                 let frame = [0x01, 0x83, 0x02];
                 let crc = crc16(&frame).to_le_bytes();
