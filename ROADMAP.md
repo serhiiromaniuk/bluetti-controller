@@ -1867,8 +1867,18 @@ has reached a real station until H14–H17 pass.
   and runs commands from a channel **between poll rounds**: a request that
   arrives during a round waits for its end. Each command: connect (with the
   station's normal retry), write once, read back, disconnect, all under the
-  poll deadline. While polling is paused the collector answers `"polling
-  paused"` without connecting; a request whose caller gave up is dropped
+  poll deadline. *The station's normal retry* (A9, task
+  `2026-11-10_r3-control-hardening`): a failed key exchange is retried once on
+  a fresh connection (release by address, then reopen), as a poll does
+  (phase-4 A23 part 2); no retry once the station is past `UNREACHABLE_AFTER`
+  (3 consecutive failed polls). The one poll deadline bounds both attempts.
+  This is safe for golden rules #2 and #5: the retry happens before the
+  0x06 frame, which is only sent after a handshake succeeds, so a command still
+  sends at most one write frame and one connection at a time. Cost: the retry
+  spends deadline, so a cut between the 0x06 frame and its read-back is
+  likelier; the caller then gets `Err`, and a repeat command (or the next
+  scheduler tick) is idempotent (§4.2 "No write retry"). While polling is
+  paused the collector answers `"polling paused"` without connecting; a request whose caller gave up is dropped
   before connecting. The log line names station, output, state and read-back,
   never the MAC.
 - *CLI `set`.* Takes a config station name only (a MAC or unknown name exits

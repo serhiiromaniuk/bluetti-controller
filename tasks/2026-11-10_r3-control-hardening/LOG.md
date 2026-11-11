@@ -55,3 +55,39 @@
 ```
 
 <!-- gate:end -->
+
+## Step 1 ✓ 2026-11-11 — A9 spec: commands retry a failed key exchange once, like polls
+
+**Changed:** `ROADMAP.md` §R3 "Slice 1 runtime rules", *Serialisation* bullet — defines "the station's normal retry": one retry on a fresh connection after a failed key exchange (release by address, reopen; phase-4 A23 part 2), none past `UNREACHABLE_AFTER` (3), one poll deadline bounds both, no 0x06 frame before a handshake succeeds; cost sentence (§4.2 "No write retry").
+
+**Check:** spec-only step — the bullet states the rule and why it is safe (golden rules #2, #5); `make check` green (below). Code follows in step 3.
+
+**reviewer:** 0 CRITICAL / 0 HIGH / 0 MEDIUM — INTENT satisfied; checked against `src/collector/mod.rs:31,268-287`, `control.rs:74-110`, `schedule.rs:255-259`.
+- Cosmetic: one over-long line → reflowed before the commit.
+
+**Decision:** none new (PLAN Q1).
+**Carry-forward:** none
+**Next:** step 2 — A8 + A10 collector command tests.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T13:37:12Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
