@@ -19,6 +19,9 @@ enum Fake {
     Fail(&'static str),
     /// Keeps the request and never answers.
     Silent,
+    /// Sets `Control::Shutdown`, then answers "shutting down", as the
+    /// collector does when shutdown lands while a request waits.
+    ShutDown,
 }
 
 fn target(id: i64, name: &str, model: Model) -> Target {
@@ -57,6 +60,7 @@ async fn run(
     ];
     let (commands, mut requests) = mpsc::channel::<Request>(8);
     state.commands = commands;
+    let control = state.control.clone();
     let collector = tokio::spawn(async move {
         let (mut seen, mut kept) = (Vec::new(), Vec::new());
         while let Some(Request { command, reply }) = requests.recv().await {
@@ -69,6 +73,11 @@ async fn run(
                 Fake::ReadBack => drop(reply.send(Ok(command.on()))),
                 Fake::Fail(message) => drop(reply.send(Err(message.into()))),
                 Fake::Silent => kept.push(reply),
+                Fake::ShutDown => {
+                    // `send` errors: no receiver is left.
+                    control.send_replace(Control::Shutdown);
+                    drop(reply.send(Err("shutting down".into())));
+                }
             }
         }
         seen
@@ -227,4 +236,19 @@ async fn shutting_down_is_503_and_sends_nothing() {
     .await;
     assert!(replies[0].0.contains("503"), "{}", replies[0].0);
     assert!(seen.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_shutdown_while_waiting_is_503() {
+    let (replies, seen) = run(
+        "control-503-wait",
+        true,
+        Control::Run,
+        Fake::ShutDown,
+        &[(AC_OFF, BEARER)],
+    )
+    .await;
+    assert!(replies[0].0.contains("503"), "{}", replies[0].0);
+    assert_eq!(replies[0].1, r#"{"error":"shutting down"}"#);
+    assert_eq!(seen.len(), 1);
 }

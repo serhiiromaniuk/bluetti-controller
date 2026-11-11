@@ -60,6 +60,10 @@ pub async fn output(
     match tokio::time::timeout(wait(&state), exchange).await {
         Err(_) => error(StatusCode::GATEWAY_TIMEOUT, "no answer from the collector"),
         Ok(None) => error(StatusCode::SERVICE_UNAVAILABLE, "shutting down"),
+        // The collector answers an error when shutdown cuts the request.
+        Ok(Some(Err(_))) if *state.control.borrow() == Control::Shutdown => {
+            error(StatusCode::SERVICE_UNAVAILABLE, "shutting down")
+        }
         Ok(Some(Err(message))) => error(StatusCode::BAD_GATEWAY, &message),
         // The collector logs the switch with its read-back.
         Ok(Some(Ok(read_back))) => (
