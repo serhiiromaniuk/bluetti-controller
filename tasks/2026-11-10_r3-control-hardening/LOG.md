@@ -1,0 +1,57 @@
+# Log
+
+> Append-only. Never edit a previous entry. Newest at bottom. Keep it factual —
+> commands run, evidence, decisions. This is the loop's memory.
+>
+> **This is the ONE place per-step detail is written.** `loop/STATE.md` and
+> `tasks/INDEX.md` are pointers and change only when the gate verdict changes, a
+> decision is made, a carry-forward moves, or a task opens/closes. `loop/where.sh`
+> computes step position from `PLAN.md` and the last result from this file's newest
+> `## ` heading — so restating an entry in a pointer file is prose every later
+> iteration pays to re-read.
+>
+> **Budget: ≤40 lines per entry** (`make loop-hygiene` warns). Bullets, not
+> narrative. Cite a spec/doc section, never re-quote it. Record the decision and
+> the evidence, not the reasoning that produced them. The shape below is the shape.
+
+## Plan ✓ 2026-11-11 — PLAN.md written (6 steps) and audited
+
+**Changed:** `PLAN.md` — 6 steps: A9 spec (1), A8+A10 tests (2), A9 code (3), group A = A11 (4) + A13 (5), A12 (6).
+
+**Check:** `planner` wrote it; `plan-reviewer` audited it before step 1.
+
+**plan-reviewer:** 0 CRITICAL / 2 HIGH / 6 MEDIUM / 4 LOW — all fixed in the plan (step 1 not started):
+- HIGH P1: `Behave::Stall` stalls polls and the echo too → step 2 adds a read-back-only stall variant in `src/collector/tests.rs`.
+- HIGH P2: `refresh()` replaces `#live` whole, so pending set alone cannot keep the row disabled or typed times → step 6 also guards the swap in `assets/app.js`; H20 matches what is built.
+- MEDIUM P3/P7: step 3 test uses a pause so the command is the first open; two failure-path tests added.
+- MEDIUM P4/P5: step 5 sequence gets the pruning tick; residual window restated.
+- MEDIUM P6: step 4 names the test-helper change (`send_replace`).
+- MEDIUM P8: void (P2 fixed by building; step 6 stays sequential).
+- LOW P9–P12: Q1 delegated answer recorded, §4.2 cost sentence, `spec §R3` cite, paths fixed.
+
+**Decision:** A9 — commands retry a failed key exchange once like polls (PLAN Q1, delegated 2026-11-11).
+**Carry-forward:** none
+**Next:** step 1 — A9 spec bullet in ROADMAP §R3.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T13:33:30Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
