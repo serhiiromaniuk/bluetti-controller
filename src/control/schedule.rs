@@ -150,6 +150,14 @@ impl Scheduler {
                 return true;
             }
         };
+        // Keep a success only while its row exists and has not stored it yet,
+        // so a deleted and re-added entry starts from its own `last_due`.
+        self.applied.retain(|&(station_id, output), &mut ts| {
+            entries.iter().any(|e| {
+                (e.station_id, e.output) == (station_id, output)
+                    && e.last_due.is_none_or(|last| last < ts)
+            })
+        });
         let entries: Vec<ScheduleEntry> = entries
             .into_iter()
             .map(|mut entry| {

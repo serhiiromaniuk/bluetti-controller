@@ -243,6 +243,31 @@ mod task {
     }
 
     #[tokio::test]
+    async fn a_deleted_and_re_added_entry_does_not_inherit_the_old_slot() {
+        let mut rig = rig("sched-readd", true, vec![]);
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 10)).await);
+        // The writer stores the run; the next tick reads it back.
+        let conn = open_writer(&rig._db.path()).unwrap();
+        let set = |sql: &str| conn.execute(sql, [rig.id]).unwrap();
+        set(&format!(
+            "UPDATE schedule SET last_due = {AT_23} WHERE station_id = ?1"
+        ));
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 70)).await);
+        // Deleted and re-added as `on 08:00`: never run, so today's 08:00 is due.
+        set("DELETE FROM schedule WHERE station_id = ?1");
+        set("INSERT INTO schedule (station_id, output, on_min) VALUES (?1, 'ac', 480)");
+        assert!(rig.scheduler.tick(&kyiv(AT_23 + 130)).await);
+        let router = |on| ("router".to_owned(), Output::Ac, on);
+        assert_eq!(sent(&rig), [router(false), router(true)]);
+        let run = |due| Record::ScheduleRun {
+            station: rig.id,
+            output: Output::Ac,
+            due,
+        };
+        assert_eq!(drain(&mut rig.records), [run(AT_23), run(MIDNIGHT + 8 * H)]);
+    }
+
+    #[tokio::test]
     async fn a_failed_run_is_retried_next_tick_and_not_after_a_newer_slot() {
         let fail = || Err("no link".to_owned());
         let mut rig = rig("sched-retry", true, vec![fail(), fail()]);
