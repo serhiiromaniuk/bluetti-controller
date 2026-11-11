@@ -350,6 +350,18 @@ fn control_panel_has_one_row_per_allowed_output() {
     ] {
         assert!(js.contains(route), "{route}");
     }
+    // A12: a pending row ignores clicks, the reply goes to the row as it is
+    // now, and a refresh keeps #live while a row waits or a time has focus.
+    for part in [
+        "if (pending[key]) return;",
+        "delete pending[key];",
+        "document.querySelectorAll(\"#live .ctl\")",
+    ] {
+        assert!(js.contains(part), "{part}");
+    }
+    let app = include_str!("../../../assets/app.js");
+    assert!(app.contains(r#"document.querySelector(".ctl:disabled, .ctl input:focus")"#));
+    assert!(app.contains(r#"!(hold && id === "live")"#));
 }
 
 #[test]

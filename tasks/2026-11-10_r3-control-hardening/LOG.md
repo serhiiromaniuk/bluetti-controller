@@ -224,3 +224,45 @@
 ```
 
 <!-- gate:end -->
+
+## Step 6 ✓ 2026-11-11 — A12: the control panel survives an auto-refresh
+
+**Changed:**
+- `assets/app.js` — `refresh()` keeps `#live` while `.ctl:disabled, .ctl input:focus` matches (a row mid-request or a focused time); `#tables` still swaps; `rendered` is reset only with `#live` (`#age` lives in it).
+- `assets/control.js` — `pending` set keyed `station/output`, a click on a pending row returns; the reply, error, label and re-enable go to `row()`, the fieldset re-found in `#live` by `data-station`/`data-output` (falls back to the clicked one); the key is deleted in the final `.then`.
+- `src/web/pages/tests.rs` — `control_panel_has_one_row_per_allowed_output` asserts the pending guard, the key clear, the re-find selector and the `refresh()` skip guard.
+- `HUMAN-CHECKLIST.md` — row H20 (the live race, manual).
+
+**Check:**
+- Red first: the extended test against the old assets panicked at `src/web/pages/tests.rs:360` (1 failed).
+- First `make check` red: `app.js: 12199 B > 12000 B`, then `control.js: 2177 B > 2000 B` (page-weight budget). Fixed the work, not the budget: comments shortened, `row()`/`say()` folded; now 12000 B and 2000 B.
+- `node --check` passes on both files (node is on the host; the repo still has no JS test runtime).
+- After: `make check` green.
+
+**reviewer:** risky, before the commit · INTENT satisfied · 0 CRITICAL / 0 HIGH / 1 MEDIUM; the race windows (click during an in-flight refresh, double sends, stuck rows on a non-JSON reply) are clean. MEDIUM (an unbounded focus hold freezes `#live` and shows a false STALE) deferred to amendment A2.
+
+**Decision:** none · **Carry-forward:** none
+**Next:** close the task (`make amendments`: A1, A2 open).
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T14:05:08Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

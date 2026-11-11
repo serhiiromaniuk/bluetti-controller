@@ -218,11 +218,13 @@
       return r.text();
     }).then(function (html) {
       var doc = new DOMParser().parseFromString(html, "text/html");
+      // A12: busy row/focused time keep #live
+      var hold = document.querySelector(".ctl:disabled, .ctl input:focus");
       ["live", "tables"].forEach(function (id) {
         var fresh = doc.getElementById(id);
-        if (fresh && $(id)) $(id).replaceWith(fresh);
+        if (fresh && $(id) && !(hold && id === "live")) $(id).replaceWith(fresh);
       });
-      rendered = Date.now() / 1000;
+      if (!hold) rendered = Date.now() / 1000;
     });
     Promise.all([page, load()]).then(function () {
       broken = false;
