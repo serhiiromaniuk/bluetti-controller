@@ -46,3 +46,11 @@
 ```
 
 <!-- gate:end -->
+
+## 2026-11-11 15:30 — Deferred by the owner
+
+- Owner, 2026-11-11, recorded at the owner's request: "skip elite, do
+  hardening first + deploy". The R3 control hardening task
+  (`2026-11-10_r3-control-hardening`) runs first, then the deploy.
+- `tasks/INDEX.md`: this task back to `todo`, hardening to `in-progress`.
+  No plan was written; the next open of this task starts at `needs_plan`.
