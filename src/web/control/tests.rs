@@ -140,11 +140,6 @@ async fn bad_station_output_or_state_is_400() {
                 "/api/control/output?station=AA:BB:CC:00:00:00&output=ac&state=on",
                 BEARER,
             ),
-            // The Elite lists no switch until H16 (§4.3).
-            (
-                "/api/control/output?station=office&output=ac&state=on",
-                BEARER,
-            ),
         ],
     )
     .await;
@@ -155,7 +150,6 @@ async fn bad_station_output_or_state_is_400() {
     assert!(bodies[0].contains("unknown station"));
     assert!(bodies[2].contains("ac or dc"));
     assert!(bodies[3].contains("on or off"));
-    assert!(bodies[5].contains("no ac output switch"), "{}", bodies[5]);
     assert!(seen.is_empty());
 }
 

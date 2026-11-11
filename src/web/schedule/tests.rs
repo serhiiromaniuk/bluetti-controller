@@ -98,8 +98,6 @@ async fn each_bad_field_is_400_naming_it() {
             "station",
         ),
         ("/api/schedule?station=router&output=usb&on=07:00", "output"),
-        // The Elite lists no switch until H16 (§4.3).
-        ("/api/schedule?station=office&output=ac&on=07:00", "output"),
         ("/api/schedule?station=router&output=ac&on=24:00", "on"),
         ("/api/schedule?station=router&output=ac&on=7:00", "on"),
         ("/api/schedule?station=router&output=ac&off=23:60", "off"),

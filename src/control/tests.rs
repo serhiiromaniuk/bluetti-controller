@@ -39,17 +39,9 @@ fn enabled_builds_with_the_listed_switch() {
 }
 
 #[test]
-fn enabled_refuses_an_output_the_model_does_not_list() {
-    // The Elite 200 V2 lists no switch until H16 (PLAN A2).
-    for output in [Output::Ac, Output::Dc] {
-        let refused =
-            Command::new(&ENABLED, &station(Model::Elite200V2), output, true).unwrap_err();
-        assert_eq!(
-            refused,
-            Refused::NotAllowed {
-                model: Model::Elite200V2,
-                output
-            }
-        );
+fn enabled_builds_the_elite_pair() {
+    for (output, register) in [(Output::Ac, 2011), (Output::Dc, 2012)] {
+        let command = Command::new(&ENABLED, &station(Model::Elite200V2), output, true).unwrap();
+        assert_eq!(command.switch().register(), register);
     }
 }

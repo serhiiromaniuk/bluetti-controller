@@ -96,13 +96,31 @@ const AC180: [OutputSwitch; 2] = [
     },
 ];
 
-/// The output switches allowed for `model`. The Elite 200 V2 has none until
-/// H16 confirms its 2011/2012 pair (ROADMAP.md §4.3, PLAN A2).
+/// The Elite 200 V2 uses the AC180's V2 pair. Its siblings EL10, EL30V2 and
+/// EL100V2 switch 2011/2012 in bluetti-bt-lib (MIT), and a read-only dump of
+/// the owner's unit showed the same block layout, 2011 = AC on (ROADMAP.md §4.3).
+/// Its own literal, so verifying the AC180 (H15) never marks it (H16).
+const ELITE200V2: [OutputSwitch; 2] = [
+    OutputSwitch {
+        output: Output::Ac,
+        register: 2011,
+        read_back: 2011,
+        verified: false,
+    },
+    OutputSwitch {
+        output: Output::Dc,
+        register: 2012,
+        read_back: 2012,
+        verified: false,
+    },
+];
+
+/// The output switches allowed for `model` (ROADMAP.md §4.3).
 pub fn switches(model: Model) -> &'static [OutputSwitch] {
     match model {
         Model::Eb3a => &EB3A,
         Model::Ac180 => &AC180,
-        Model::Elite200V2 => &[],
+        Model::Elite200V2 => &ELITE200V2,
     }
 }
 

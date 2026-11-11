@@ -5,6 +5,16 @@ VERSION=X.Y.Z` refuses to cut a release without its section (ROADMAP.md
 §10.6). Mark anything the host needs before the deploy with **config:** or
 **host:**, so `deploy/HOMELAB.md` §6 step 2 is never missed.
 
+## 1.6.0 — 2026-11-11
+
+- **AC/DC control for the Elite 200 V2.** The Elite joins the write
+  allow-list with 2011 AC / 2012 DC, the pair its V2 siblings use. Its card
+  on `/` gets the same toggles and daily schedule as the EB3A and AC180. A
+  scripted round trip on the owner's unit wrote each register and read it
+  back. The toggle shows "—" after every page load until a click returns the
+  read-back, because the Elite's poll does not read 2011/2012.
+- **config:** none. **host:** none.
+
 ## 1.5.0 — 2026-11-11
 
 - **Web login and request checks (ADR-011).** One owner login guards every

@@ -518,19 +518,23 @@ row is `verified: false` until its HUMAN-CHECKLIST check.
 | EB3A | DC | 3008 | 49 | mq, bt | yes |
 | AC180 | AC | 2011 | 2011 | bt | yes |
 | AC180 | DC | 2012 | 2012 | bt | yes |
-| Elite 200 V2 | AC | 2011 | 2011 | extrapolated from the AC180 / v2 base map (S13); no Elite source | **no**, until H16 |
-| Elite 200 V2 | DC | 2012 | 2012 | as above | **no**, until H16 |
+| Elite 200 V2 | AC | 2011 | 2011 | bt siblings EL10/EL30V2/EL100V2; owner's unit, 2026-11-11 | yes |
+| Elite 200 V2 | DC | 2012 | 2012 | as above | yes |
 
 - `protocol::control::switches(model)` lists exactly the "yes" rows. An
   `OutputSwitch` has private fields and no public constructor, so no code path
   can name another register (golden rule #2 enforced by the type).
-- The Elite pair stays out because no source confirms it and its profile does
-  not poll 2011 (the read-back is unknown): a read-back failure there would
-  make the scheduler resend a write up to 10 times per slot. H16 reads (2011, 2)
-  read-only beside the app; a match adds the Elite rows in a follow-up change.
+- The Elite pair joined on 2026-11-11 at the owner's request. bluetti-bt-lib
+  (MIT) switches 2011/2012 on the Elite's V2 siblings EL10, EL30V2 and
+  EL100V2. A read-only dump of the owner's unit showed the same 2000–2023
+  block (2011 = 1 with AC on, 2022/2023 = the 20/80 % range). A scripted
+  `set` run then wrote each register and read it back: DC on/off, AC
+  off/on, ending in the start state. Its profile still does not poll 2011, so
+  the toggle shows "—" after every page load until a click returns the
+  read-back.
 - Charging mode, ECO, power-off, LED and power lifting (the "Controls" lines
   above) are not on the list; a later R3 slice adds them, each with its decision.
-- **Recommendation:** these four rows only; the read-back register is read after
+- **Recommendation:** these six rows only; the read-back register is read after
   every write and shown in the UI.
 
 The M0 code (`src/protocol/device.rs`) implements these maps with a
@@ -1149,7 +1153,7 @@ Pages `/` and `/telemetry` (§8.1) need a session too; without one they answer
 - *Status.* `/api/status` station cards gain `ac_output_on` / `dc_output_on`
   (`bool`, from the last sample; `null` when the profile does not read them).
 - *Control panel on `/`.* Each station card has one row per output in
-  `switches(model)` (none for the Elite until H16, §4.3): a toggle labelled
+  `switches(model)` (§4.3): a toggle labelled
   with the last known state (the card's field, then the POST's read-back; "—"
   when unknown) and the row's `on`/`off` time inputs with Save (POST) and Clear
   (DELETE). The panel's requests carry the session cookie and the page's own

@@ -292,7 +292,7 @@ fn asset_urls_carry_the_build() {
 }
 
 /// `router` (EB3A, AC on and DC unknown in its newest sample, AC scheduled
-/// 07:30–23:00) and `office` (Elite 200 V2: no switches until H16, A6).
+/// 07:30–23:00) and `office` (Elite 200 V2, no sample: its toggles show "—").
 fn control_page(enabled: bool) -> String {
     let conn = db();
     conn.execute_batch(&format!(
@@ -337,9 +337,10 @@ fn control_panel_has_one_row_per_allowed_output() {
 <button type="button" class="toggle" data-state="—">—</button>
 <label>on <input type="time" name="on" value=""></label> <label>off <input type="time" name="off" value=""></label>"#
     ));
-    // The Elite has no allowed output: no row (spec §4.3, A6).
-    assert_eq!(html.matches(r#"<fieldset class="ctl""#).count(), 2);
-    assert!(!html.contains(r#"data-station="office""#));
+    // The Elite lists AC and DC too (spec §4.3): two rows each.
+    assert_eq!(html.matches(r#"<fieldset class="ctl""#).count(), 4);
+    assert!(html.contains(r#"data-station="office" data-output="ac""#));
+    assert!(html.contains(r#"data-station="office" data-output="dc""#));
     assert!(!html.contains("control disabled") && !html.contains(" disabled>"));
     assert!(html.contains(r#"<script src="/assets/control.js?v="#));
     let js = include_str!("../../../assets/control.js");
@@ -379,11 +380,11 @@ fn disabled_control_disables_the_toggles_only() {
         html.matches(r#"class="toggle" data-state="#).count(),
         html.matches(" disabled>").count()
     );
-    assert_eq!(html.matches(" disabled>").count(), 2);
+    assert_eq!(html.matches(" disabled>").count(), 4);
     assert_eq!(
         html.matches("control disabled — the schedule will not run")
             .count(),
-        1
+        2
     );
     // The times stay editable.
     assert!(html.contains(r#"<input type="time" name="on" value="07:30">"#));

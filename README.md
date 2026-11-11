@@ -109,7 +109,7 @@ register is `verified: false` until the owner's hardware checks H14–H17 in
 - **Off by default.** Nothing is written unless `[control] enabled = true`
   (owner only, RULES.md golden rule #2). Only the output switches in
   `src/protocol/control.rs` can ever be written: EB3A 3007 AC / 3008 DC, AC180
-  2011 AC / 2012 DC. The Elite 200 V2 has none until H16 confirms its pair.
+  2011 AC / 2012 DC, Elite 200 V2 2011 AC / 2012 DC.
 - **Login and token.** `control.enabled = true` without `web.token` and
   `web.password_hash` fails at startup. Every control POST and schedule edit
   needs the login session (or the bearer); schedule edits need `web.token` set

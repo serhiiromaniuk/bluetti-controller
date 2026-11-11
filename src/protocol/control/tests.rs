@@ -26,8 +26,11 @@ fn ac180_writes_and_reads_back_2011_2012() {
 }
 
 #[test]
-fn elite_has_no_switch_until_h16() {
-    assert!(switches(Model::Elite200V2).is_empty());
+fn elite_writes_and_reads_back_2011_2012() {
+    assert_eq!(
+        pairs(Model::Elite200V2),
+        [(Output::Ac, 2011, 2011), (Output::Dc, 2012, 2012)]
+    );
 }
 
 #[test]
