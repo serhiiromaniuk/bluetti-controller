@@ -309,3 +309,37 @@
 ```
 
 <!-- gate:end -->
+
+## Close ✗ 2026-11-11 — close-reviewer: hold (close-hold 1)
+
+**close-reviewer:** VERDICT hold · 1 CRITICAL / 0 HIGH / 2 MEDIUM / 0 UNVERIFIED · TREE-CHANGED none.
+- CRITICAL: `an_oversized_password_or_body_stays_bounded` flakes on `BrokenPipe` at `src/web/tests.rs:77` (3 of 25 lib runs); it predates the task, but done-when 5 needs a deterministic gate → PLAN A4.
+- MEDIUM: OUTCOME Deliverables are stale (bounded hold, no A3, no `b3968a3`, Files incomplete) → PLAN A5.
+- MEDIUM: H20 checks nothing for A2/A3 → PLAN A6.
+- Passed: done-when 1–3 by mutants in scratch copies; A1 and A3 by mutants; A12/A2/A3 exercised in headless Chrome against a mocked `fetch` (all scenarios green); no stubs; no carry-forwards.
+
+**Done-when:** nothing ticked.
+**Next:** the next close fixes A4–A6 (each reviewed, `--no-tick`), then asks the close-reviewer again.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-11T14:25:57Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
