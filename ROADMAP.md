@@ -2047,6 +2047,6 @@ From the planning session (sources S33, S34). Useful for forecasts and alerts.
 | Bluetti cloud adapter | not planned | offline-first (golden rule #1) |
 | Native Android app | not planned | web page works on the phone |
 | ESP32 BLE proxies for range | not planned | revisit only if range fails (R5) |
-| Single-user web login, Host/Origin guard | in progress | ADR-011, task `2026-11-07_web-security` |
+| Single-user web login, Host/Origin guard | shipped in 1.5.0 | ADR-011, task `2026-11-07_web-security` |
 | Multi-user accounts, roles | not planned | one owner; ADR-011 covers the single user |
 | HTTPS on the LAN | not planned | Wi-Fi is encrypted; a TLS proxy is documented (ADR-011) |
