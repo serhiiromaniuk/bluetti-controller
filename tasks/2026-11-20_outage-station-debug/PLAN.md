@@ -3,8 +3,8 @@
 > Steps are frozen once work starts; append amendments instead of rewriting.
 
 ## Questions for the owner
-- Q1 — Does the AC180 normally remain plugged into a house-mains socket? Were its 20 Nov input losses outages or disconnections? · blocks: 4 · answer: asked 2026-11-20
-- Q2 — Is the Elite powered on, with Bluetooth enabled and in range? Is the missing item the entire card, its chart line, or another view? · blocks: 2, 4 · answer: asked 2026-11-20
+- Q1 — Does the AC180 normally remain plugged into a house-mains socket? Were its 20 Nov input losses outages or disconnections? · blocks: 4 · answer: asked 2026-11-20; owner says normally plugged in; cause of historical losses not confirmed
+- Q2 — Is the Elite powered on, with Bluetooth enabled and in range? Is the missing item the entire card, its chart line, or another view? · blocks: 2, 4 · answer: asked 2026-11-20; owner says powered on and Bluetooth enabled; missing view not specified
 
 ## Steps
 - [x] 1. Record read-only, redacted evidence: current sensor roles, station

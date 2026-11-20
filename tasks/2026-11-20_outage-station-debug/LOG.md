@@ -127,3 +127,36 @@
 ```
 
 <!-- gate:end -->
+
+## Investigation 2026-11-20 — owner confirms station state
+
+- Owner confirms AC180 is normally on mains and Elite is powered on with Bluetooth enabled; did not identify the missing UI element or independently confirm prior input-loss causes.
+- A 20 s read-only scan on the Debian host found AC180 at −48 dBm and EB3A at −50 dBm but no Elite. Mobile and router samples continued afterwards; Elite remains undiscoverable.
+- `src/web/pages/tests.rs`: real server-side HTML with a stale Elite and three discovery failures retains its card, unreachable badge and unknown grid. Node uPlot join with an empty Elite series preserves its column as null.
+- `HANDOFF.md` prepares owner-run sensor-role changes, validation, deploy and rollback; the false historical event is explicitly not rewritten without corroboration and a separately tested procedure.
+- **Check:** `make check` green, including the new offline-card test; handoff shell blocks pass `bash -n`. No production settings or historical data changed.
+- **Lenses:** engineer: preserve configured cards and avoid invented readings; risk: no host or device writes; security: redacted scan and config output; future: history uncertainty remains explicit.
+- **reviewer:** 0 critical / 0 high / 0 medium; clarified that backup retains original access mode.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-20T16:12:01Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

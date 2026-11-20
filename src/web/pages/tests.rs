@@ -71,6 +71,30 @@ fn page(token: Option<&str>) -> String {
 }
 
 #[test]
+fn unreachable_elite_remains_visible_on_dashboard() {
+    let conn = fixture(NOW);
+    conn.execute(
+        "INSERT INTO sample (station_id, ts, soc, ac_in_v, encrypted) VALUES (2, ?1, 80, 220, 1)",
+        [NOW - 86400],
+    )
+    .unwrap();
+    for ts in [NOW - 180, NOW - 120, NOW - 60] {
+        conn.execute(
+            "INSERT INTO poll_failure (station_id, ts, stage, error) VALUES (2, ?1, 'discover', 'not found')",
+            [ts],
+        )
+        .unwrap();
+    }
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let html = render(&conn, NOW, &state).unwrap();
+    let card = html.split("<h2>office ").nth(1).expect("Elite card");
+    let card = card.split("</section>").next().unwrap();
+    assert!(card.contains("Elite200V2"));
+    assert!(card.contains("unreachable since"));
+    assert!(card.contains("Grid <span class=\"badge warn\">unknown</span>"));
+}
+
+#[test]
 fn renders_hand_computed_values() {
     let html = page(None);
     // Router votes present → power, since the house event's end 10:00 local.
