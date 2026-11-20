@@ -7,7 +7,7 @@
 - Q2 — Is the Elite powered on, with Bluetooth enabled and in range? Is the missing item the entire card, its chart line, or another view? · blocks: 2, 4 · answer: asked 2026-11-20
 
 ## Steps
-- [ ] 1. Record read-only, redacted evidence: current sensor roles, station
+- [x] 1. Record read-only, redacted evidence: current sensor roles, station
   latest samples and discovery failures; chart AC180/EB3A input and event
   timestamps across the false event; trace the vote, persisted open event,
   station list and UI paths. Distinguish an input loss from a proven house

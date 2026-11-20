@@ -30,3 +30,37 @@
 ```
 
 <!-- gate:end -->
+
+## Step 1 ✓ 2026-11-20 — traced house vote and missing Elite
+
+- **Evidence:** read-only SSH config/SQLite query; timezone Europe/Kyiv; `grid_voltage_min=180`, debounce 2, poll interval 60 s (`ROADMAP.md` §7.1–7.2).
+- Sensors: router EB3A and living-room Elite enabled; mobile AC180 disabled. Router 220 V at 20:48:48 → 0 V at 20:49:48 and 20:50:48 on 19 Nov. AC180 222.0 V at 20:49:54, 221.5 V at 20:50:56.
+- DB opened router and house events 19 Nov 20:49:48; both remain open. AC180 events: 20 Nov 07:25:54–09:13:54 and 15:07:54–open. Input loss is not independently proof of a house outage.
+- Elite last sample 17 Nov 19:34:54 (220.4 V); latest failure 20 Nov 17:31:54 at discovery. At 17:35 mobile read 2.2 V and router 0 V.
+- `src/metrics/house.rs`: absent plus unknown votes outage; `src/store/writer.rs`: restores open house events; `src/web/status.rs` and `templates/status.html` include every station card. Whether the missing UI item is a card or chart remains unverified.
+- **Check:** observed values and sensor roles reproduce the vote and banner; configured event persistence explains restart behavior. No authenticated UI or physical Elite check available.
+- **reviewer:** batched (read-only evidence / prose). **Decision:** none; sensor role and historical correction depend on physical context.
+- **Next:** step 2, reproduce the indicated missing UI view when Q2 is answered.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-20T15:37:18Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
