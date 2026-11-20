@@ -64,3 +64,35 @@
 ```
 
 <!-- gate:end -->
+
+## Step 3 2026-11-20 — show unknown when every sensor is stale
+
+- **Changed:** `src/web/status.rs`, tests and `ROADMAP.md` §8.4: show unknown if every configured grid sensor is unknown; keep any open outage event unchanged (§6).
+- **Check:** `make test` first failed the new stale-sensor regression (outage vs unknown); `make check` then passed, including the regression, formatting, clippy and coverage.
+- **Evidence:** Elite discovery failures since 17 Nov start at discovery; cached BlueZ target absent. No claim that device is off or on. Original false event still needs sensor-role correction and history reconciliation.
+- **Lenses:** engineer: current state separated from persisted event; risk: no device or production changes; security: no credentials touched; future: chart uptime gap recorded as amendment A1.
+- **reviewer:** 0 critical / 0 high / 0 medium; original false event and A1 remain separate.
+
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-20T15:48:17Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

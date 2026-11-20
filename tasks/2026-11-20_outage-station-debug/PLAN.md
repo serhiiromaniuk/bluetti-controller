@@ -21,7 +21,7 @@
   Cite `spec §8.4` and `spec §5.5` — check: the indicated view preserves
   configured stations and reports stale/unreachable data correctly, or the
   physical limitation is documented and handed to the owner; reviewer.
-- [ ] 3. Validate whether any outage-state implementation defect exists
+- [x] 3. Validate whether any outage-state implementation defect exists
   independently of sensor roles; implement only evidenced corrections with a
   failing-then-passing regression covering absent, present, unknown, debounce,
   restart and event timing as applicable. Do not silently make a non-sensor
@@ -58,3 +58,5 @@
   not invent a fix or tick verification.
 
 ## Amendments
+- 2026-11-20 — While Q2 blocks step 2, execute independent step 3 first, using `--steps 3`. Correct the current banner when every sensor is unknown without closing the historical event; ROADMAP §7.2 requires unknown while §6 keeps the event open. This does not fix the misconfigured sensor roles or rewrite history.
+- A1 · 2026-11-20 · MEDIUM `src/web/chart.rs` — uptime counts intervals with no reachable grid sensor as monitored; calculate sensor coverage before reporting availability · disposition: open

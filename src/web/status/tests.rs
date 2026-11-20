@@ -206,6 +206,23 @@ fn no_sensor_reachable_is_unknown() {
 }
 
 #[test]
+fn open_outage_with_all_sensors_stale_shows_unknown_without_closing_event() {
+    let conn = db();
+    sample(&conn, 1, NOW - 181, 50.0, 100.0, 0.0);
+    event(&conn, "house", NOW - 300, None);
+    let state = AppState::for_tests(Connection::open_in_memory().unwrap());
+    let house = status(&conn, NOW, &state).unwrap().house;
+    assert_eq!(
+        house,
+        Banner {
+            state: "unknown",
+            since: None
+        }
+    );
+    assert!(read::open_event(&conn, "house").unwrap().is_some());
+}
+
+#[test]
 fn paused_until_follows_control() {
     let conn = db();
     let state = AppState::for_tests(Connection::open_in_memory().unwrap());

@@ -139,9 +139,15 @@ fn grid_state(
     })
 }
 
-/// An open house event wins (outage since its start); otherwise the vote, with
-/// power "since" the newest closed house event's end.
+/// An open event remains recorded through a gap, but an entirely unreachable
+/// sensor set cannot establish the current house state.
 fn banner(conn: &Connection, sensors: &[GridState]) -> anyhow::Result<Banner> {
+    if house::vote(sensors) == HouseState::Unknown {
+        return Ok(Banner {
+            state: "unknown",
+            since: None,
+        });
+    }
     if let Some(open) = read::open_event(conn, "house")? {
         return Ok(Banner {
             state: "outage",

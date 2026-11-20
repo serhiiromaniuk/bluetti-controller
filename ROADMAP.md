@@ -1188,7 +1188,8 @@ recommendation the code follows.
   older than 3 poll intervals → `Unknown`; else `Present`. House banner:
   `metrics::house::vote` over the `grid_sensor` stations' states; "since" =
   the open house event's `started_at`, else the newest closed house event's
-  `ended_at`, else omitted. **Poll health** on the card: samples and
+  `ended_at`, else omitted. If every sensor is unknown, the banner is unknown
+  even when an outage event remains open until power is observed. **Poll health** on the card: samples and
   `poll_failure` rows of the last 24 h, plus the newest failure's stage.
 - **(c) Runtime forecast.** `metrics::runtime::forecast` over the station's
   last 2 h of `sample` rows, with `station.capacity_wh` (DB) and
