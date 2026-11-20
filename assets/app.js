@@ -155,15 +155,16 @@
     });
   }
 
-  // Grid uptime over the window's monitored past; floored, so any outage shows < 100%.
+  // Event records are not proof of full sensor coverage in the selected range.
   function uptime() {
     var h = data.house, w = data.house_to - data.house_from;
     $("uptime").textContent = "";
     if (!(w > 0)) return;
     var on = data.outages.some(function (o) { return o.scope === "house" && o.ongoing; });
-    $("uptime").innerHTML = '<span class="badge ' + (on ? "bad" : h.count ? "warn" : "ok") + '">Grid uptime ' +
-      Math.floor(1000 - 1000 * h.seconds_without_power / w) / 10 + "%</span> " + (h.count ? h.count + " outage(s) · " +
-      span(h.seconds_without_power) + " without power · longest " + span(h.longest_s) + (on ? " · ongoing" : "") : "No outages");
+    $("uptime").innerHTML = '<span class="badge warn">Recorded house events: ' + h.count + '</span> ' +
+      (h.count ? "recorded duration " + span(h.seconds_without_power) + " · longest " + span(h.longest_s) +
+        (on ? " · ongoing" : "") + " · " : "") +
+      "Sensor gaps, disconnections or changed settings can make records incomplete or inaccurate.";
   }
 
   function failed(e) {

@@ -55,9 +55,9 @@
 {% endfor %}</table>
 {% for l in lifetime %}<p class="muted">{{ l }}</p>
 {% endfor %}<table>
-<tr><th>Day</th><th>House outages</th><th>Without power</th><th>Longest</th></tr>
+<tr><th>Day</th><th>Recorded house events</th><th>Recorded duration</th><th>Longest</th></tr>
 {% for h in house %}<tr><td>{{ h.day }}</td><td>{{ h.count }}</td><td>{{ h.without }}</td><td>{{ h.longest }}</td></tr>
-{% endfor %}</table></div>
+{% endfor %}</table><p class="muted">Sensor gaps, disconnections or changed settings can make records incomplete or inaccurate.</p></div>
 </div>
 <h2>Pause polling</h2>
 <p class="muted">Stops BLE polling so the phone app can connect; 0 resumes.</p>

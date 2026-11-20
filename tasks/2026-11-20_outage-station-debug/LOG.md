@@ -96,3 +96,34 @@
 ```
 
 <!-- gate:end -->
+
+## A1 mitigation 2026-11-20 — qualify recorded outages
+
+- **Changed:** dashboard summary no longer presents an unsupported uptime percentage; chart summary and daily house table identify event counts and durations as records that can be inaccurate when sensor coverage or settings change.
+- **Evidence:** `station.grid_sensor` is overwritten on sync; old raw readings are purged and rollups omit exact grid readings. Historical sensor coverage cannot be reconstructed reliably.
+- **Check:** `node --check assets/app.js` and Node VM scenarios for no events and an ongoing event pass; `make check` green. A1 remains open for actual coverage accounting.
+- **Lenses:** engineer: retain event data and API; risk: do not imply complete coverage; security: no secrets touched; future: precise uptime needs timestamped sensor roles and known/unknown intervals.
+- **reviewer:** 0 critical / 0 high / 0 medium; live UI not inspected.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-20T15:52:14Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->

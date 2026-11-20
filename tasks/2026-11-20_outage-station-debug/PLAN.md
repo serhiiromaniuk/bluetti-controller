@@ -60,3 +60,4 @@
 ## Amendments
 - 2026-11-20 — While Q2 blocks step 2, execute independent step 3 first, using `--steps 3`. Correct the current banner when every sensor is unknown without closing the historical event; ROADMAP §7.2 requires unknown while §6 keeps the event open. This does not fix the misconfigured sensor roles or rewrite history.
 - A1 · 2026-11-20 · MEDIUM `src/web/chart.rs` — uptime counts intervals with no reachable grid sensor as monitored; calculate sensor coverage before reporting availability · disposition: open
+- 2026-11-20 — While Q2 remains unanswered, mitigate A1 independently: label event totals as recorded estimates and suppress the unsupported uptime percentage. Full historical coverage remains open because sensor-role history and old raw readings are unavailable; this increment does not tick an unrelated step.

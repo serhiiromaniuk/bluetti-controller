@@ -1269,6 +1269,9 @@ recommendation the code follows.
     48 h) and rounds values to 0.1.
   - Data age: "Last sample N ago" on the server clock; after 3 poll intervals
     it becomes a STALE banner. Days without samples read "no data", never 0.
+  - House event summaries are labelled recorded estimates; sensor gaps and
+    configuration changes can make their counts and durations inaccurate.
+    Do not claim a measured uptime percentage without historical coverage.
   - Dark theme by default, a toggle kept in `localStorage`; no-JS shows cards
     and tables only. The pause form shows a token field only when `web.token`
     is set. One-column CSS below 600 px.
