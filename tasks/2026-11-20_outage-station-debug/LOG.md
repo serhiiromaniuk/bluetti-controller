@@ -160,3 +160,35 @@
 ```
 
 <!-- gate:end -->
+
+## Deployment 2026-11-20 — owner approved sensor change and deploy
+
+- Owner instructed “i approve, go ahead” for the prepared config and deployment. Agent executed; no human-verified sign-off is implied.
+- Backed up the host config preserving its access mode, then set router sensor false, mobile true, living-room true. Config check passed; no secrets printed.
+- `make deploy HOST=debian@192.168.0.192` exited 0; preflight passed, updater backed up DB/config, build `v1.6.0-5-g318d2f8` healthy with new samples; previous build `v1.6.0`.
+- **Read-only postcheck:** config/DB roles agree; AC180 sample 18:19:50 at 2.3 V; Elite latest 17 Nov 19:34:54, recent failure at discovery. Open house event still starts 19 Nov 20:49:48; history was not edited.
+- **reviewer:** independent read-only deployment audit, 0 reported gaps in role and service verification; Elite and historical correction remain unresolved.
+- **Next:** owner physical Elite Bluetooth checks; determine which UI element is missing and corroborate historic input-loss causes before reconciliation.
+
+<!-- gate:begin (written by loop/step-done.sh — do not edit) -->
+**Gate:** `make check` EXIT=0 · 2026-11-20T16:21:25Z
+
+```text
+
+    Finished report saved to target/llvm-cov-summary.json
+>> src/protocol/ line coverage 98.82% (min 80%)
+>> src/metrics/ line coverage 99.53% (min 80%)
+>> src/web/guard.rs line coverage 100% (min 100%)
+>> src/web/headers.rs line coverage 100% (min 100%)
+>> src/web/auth/mod.rs line coverage 100% (min 100%)
+>> src/web/auth/session.rs line coverage 100% (min 100%)
+>> src/web/auth/password.rs line coverage 100% (min 100%)
+>> src/web/api/window.rs line coverage 100% (min 100%)
+>> src/config/web.rs line coverage 100% (min 100%)
+>> src/config/mode.rs line coverage 100% (min 100%)
+>> src/cli/hash_password.rs line coverage 100% (min 100%)
+>> src/cli/printable.rs line coverage 100% (min 100%)
+>> make check: all gates green
+```
+
+<!-- gate:end -->
